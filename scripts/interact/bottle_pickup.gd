@@ -13,8 +13,11 @@ func get_prompt(_player: Player) -> String:
 
 func interact(player: Player) -> void:
 	player.bottles += 1
-	enabled = false
-	visible = false
+	take()
+
+
+func sync_from_state() -> void:
+	_sync_taken()
 
 
 func _draw() -> void:

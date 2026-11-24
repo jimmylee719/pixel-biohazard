@@ -1,16 +1,6 @@
-## 用文字地圖建立關卡：地板、牆壁碰撞、遮光體、導航網格、互動物件、敵人路線、溫度區域。
+## 依區域資料（Areas.DATA）建立一個區域：地板、牆壁碰撞、遮光體、導航網格、互動物件、門、敵人路線、溫度區域。
 ## 原型階段用色塊，之後換成 TileMapLayer 和正式美術時，只要保留同樣的對外函式即可。
-##
-## 地圖符號：
-##   #  牆壁
-##   C  櫃子／實驗桌（擋路、擋視線）
-##   H  置物櫃（擋路、擋視線，可以躲進去）
-##   .  地板
-##   P  主角出生點
-##   B  空瓶（可撿起、可投擲當誘餌）
-##   X  配電箱（切換某個區域的暖氣）
-##   G  出口（原型的終點）
-##   1～9、a～i  敵人巡邏點，哪些點屬於哪隻敵人見 ENEMIES
+## 地圖符號見 scripts/world/areas.gd。
 class_name Level
 extends Node2D
 
@@ -19,74 +9,48 @@ signal zone_heat_changed(zone_name: String, heated: bool)
 const TILE := 16
 const WALL_LAYER := 1
 
-const MAP: Array[String] = [
-	"############################################",
-	"#......H...........#########################",
-	"#.G.......1........####........X.........###",
-	"#...............2..####.........a.....B..###",
-	"#...CC......CC.....####..................###",
-	"#...CC......CC............CCCCC..CCCCC...###",
-	"#........................................###",
-	"#..................####..d..............H###",
-	"#...CC......CC....H####..................###",
-	"#...CC......CC.....####...CCCCC..CCCCC...###",
-	"#..............3...####................b.###",
-	"#..................####H.c...............###",
-	"########...############..................###",
-	"########...#################...#############",
-	"########.4.#################...#############",
-	"########...#################...#############",
-	"########...#################...#############",
-	"########................C...............####",
-	"########......B.5.....6.C...............####",
-	"########............H...................####",
-	"##################################....######",
-	"##################################.B..######",
-	"##################################..P.######",
-	"##################################....######",
-	"############################################",
-]
-
-## 每隻敵人：種類＋巡邏路線（依字元順序來回巡邏，第一個點是出生點）
-const ENEMIES := [
-	{"type": "patroller", "route": "123456"},
-	{"type": "listener", "route": "abcd"},
-]
-
-## 溫度區域（格子座標）。heated = 一開始有沒有開暖氣。
-const ZONES := {
-	"lounge": {"rect": Rect2i(1, 1, 18, 11), "heated": true},
-	"lab": {"rect": Rect2i(23, 2, 18, 11), "heated": true},
-}
-## 配電箱控制哪一個區域（依地圖上 X 出現的順序）
-const BREAKER_ZONES: Array[String] = ["lounge"]
-
-const FLOOR_COLOR_A := Color(0.42, 0.44, 0.48)
-const FLOOR_COLOR_B := Color(0.38, 0.40, 0.44)
+const INDOOR_FLOOR_A := Color(0.42, 0.44, 0.48)
+const INDOOR_FLOOR_B := Color(0.38, 0.40, 0.44)
+const SNOW_FLOOR_A := Color(0.70, 0.74, 0.80)
+const SNOW_FLOOR_B := Color(0.66, 0.70, 0.77)
+const DOOR_COLOR := Color(0.55, 0.45, 0.25)
 const COLD_TINT := Color(0.55, 0.75, 1.0)
 const WALL_COLOR := Color(0.20, 0.22, 0.26)
 const WALL_EDGE_COLOR := Color(0.30, 0.33, 0.38)
+const ROCK_COLOR := Color(0.16, 0.17, 0.20)
+const ROCK_EDGE_COLOR := Color(0.32, 0.34, 0.40)
 const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
+const FLOOR_CHARS := ".PDBKTXG"
 
-var player_spawn := Vector2.ZERO
+## 建立前設定
+var area_id := Areas.START_AREA
+
+var title := ""
+var outdoor := false
+var zones := {}
 ## [{"type": String, "points": Array[Vector2]}]
 var enemy_defs: Array[Dictionary] = []
 var bounds := Rect2()
 
+var _data := {}
+var _map: Array = []
 var _floor_cells: Array[Vector2i] = []
 var _waypoints := {}
-var _heated := {}
+var _start_position := Vector2.ZERO
 var _nav_region: NavigationRegion2D
 var _structure_layer: CanvasLayer
 var _interactables: Array[Interactable] = []
 
 
 func _ready() -> void:
-	for zone_name in ZONES:
-		_heated[zone_name] = ZONES[zone_name].heated
+	_data = Areas.get_area(area_id)
+	_map = _data.map
+	title = _data.title
+	outdoor = _data.outdoor
+	zones = _data.zones
 	_parse_map()
 	_build_solids()
 	_spawn_interactables()
@@ -94,13 +58,21 @@ func _ready() -> void:
 	queue_redraw()
 
 
-## 地板直接畫在世界圖層，會被燈光照亮、在黑暗中看不見。沒開暖氣的區域地板偏藍（結霜）。
+## 地板直接畫在世界圖層，會被燈光照亮、在黑暗中看不見。沒開暖氣的室內地板偏藍（結霜）。
 func _draw() -> void:
 	for cell in _floor_cells:
-		var color := FLOOR_COLOR_A if (cell.x + cell.y) % 2 == 0 else FLOOR_COLOR_B
-		if is_cold(_cell_center(cell)):
-			color = color * COLD_TINT
+		var even := (cell.x + cell.y) % 2 == 0
+		var color: Color
+		if outdoor:
+			color = SNOW_FLOOR_A if even else SNOW_FLOOR_B
+		else:
+			color = INDOOR_FLOOR_A if even else INDOOR_FLOOR_B
+			if is_cold(_cell_center(cell)):
+				color = color * COLD_TINT
 		draw_rect(Rect2(Vector2(cell) * TILE, Vector2(TILE, TILE)), color)
+	for door_id in _data.doors:
+		var cell: Vector2i = _data.doors[door_id].cell
+		draw_rect(Rect2(Vector2(cell) * TILE + Vector2(2, 2), Vector2(TILE - 4, TILE - 4)), DOOR_COLOR)
 
 
 func get_navigation_map() -> RID:
@@ -111,39 +83,73 @@ func get_interactables() -> Array[Interactable]:
 	return _interactables
 
 
+func get_message(item_name: String) -> String:
+	return _data.messages.get(item_name, "")
+
+
+# ── 門與入口 ──────────────────────────────────────────
+
+## 進入這個區域時站的位置。entry = "start"（遊戲開始點）或門的 id。
+func get_entry_position(entry: String) -> Vector2:
+	if entry == Areas.START_ENTRY or not _data.doors.has(entry):
+		return _start_position
+	var door: Dictionary = _data.doors[entry]
+	return _cell_center(door.cell + door.spawn_dir)
+
+
+## 主角站在哪一扇門上（沒有就回傳空字串）。
+func door_at(pos: Vector2) -> String:
+	var cell := cell_of(pos)
+	for door_id in _data.doors:
+		if _data.doors[door_id].cell == cell:
+			return door_id
+	return ""
+
+
+func door_target(door_id: String) -> String:
+	return _data.doors[door_id].to
+
+
+func cell_of(pos: Vector2) -> Vector2i:
+	return Vector2i(floori(pos.x / TILE), floori(pos.y / TILE))
+
+
 # ── 溫度 ──────────────────────────────────────────────
 
 func zone_at(pos: Vector2) -> String:
-	var cell := Vector2i(floori(pos.x / TILE), floori(pos.y / TILE))
-	for zone_name in ZONES:
-		if (ZONES[zone_name].rect as Rect2i).has_point(cell):
+	var cell := cell_of(pos)
+	for zone_name in zones:
+		if (zones[zone_name].rect as Rect2i).has_point(cell):
 			return zone_name
 	return ""
 
 
 func is_cold(pos: Vector2) -> bool:
 	var zone := zone_at(pos)
-	return zone != "" and not _heated[zone]
+	return zone != "" and not is_zone_heated(zone)
 
 
 func is_zone_heated(zone_name: String) -> bool:
-	return _heated.get(zone_name, true)
+	if not zones.has(zone_name):
+		return true
+	return WorldState.is_zone_heated(area_id, zone_name, zones[zone_name].heated)
 
 
 func set_zone_heated(zone_name: String, heated: bool) -> void:
-	if _heated.get(zone_name) == heated:
+	if is_zone_heated(zone_name) == heated:
 		return
-	_heated[zone_name] = heated
+	WorldState.set_zone_heated(area_id, zone_name, heated)
 	queue_redraw()
 	zone_heat_changed.emit(zone_name, heated)
 
 
-## 被抓到或過關後，把關卡恢復成初始狀態。
-func reset_state() -> void:
-	for zone_name in ZONES:
-		set_zone_heated(zone_name, ZONES[zone_name].heated)
+## 世界狀態被還原（回到檢查點）後，讓地圖上的東西跟著更新。
+func sync_from_state() -> void:
 	for item in _interactables:
-		item.reset()
+		item.sync_from_state()
+	for zone_name in zones:
+		zone_heat_changed.emit(zone_name, is_zone_heated(zone_name))
+	queue_redraw()
 
 
 # ── 建立 ──────────────────────────────────────────────
@@ -154,26 +160,24 @@ func _cell_center(cell: Vector2i) -> Vector2:
 
 func _parse_map() -> void:
 	var width := 0
-	for y in MAP.size():
-		var row: String = MAP[y]
+	for y in _map.size():
+		var row: String = _map[y]
 		width = maxi(width, row.length())
 		for x in row.length():
 			var ch := row[x]
 			if ch == "#" or ch == "C" or ch == "H":
 				continue
 			_floor_cells.append(Vector2i(x, y))
-			var center := _cell_center(Vector2i(x, y))
 			if ch == "P":
-				player_spawn = center
-			elif ch != "." and ch != "B" and ch != "X" and ch != "G":
-				_waypoints[ch] = center
-	bounds = Rect2(Vector2.ZERO, Vector2(width, MAP.size()) * TILE)
-	assert(player_spawn != Vector2.ZERO, "地圖缺少主角出生點 P")
+				_start_position = _cell_center(Vector2i(x, y))
+			elif not FLOOR_CHARS.contains(ch):
+				_waypoints[ch] = _cell_center(Vector2i(x, y))
+	bounds = Rect2(Vector2.ZERO, Vector2(width, _map.size()) * TILE)
 
-	for def in ENEMIES:
+	for def in _data.enemies:
 		var points: Array[Vector2] = []
 		for ch in String(def.route):
-			assert(_waypoints.has(ch), "地圖缺少巡邏點 %s" % ch)
+			assert(_waypoints.has(ch), "%s 缺少巡邏點 %s" % [area_id, ch])
 			points.append(_waypoints[ch])
 		enemy_defs.append({"type": def.type, "points": points})
 
@@ -182,8 +186,8 @@ func _parse_map() -> void:
 func _merge_rects(symbol: String) -> Array[Rect2i]:
 	var result: Array[Rect2i] = []
 	var open := {}  # Vector2i(x0, x1) -> 在 result 裡的索引（上一列延伸下來的長方形）
-	for y in MAP.size():
-		var row: String = MAP[y]
+	for y in _map.size():
+		var row: String = _map[y]
 		var runs: Array[Vector2i] = []
 		var x := 0
 		while x < row.length():
@@ -213,7 +217,7 @@ func _build_solids() -> void:
 	_nav_region.name = "Navigation"
 	add_child(_nav_region)
 
-	# 牆壁的外觀放在獨立的 CanvasLayer，不受黑暗影響，讓玩家永遠看得懂建築結構。
+	# 牆壁的外觀放在獨立的 CanvasLayer，不受黑暗影響，讓玩家永遠看得懂地形。
 	_structure_layer = CanvasLayer.new()
 	_structure_layer.name = "Structure"
 	_structure_layer.layer = 1
@@ -223,7 +227,10 @@ func _build_solids() -> void:
 	for rect in _merge_rects("#"):
 		_add_solid(rect, WALL_COLOR, WALL_EDGE_COLOR)
 	for rect in _merge_rects("C"):
-		_add_solid(rect, CABINET_COLOR, CABINET_EDGE_COLOR)
+		if outdoor:
+			_add_solid(rect, ROCK_COLOR, ROCK_EDGE_COLOR)
+		else:
+			_add_solid(rect, CABINET_COLOR, CABINET_EDGE_COLOR)
 	for rect in _merge_rects("H"):
 		_add_solid(rect, LOCKER_COLOR, LOCKER_EDGE_COLOR)
 
@@ -269,28 +276,36 @@ func _add_solid(cell_rect: Rect2i, fill: Color, edge: Color) -> void:
 
 func _spawn_interactables() -> void:
 	var breaker_index := 0
-	for y in MAP.size():
-		var row: String = MAP[y]
+	for y in _map.size():
+		var row: String = _map[y]
 		for x in row.length():
-			var center := _cell_center(Vector2i(x, y))
 			var item: Interactable = null
 			match row[x]:
 				"H":
 					item = Locker.new()
 				"B":
 					item = BottlePickup.new()
+				"K":
+					item = SupplyCrate.new()
+				"T":
+					item = TapePickup.new()
 				"X":
 					var breaker := Breaker.new()
-					breaker.level = self
-					breaker.zone_name = BREAKER_ZONES[breaker_index]
+					breaker.zone_name = _data.breakers[breaker_index]
 					breaker_index += 1
 					item = breaker
 				"G":
 					item = ExitPoint.new()
-			if item:
-				item.position = center
-				add_child(item)
-				_interactables.append(item)
+			if item == null:
+				continue
+			var key := "%d,%d" % [x, y]
+			item.item_name = _data.names.get(key, "")
+			item.item_id = "%s:%s" % [area_id, key]
+			item.level = self
+			item.position = _cell_center(Vector2i(x, y))
+			add_child(item)
+			item.sync_from_state()
+			_interactables.append(item)
 
 
 func _bake_navigation() -> void:

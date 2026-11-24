@@ -7,7 +7,6 @@ const NOISE_TILES := 8.0
 const HEAT_ON_COLOR := Color(1.0, 0.45, 0.25)
 const HEAT_OFF_COLOR := Color(0.4, 0.75, 1.0)
 
-var level: Level
 var zone_name := ""
 
 var _indicator: PointLight2D
@@ -22,6 +21,11 @@ func _ready() -> void:
 	add_child(_indicator)
 	level.zone_heat_changed.connect(func(_z, _h): _refresh())
 	_refresh()
+
+
+func sync_from_state() -> void:
+	if _indicator:
+		_refresh()
 
 
 func get_prompt(_player: Player) -> String:

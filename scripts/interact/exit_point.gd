@@ -1,4 +1,4 @@
-## 出口：原型的終點。
+## 樓梯：原型的終點（二樓還沒做）。
 class_name ExitPoint
 extends Interactable
 
@@ -21,7 +21,7 @@ func can_interact(player: Player) -> bool:
 
 
 func get_prompt(_player: Player) -> String:
-	return "Escape"
+	return "Go upstairs"
 
 
 func interact(_player: Player) -> void:
@@ -29,5 +29,5 @@ func interact(_player: Player) -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(-6, -6, 12, 12), Color(0.25, 0.6, 0.35), false, 1.0)
-	draw_rect(Rect2(-2, -2, 4, 4), Color(0.4, 0.9, 0.5))
+	for i in 3:
+		draw_rect(Rect2(-6, -6 + i * 4, 12, 3), Color(0.3, 0.55 + i * 0.1, 0.38))

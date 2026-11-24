@@ -41,7 +41,12 @@ var gait := Gait.IDLE
 var sneaking := false
 var flashlight_on := true
 var input_enabled := true
-var bottles := 0
+## 攜帶的空瓶數存在世界狀態裡，切換區域、回到檢查點都會跟著走
+var bottles: int:
+	get:
+		return WorldState.bottles
+	set(value):
+		WorldState.bottles = clampi(value, 0, max_bottles)
 
 ## 躲藏狀態
 var is_hiding := false
@@ -77,7 +82,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	focus = _find_focus()
 	if input_enabled and Input.is_action_just_pressed("interact") and focus:
-		focus.interact(self)
+		focus.use(self)
 		focus = _find_focus()
 
 	if is_hiding:
@@ -132,7 +137,6 @@ func reset_to(spawn: Vector2) -> void:
 	velocity = Vector2.ZERO
 	facing = Vector2.UP
 	sneaking = false
-	bottles = 0
 	_noise_timer = 0.0
 	focus = null
 

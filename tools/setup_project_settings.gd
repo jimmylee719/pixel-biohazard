@@ -37,6 +37,8 @@ func _init() -> void:
 
 	# 自動載入
 	ProjectSettings.set_setting("autoload/NoiseBus", "*res://scripts/autoload/noise_bus.gd")
+	ProjectSettings.set_setting("autoload/WorldState", "*res://scripts/autoload/world_state.gd")
+	ProjectSettings.set_setting("autoload/Missions", "*res://scripts/autoload/missions.gd")
 
 	var err := ProjectSettings.save()
 	print("project.godot saved: ", error_string(err))

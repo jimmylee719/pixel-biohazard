@@ -22,14 +22,23 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	WorldState.new_game()
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	_player = _main.get_node("Player")
-	_level = _main.get_node("Level")
-	_watcher = _main.enemies[0]
-	_chimer = _main.enemies[1]
-	for e in _main.enemies:
-		e.caught_player.connect(func(): _caught_count += 1)
+	await _frames(10)
+
+	await _test_world_start()
+	await _test_mission_panel()
+	await _test_supply_crate()
+	await _test_door_into_station()
+	await _test_door_back_and_persistence()
+
+	# 以下測試都在研究站一樓進行（從貨運入口進入）
+	await _main.load_area("station_1f", "cargo", false)
+	_bind_area()
+	WorldState.bottles = 0
+	WorldState.save_checkpoint("station_1f", "cargo")
 	await _frames(10)
 
 	await _test_level()
@@ -51,6 +60,7 @@ func _run() -> void:
 	await _test_hide_spotted()
 	await _test_bottle()
 	await _test_breaker()
+	await _test_tape_and_intel()
 	await _test_exit()
 
 	print("")
@@ -62,6 +72,31 @@ func _run() -> void:
 
 
 # ── 工具 ──
+
+func _bind_area() -> void:
+	_level = _main.level
+	_watcher = _main.enemies[0]
+	_chimer = _main.enemies[1] if _main.enemies.size() > 1 else null
+	for e in _main.enemies:
+		e.caught_player.connect(func(): _caught_count += 1)
+
+
+## 按住方向鍵直到切換到指定區域（最多 2 秒），切換後立刻放開。
+func _walk_until_area(action: String, area_id: String) -> void:
+	Input.action_press(action)
+	for i in 120:
+		if _main.level.area_id == area_id:
+			break
+		await _frames(1)
+	Input.action_release(action)
+	while _main._transitioning:
+		await _frames(1)
+	await _frames(5)
+
+
+func _spawn_pos() -> Vector2:
+	return _level.get_entry_position("cargo")
+
 
 func _frames(n: int) -> void:
 	for i in n:
@@ -141,6 +176,94 @@ func _press(action: String) -> void:
 	await _frames(2)
 
 
+# ── 世界：區域、門、任務 ──
+
+func _shore_quiet() -> void:
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+
+
+func _test_world_start() -> void:
+	print("[world / start]")
+	_check(_main.level.area_id == "south_shore", "遊戲從南岸雪原開始")
+	_check(_main.level.outdoor, "南岸是戶外")
+	_check(_main.level.is_cold(_player.global_position), "戶外是冷的")
+	_check(Missions.tracked_mission().get("id") == "enter_station", "第一個主線是進入研究站")
+	_check(not Missions.is_available("lost_tape"), "進站前看不到站內的支線")
+
+
+func _test_mission_panel() -> void:
+	print("[world / mission panel]")
+	var panel: Control = _main.get_node("HUD/MissionPanel")
+	Input.action_press("map")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release("map")
+	await get_tree().process_frame
+	_check(panel.visible, "按 map 打開任務清單")
+	_check(get_tree().paused, "打開任務清單時遊戲暫停")
+	Input.action_press("map")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release("map")
+	await get_tree().process_frame
+	_check(not panel.visible and not get_tree().paused, "再按一次關閉並繼續")
+
+
+func _test_supply_crate() -> void:
+	print("[world / supply crate]")
+	_shore_quiet()
+	_level = _main.level
+	var crate := _find_item(SupplyCrate, Vector2i(36, 21))
+	_place_player(_tile(36, 20), false, Vector2.DOWN)
+	await _frames(3)
+	_check(_player.focus == crate, "站在補給箱旁可以打開")
+	await _press("interact")
+	_check(Missions.is_done("supply_drop"), "完成支線：補給箱")
+	_check(_player.bottles == 3, "拿到空瓶＋任務獎勵（%d）" % _player.bottles)
+	_check(not crate.enabled, "補給箱已經打開")
+
+
+func _test_door_into_station() -> void:
+	print("[world / door]")
+	_shore_quiet()
+	_place_player(_tile(6, 8), false, Vector2.UP)
+	await _walk_until_area("move_up", "station_1f")
+	_check(_main.level.area_id == "station_1f", "走進門會切換到研究站一樓（%s）" % _main.level.area_id)
+	_check(_player.global_position.distance_to(_main.level.get_entry_position("front")) < 20.0, "站在對應的門口")
+	_check(Missions.is_done("enter_station"), "完成主線：進入研究站")
+	_check(Missions.tracked_mission().get("id") == "find_stairs", "下一個主線出現")
+	_check(Missions.is_available("lost_tape"), "站內支線出現")
+	_check(WorldState.checkpoint_area() == "station_1f", "進入區域時存檢查點")
+
+
+func _test_door_back_and_persistence() -> void:
+	print("[world / back & persistence]")
+	_shore_quiet()
+	var bottles := _player.bottles
+	_player.facing = Vector2.LEFT
+	await _walk_until_area("move_left", "south_shore")
+	_check(_main.level.area_id == "south_shore", "從正門回到南岸（%s）" % _main.level.area_id)
+	_check(_player.bottles == bottles, "空瓶數跟著主角走")
+	_level = _main.level
+	var crate := _find_item(SupplyCrate, Vector2i(36, 21))
+	_check(crate != null and not crate.enabled, "已經打開的補給箱不會重生")
+
+
+func _test_tape_and_intel() -> void:
+	print("[tape / intel]")
+	_only(_watcher)
+	_freeze(_watcher, _tile(3, 2), Vector2.UP)
+	var tape := _find_item(TapePickup, Vector2i(38, 11))
+	_place_player(_tile(38, 10), false, Vector2.DOWN)
+	await _frames(3)
+	_check(_player.focus == tape, "可以撿錄音帶")
+	await _press("interact")
+	_check(Missions.is_done("lost_tape"), "完成支線：錄音帶")
+	_check(WorldState.has_flag("intel:station_1f"), "取得一樓的巡邏情報")
+	_check(_main.get_node("HUD/Message").visible, "顯示錄音內容")
+
+
 # ── 基本（值班者）──
 
 func _test_level() -> void:
@@ -148,7 +271,7 @@ func _test_level() -> void:
 	_check(_level.enemy_defs.size() == 2, "兩隻敵人")
 	_check(_level.bounds.size == Vector2(704, 400), "地圖大小 704x400")
 	var path := NavigationServer2D.map_get_path(
-		_level.get_navigation_map(), _tile(10, 2), _level.player_spawn, true)
+		_level.get_navigation_map(), _tile(10, 2), _spawn_pos(), true)
 	_check(path.size() >= 2, "導航可以從交誼廳走到出生點")
 	var lockers := _level.get_interactables().filter(func(i): return i is Locker)
 	_check(lockers.size() == 5, "5 個置物櫃")
@@ -158,7 +281,7 @@ func _test_level() -> void:
 func _test_patrol() -> void:
 	print("[patrol]")
 	await _reset_world()
-	_place_player(_level.player_spawn, false)
+	_place_player(_spawn_pos(), false)
 	var a := _watcher.global_position
 	var b := _chimer.global_position
 	await _seconds(3.0)
@@ -242,7 +365,7 @@ func _test_wall_muffles_noise() -> void:
 	print("[noise / wall]")
 	_only(_watcher)
 	_freeze(_watcher, _tile(3, 10), Vector2.UP)
-	_place_player(_level.player_spawn, false)
+	_place_player(_spawn_pos(), false)
 	await _frames(5)
 	NoiseBus.emit_noise(_tile(9, 16), 96.0, null)
 	await _frames(2)
@@ -259,7 +382,7 @@ func _test_lose_and_search() -> void:
 			break
 		await _frames(1)
 	_check(_watcher.state == Enemy.State.ALERT, "先進入警戒")
-	_place_player(_level.player_spawn, false)
+	_place_player(_spawn_pos(), false)
 	await _seconds(3.0)
 	_check(_watcher.state == Enemy.State.SEARCH, "追丟後進入搜索（%s）" % _watcher.get_state_name())
 	await _seconds(9.0)
@@ -275,7 +398,7 @@ func _test_caught_reset() -> void:
 	await _seconds(0.5)
 	_check(not _player.input_enabled, "被抓到時停止操作")
 	await _seconds(2.0)
-	_check(_player.global_position.distance_to(_level.player_spawn) < 2.0, "被抓到後主角回到出生點")
+	_check(_player.global_position.distance_to(_spawn_pos()) < 2.0, "被抓到後主角回到出生點")
 	_check(_player.input_enabled, "重生後恢復操作")
 
 
@@ -353,7 +476,7 @@ func _test_chimer_shriek() -> void:
 	_enable_all()
 	_freeze(_chimer, _tile(32, 7), Vector2.LEFT)
 	_freeze(_watcher, _tile(37, 7), Vector2.UP)  # 同一排，中間沒有實驗桌擋住
-	_place_player(_level.player_spawn, false)
+	_place_player(_spawn_pos(), false)
 	await _frames(2)
 	_chimer._set_state(Enemy.State.ALERT)
 	await _frames(2)
@@ -449,7 +572,7 @@ func _test_breaker() -> void:
 	_watcher.patrol_points = [_tile(2, 6), _tile(17, 6)] as Array[Vector2]
 	_watcher._spawn = _tile(2, 6)
 	_watcher.reset()
-	_place_player(_level.player_spawn, false)
+	_place_player(_spawn_pos(), false)
 	await _seconds(1.0)
 	var cold_start := _watcher.global_position.x
 	await _seconds(1.0)
@@ -475,6 +598,7 @@ func _test_exit() -> void:
 	_check(_player.focus is ExitPoint, "站在出口可以互動")
 	await _press("interact")
 	_check(not _player.input_enabled, "到達出口後結束這一輪")
+	_check(Missions.is_done("find_stairs"), "完成主線：到達樓梯")
 	await _seconds(2.0)
-	_check(_player.global_position.distance_to(_level.player_spawn) < 2.0, "過關後回到起點")
-	_enable_all()
+	await _seconds(1.0)
+	_check(_main.level.area_id == "south_shore", "原型結束後重新開始（%s）" % _main.level.area_id)

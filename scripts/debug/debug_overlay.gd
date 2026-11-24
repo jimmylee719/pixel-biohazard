@@ -24,11 +24,16 @@ var _level: Level
 var _noises: Array[Dictionary] = []
 
 
-func setup(player: Player, enemies: Array[Enemy], level: Level) -> void:
+func setup(player: Player) -> void:
 	_player = player
-	_enemies = enemies
-	_level = level
 	NoiseBus.noise_emitted.connect(_on_noise)
+
+
+## 切換區域時重新綁定。
+func bind_area(level: Level, enemies: Array[Enemy]) -> void:
+	_level = level
+	_enemies = enemies
+	_noises.clear()
 
 
 func _process(delta: float) -> void:
@@ -39,6 +44,10 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	if _level == null:
+		return
+	# 撿到錄音帶等情報後，這個區域的巡邏路線會一直顯示（MGSV 式的情報獎勵）
+	var has_intel := WorldState.has_flag("intel:" + _level.area_id)
 	if debug_enabled:
 		_draw_zones()
 		_draw_noises()
@@ -48,6 +57,7 @@ func _draw() -> void:
 				_draw_vision_cone(enemy)
 			if enemy.feel_radius > 0.0:
 				draw_arc(enemy.global_position, enemy.feel_radius, 0.0, TAU, 24, Color(STATE_COLORS[enemy.state], 0.5), 1.0)
+		if debug_enabled or has_intel:
 			_draw_patrol(enemy)
 		_draw_clicks(enemy)
 		if debug_enabled or enemy.visible_to_player:
@@ -61,8 +71,8 @@ func _on_noise(pos: Vector2, radius: float, _source: Node) -> void:
 
 
 func _draw_zones() -> void:
-	for zone_name in Level.ZONES:
-		var r: Rect2i = Level.ZONES[zone_name].rect
+	for zone_name in _level.zones:
+		var r: Rect2i = _level.zones[zone_name].rect
 		var rect := Rect2(Vector2(r.position) * Level.TILE, Vector2(r.size) * Level.TILE)
 		var heated := _level.is_zone_heated(zone_name)
 		var color := Color(1.0, 0.5, 0.3, 0.35) if heated else Color(0.4, 0.75, 1.0, 0.5)

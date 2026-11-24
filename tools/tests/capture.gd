@@ -14,16 +14,29 @@ func _ready() -> void:
 func _run() -> void:
 	if OS.get_cmdline_user_args().size() > 0:
 		_out = OS.get_cmdline_user_args()[0]
+	WorldState.new_game()
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	_player = _main.get_node("Player")
 	_overlay = _main.get_node("Overlay/DebugOverlay")
-	var level: Level = _main.get_node("Level")
-	var chimer: Enemy = _main.enemies[1]
 	await _frames(30)
 
 	_overlay.debug_enabled = false
+	await _shot("0_shore_start")
+	_put_player(_tile(8, 9), Vector2.UP, true)
+	await _frames(40)
+	await _shot("0b_shore_door")
+	_main._toggle_mission_panel()
+	await _frames(3)
+	await _shot("0c_missions")
+	_main._toggle_mission_panel()
+
+	await _main.load_area("station_1f", "cargo", false)
+	var level: Level = _main.level
+	var chimer: Enemy = _main.enemies[1]
+	await _frames(20)
 	await _shot("1_start")
+	WorldState.set_flag("intel:station_1f")
 
 	# 實驗室：鳴骨者被手電筒照到、看得到喀喀聲波紋
 	chimer.patrol_points = [_tile(30, 7)] as Array[Vector2]
