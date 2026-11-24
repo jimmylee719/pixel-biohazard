@@ -17,9 +17,11 @@ const ENEMY_SCENES := {
 	"listener": preload("res://scenes/enemy_listener.tscn"),
 	"sleeper": preload("res://scenes/enemy_sleeper.tscn"),
 	"bear": preload("res://scenes/boss_bear.tscn"),
+	"well": preload("res://scenes/boss_well.tscn"),
 }
-## 原型的終點：完成這個主線後顯示 TO BE CONTINUED
-const PROTOTYPE_END_MISSION := "send_signal"
+## 主線的最後一個任務：完成後播放結局（Endings）
+const FINAL_MISSION := "the_shaft"
+const ENDING_DELAY := 1.5
 ## 恢復電力後，研究站室內有燈（比較亮）
 const POWERED_DARKNESS := Color(0.32, 0.32, 0.36)
 
@@ -38,6 +40,10 @@ var _signal_cursor := 0
 ## 選了一次的訊息（再選一次才真的發出）；-1 = 還沒選
 var _signal_armed := -1
 var _signal_transcript: Array[String] = []
+## 最後看到的結局（測試用）
+var last_ending := {}
+var _ending_panel: PanelContainer
+var _ending_text: Label
 ## 打開介面的那一幀不處理按鍵（同一下 interact 不要直接選到第一個）
 var _signal_opened_frame := -1
 ## 剛剛已經提示過「門鎖著」的門（避免每一幀都跳訊息）
@@ -92,8 +98,8 @@ func _ready() -> void:
 	_hint.text = _build_hint()
 	Missions.mission_completed.connect(func(id: String):
 		show_message("MISSION COMPLETE: %s" % Missions.get_mission(id).title)
-		if id == PROTOTYPE_END_MISSION:
-			_end_attempt("TO BE CONTINUED", Color(0.5, 1, 0.6), true, MESSAGE_TIME))
+		if id == FINAL_MISSION:
+			_show_ending())
 	_resume_button.pressed.connect(_toggle_pause)
 	_quit_button.pressed.connect(_quit_to_title)
 	for i in _signal_buttons.size():
@@ -105,6 +111,7 @@ func _ready() -> void:
 	signal_style.set_border_width_all(1)
 	signal_style.set_content_margin_all(6)
 	_signal_panel.add_theme_stylebox_override("panel", signal_style)
+	_build_ending_panel()
 	await load_area(WorldState.data.area, WorldState.data.entry, false)
 
 
@@ -112,7 +119,10 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("debug_toggle"):
 		_overlay.debug_enabled = not _overlay.debug_enabled
 	var busy := _resetting or _transitioning or _player.is_dead
-	if _pause_panel.visible:
+	if _ending_panel.visible:
+		if Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept"):
+			_quit_to_title()
+	elif _pause_panel.visible:
 		if Input.is_action_just_pressed("pause"):
 			_toggle_pause()
 	elif _inventory_panel.visible:
@@ -161,13 +171,13 @@ func _process(delta: float) -> void:
 
 
 func _update_boss_bar() -> void:
-	var boss: BossBear = null
+	var boss: Enemy = null
 	for e in enemies:
-		if e is BossBear and not e.is_dead:
+		if e.is_boss() and not e.is_dead:
 			boss = e
 	_boss_bar.visible = boss != null and level.boss_name() != ""
 	if _boss_bar.visible:
-		_boss_name.text = level.boss_name() + ("  (STUNNED)" if boss.is_stunned() else "")
+		_boss_name.text = level.boss_name() + boss.boss_suffix()
 		_boss_fill.size.x = 200.0 * clampf(boss.health / boss.max_health, 0.0, 1.0)
 
 
@@ -238,6 +248,8 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.opened.connect(_toggle_storage_panel)
 		elif item is Snowcat:
 			item.drive.connect(func(target: String): load_area(target, "snowcat"))
+		elif item is ShaftLift:
+			item.message_shown.connect(func(text: String): show_message(text, true))
 		elif item is Uplink:
 			item.opened.connect(_open_signal_panel)
 			item.message_shown.connect(func(text: String): show_message(text, true))
@@ -615,6 +627,54 @@ func _refresh_signal() -> void:
 		else:
 			button.visible = true
 			button.text = "  Step away (decide later)"
+
+
+# ── 結局 ──────────────────────────────────────────────
+
+func _build_ending_panel() -> void:
+	_ending_panel = PanelContainer.new()
+	_ending_panel.name = "EndingPanel"
+	_ending_panel.visible = false
+	_ending_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 1)
+	style.set_content_margin_all(28)
+	_ending_panel.add_theme_stylebox_override("panel", style)
+	var box := VBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_ending_panel.add_child(box)
+	_ending_text = Label.new()
+	_ending_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ending_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_ending_text.add_theme_font_size_override("font_size", 8)
+	_ending_text.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	box.add_child(_ending_text)
+	var button := Button.new()
+	button.text = "Return to title"
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_size_override("font_size", 8)
+	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	button.pressed.connect(_quit_to_title)
+	box.add_child(button)
+	$HUD.add_child(_ending_panel)
+
+
+## 主線完成：依天線塔的訊號和現在的感染值決定結局。
+func _show_ending() -> void:
+	_player.input_enabled = false
+	_resetting = true  # 結局畫面期間不會被抓、不會切換區域
+	last_ending = Endings.resolve(WorldState.signal_choice(), _player.infection)
+	await get_tree().create_timer(ENDING_DELAY).timeout
+	var lines: Array[String] = [last_ending.title, ""]
+	for line in last_ending.lines:
+		lines.append(line)
+		lines.append("")
+	lines.append("THE END")
+	lines.append("")
+	lines.append("[%s] return to title" % _key_name("interact"))
+	_ending_text.text = "\n".join(lines)
+	_ending_panel.visible = true
+	get_tree().paused = true
 
 
 # ── 暫停選單 ──────────────────────────────────────────

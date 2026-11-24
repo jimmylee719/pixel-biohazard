@@ -74,6 +74,17 @@ const DATA := [
 			{"type": "enter_area", "target": "tower_top"},
 			{"type": "interact", "target": "uplink"},
 		],
+		"reward": {"access": 3},
+	},
+	{
+		"id": "the_shaft", "main": true, "requires": ["send_signal"],
+		"title": "The drill shaft",
+		"desc": "Whatever answered on 126.05 is coming. It all started in the drill shaft under B1 - your card now opens the door at the south end of the basement. End it at the bottom, then take the lift up.",
+		"steps": [
+			{"type": "enter_area", "target": "shaft_bottom"},
+			{"type": "defeat", "target": "deep_well"},
+			{"type": "interact", "target": "shaft_lift"},
+		],
 	},
 	{
 		"id": "depot_manifest", "main": false, "requires": ["director_records"],

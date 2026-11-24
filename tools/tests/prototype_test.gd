@@ -1397,15 +1397,12 @@ func _test_tower() -> void:
 	_check(not panel.visible and not get_tree().paused, "關閉介面")
 	_check(Missions.is_done("send_signal"), "完成主線：天線塔")
 	_check(uplink.get_prompt(_player) == "Uplink (signal sent)", "終端機記得已經發過")
-	_check(not _player.input_enabled, "原型在這裡結束")
-	await _seconds(7.5)
-	_check(_main.level.area_id == "south_shore", "原型結束後重新開始（%s）" % _main.level.area_id)
-	_check(WorldState.signal_choice() == "", "新遊戲還沒發過訊號")
+	_check(_player.input_enabled and not _main._resetting, "天線塔不再是原型的終點")
+	_check(WorldState.access_level == 3, "權限卡升到等級 3")
+	_check(Missions.tracked_mission().get("id") == "the_shaft", "下一個主線：鑽探井")
 
 	print("[tower / touch buttons]")
-	await _main.load_area("tower_top", "stairs", false)
-	_quiet()
-	_level = _main.level
+	WorldState.data.flags.erase("signal")
 	_main._open_signal_panel()
 	var buttons: Array = _main._signal_buttons
 	_check(buttons.all(func(b): return b.visible), "三個訊息＋離開，都有按鈕可以點")
@@ -1418,4 +1415,170 @@ func _test_tower() -> void:
 	_check(buttons[0].visible and buttons[0].text == "Close" and not buttons[2].visible, "發出後只剩關閉按鈕")
 	buttons[0].pressed.emit()
 	_check(not panel.visible, "點關閉")
+	WorldState.set_flag("signal", "quarantine")
+	await _test_shaft()
+
+
+func _test_shaft() -> void:
+	print("[shaft / door]")
+	await _main.load_area("station_b1", "basement", false)
+	_quiet()
+	_level = _main.level
+	WorldState.data.access_level = 2  # 權限只會升不會降：測試直接改資料
+	_place_player(_tile(21, 14), false, Vector2.DOWN)
+	Input.action_press("move_down")
+	await _seconds(0.6)
+	Input.action_release("move_down")
+	await _frames(5)
+	_check(_main.level.area_id == "station_b1", "權限卡等級 2 打不開鑽探井")
+	WorldState.access_level = 3
+	_place_player(_tile(21, 14), false, Vector2.DOWN)
+	await _walk_until_area("move_down", "drill_shaft")
+	_check(_main.level.area_id == "drill_shaft", "等級 3 可以進鑽探井")
+	_quiet()
+	_level = _main.level
+	_check(_level.is_cold(_tile(10, 10)), "鑽探井裡很冷")
+	var shaft_sleepers: Array = _main.enemies.filter(func(e): return e.display_name == "Sleeper")
+	_check(shaft_sleepers.size() == 3 and shaft_sleepers.all(func(e): return e.is_dormant), "井壁走道上有凍眠體在睡")
+	var ladder := _find_item(ExitPoint, Vector2i(22, 19))
+	_check(ladder != null and ladder.get_prompt(_player) == "Go downstairs", "往井底的梯子")
+	_place_player(_tile(21, 19), false, Vector2.RIGHT)
+	await _frames(3)
+	await _press("interact")
+	while _main._transitioning:
+		await _frames(1)
+	await _frames(3)
+	_check(_main.level.area_id == "shaft_bottom", "到達井底")
+	_check(Missions.step_index("the_shaft") == 1, "主線進行到打倒深井")
+
+	print("[final boss / pulse]")
+	_level = _main.level
+	var cam: FollowCamera = _main.get_node("Camera")
+	_check(cam.fixed, "Boss 戰鏡頭固定")
+	var well: BossWell = _main.enemies[0]
+	await _frames(2)
+	_check(_main.get_node("HUD/BossBar").visible and "DEEP WELL" in _main.get_node("HUD/BossBar/Name").text, "顯示深井的血條")
+	WorldState.health = 100.0
+	WorldState.infection = 0.0
+	_player._invulnerable = 0.0
+	_place_player(_tile(15, 11), false, Vector2.UP)
+	_player.sneaking = true
+	well.reset()
+	well._set_phase(BossWell.Phase.CHARGING)
+	var hits := _hit_count
+	await _seconds(1.6)
+	_check(well.pulse_count == 1 and well.last_pulse_hit and _hit_count > hits, "站在空地會被共鳴脈衝打到")
+	_check(well.is_exposed() and "EXPOSED" in _main.get_node("HUD/BossBar/Name").text, "脈衝之後核心露出來")
 	await _await_reset()
+
+	print("[final boss / cover]")
+	well.reset()
+	WorldState.health = 100.0
+	_player._invulnerable = 0.0
+	_place_player(_tile(4, 2), false, Vector2.UP)
+	_player.sneaking = true
+	well._set_phase(BossWell.Phase.CHARGING)
+	hits = _hit_count
+	await _seconds(1.6)
+	_check(well.pulse_count == 1 and not well.last_pulse_hit and _hit_count == hits, "躲在柱子後面擋得住脈衝")
+	well.reset()
+	var locker := _find_item(Locker, Vector2i(2, 13))
+	_place_player(_tile(3, 13), false, Vector2.LEFT)
+	_player.enter_hiding(locker)
+	well._set_phase(BossWell.Phase.CHARGING)
+	await _seconds(1.6)
+	_check(not well.last_pulse_hit and _hit_count == hits, "躲在置物櫃裡也安全")
+	_player.exit_hiding()
+
+	print("[final boss / armor & spikes]")
+	well.reset()
+	var hp := well.health
+	well.take_damage(100.0, _tile(4, 11), 0.0)
+	_check(is_equal_approx(hp - well.health, 15.0), "核心沒露出來時幾乎打不動")
+	_check(well.spikes.size() == 1, "被打到就在你的位置刺出結晶")
+	well.reset()
+	well._set_phase(BossWell.Phase.EXPOSED)
+	well.take_damage(100.0, _tile(4, 11), 0.0)
+	_check(is_equal_approx(hp - well.health, 100.0), "核心露出來時打得痛")
+	_check(well.spikes.is_empty(), "核心露出來時不會刺")
+	well.reset()
+	WorldState.health = 100.0
+	_player._invulnerable = 0.0
+	_place_player(_tile(24, 9), false, Vector2.UP)
+	_player.sneaking = true
+	await _frames(3)
+	_check(well.spikes.is_empty(), "潛行不會被感覺到")
+	NoiseBus.emit_noise(_tile(8, 6), 112.0, null)  # 瓶子丟到別的地方
+	await _frames(2)
+	_check(well.spikes.size() == 1, "聽到聲音就在那裡預告結晶刺")
+	hits = _hit_count
+	await _seconds(1.1)
+	_check(well.spikes.is_empty() and _hit_count == hits, "結晶刺被瓶子引開，打不到你")
+	well._spike_cd = 0.0
+	NoiseBus.emit_noise(_player.global_position, 112.0, null)
+	await _seconds(1.1)
+	_check(_hit_count > hits, "站在預告的位置會被刺到")
+	await _await_reset()
+
+	print("[final boss / cold & lift]")
+	well.reset()
+	var lift := _find_item(ShaftLift, Vector2i(26, 1))
+	_place_player(_tile(25, 1), false, Vector2.RIGHT)
+	await _frames(3)
+	_check(_player.focus == lift and lift.get_prompt(_player) == "Lift (jammed)", "Boss 還活著時升降機不會動")
+	await _press("interact")
+	_check(Missions.step_index("the_shaft") == 1, "升降機卡住不算完成")
+	var breaker := _find_item(Breaker, Vector2i(13, 13))
+	_place_player(_tile(13, 12), false, Vector2.DOWN)
+	await _frames(3)
+	_check(_player.focus == breaker and "drill heaters" in breaker.get_prompt(_player), "井底的鑽頭加熱器")
+	await _press("interact")
+	await _frames(3)
+	_check(well.in_cold, "關掉加熱器後深井變冷（蓄力變慢）")
+
+	print("[final boss / defeat]")
+	well.reset()
+	WorldState.inv_add("pistol", 1)
+	WorldState.inv_add("ammo", 8)
+	WorldState.equipped = "pistol"
+	WorldState.set_loaded("pistol", 8)
+	well.health = 5.0
+	well._set_phase(BossWell.Phase.EXPOSED)
+	_place_player(_tile(15, 11), false, Vector2.UP)
+	Input.action_press("aim")
+	await _seconds(0.5)
+	_check(_player.combat.target == well, "可以鎖定深井")
+	await _press("fire")
+	Input.action_release("aim")
+	await _frames(3)
+	_check(well.is_dead, "打倒深井")
+	_check(WorldState.has_flag("defeated:deep_well"), "記錄最終 Boss 已被打倒")
+	_check(Missions.step_index("the_shaft") == 2, "主線進行到搭升降機")
+	_check(not _main.get_node("HUD/BossBar").visible, "Boss 死後血條消失")
+
+	print("[ending]")
+	_check(Endings.resolve_id("rescue", 10.0) == "evacuation", "救援＋沒被感染 = 撤離")
+	_check(Endings.resolve_id("rescue", 80.0) == "last_light", "救援但已被感染 = 最後的光")
+	_check(Endings.resolve("rescue", 80.0).lines[0] == Endings.INFECTED_LINE, "被感染時結局的第一句不同")
+	_check(Endings.resolve_id("destroy", 0.0) == "last_light", "要求摧毀 = 最後的光")
+	_check(Endings.resolve_id("quarantine", 90.0) == "quarantine" and Endings.DATA.quarantine.canon, "隔離 = 正史結局")
+	WorldState.infection = 10.0
+	_place_player(_tile(25, 1), false, Vector2.RIGHT)
+	await _frames(3)
+	_check(lift.get_prompt(_player) == "Ride the lift up", "升降機可以搭了")
+	await _press("interact")
+	_check(Missions.is_done("the_shaft"), "完成主線：鑽探井")
+	_check(not _player.input_enabled, "主線完成，進入結局")
+	await _seconds(_main.ENDING_DELAY + 0.3)
+	var ending_panel: Control = _main.get_node("HUD/EndingPanel")
+	_check(ending_panel.visible and get_tree().paused, "顯示結局畫面")
+	_check(_main.last_ending.get("id") == "quarantine", "發出隔離訊號 → 隔離結局")
+	_check("THE END" in _main._ending_text.text, "結局畫面寫著 THE END")
+
+	# 收尾：回到新遊戲，讓後面的測試從頭開始
+	ending_panel.visible = false
+	get_tree().paused = false
+	_main._resetting = false
+	WorldState.new_game()
+	await _main.load_area(WorldState.data.area, WorldState.data.entry, false)
+	_check(WorldState.signal_choice() == "" and not WorldState.power_on, "新遊戲的狀態是乾淨的")

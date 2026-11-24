@@ -57,6 +57,14 @@ func can_be_taken_down_by(_player_node: Player) -> bool:
 	return false
 
 
+func is_boss() -> bool:
+	return true
+
+
+func boss_suffix() -> String:
+	return "  (STUNNED)" if is_stunned() else ""
+
+
 func is_stunned() -> bool:
 	return phase == Phase.STUNNED
 

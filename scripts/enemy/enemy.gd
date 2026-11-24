@@ -444,6 +444,16 @@ func wake(toward: Vector2) -> void:
 
 
 ## 能不能從背後偷襲：沒察覺主角、而且主角在牠背後（睡著的凍眠體一定可以）。
+## Boss（畫面上方顯示血條）
+func is_boss() -> bool:
+	return false
+
+
+## Boss 血條名稱後面的狀態（例如暈眩）
+func boss_suffix() -> String:
+	return ""
+
+
 func can_be_taken_down_by(player: Player) -> bool:
 	if is_dead:
 		return false

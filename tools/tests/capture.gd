@@ -190,6 +190,29 @@ func _run() -> void:
 	await _shot("24_signal_reply")
 	_main._close_signal_panel()
 
+	# 鑽探井、最終 Boss、結局
+	await _main.load_area("drill_shaft", "shaft", false)
+	_put_player(_tile(12, 6), Vector2.DOWN, true)
+	await _frames(30)
+	await _shot("25_drill_shaft")
+	await _main.load_area("shaft_bottom", "stairs", false)
+	var well: BossWell = _main.enemies[0]
+	_put_player(_tile(8, 11), Vector2.RIGHT, true)
+	well._set_phase(BossWell.Phase.CHARGING)
+	well._phase_time = 0.9
+	well.spikes.append({"pos": _tile(20, 10), "t": 0.5})
+	await _frames(4)
+	await _shot("26_deep_well_charging")
+	well._set_phase(BossWell.Phase.EXPOSED)
+	await _frames(4)
+	await _shot("27_deep_well_exposed")
+	WorldState.set_flag("signal", "quarantine")
+	_main._show_ending()
+	await get_tree().create_timer(_main.ENDING_DELAY + 0.2).timeout
+	await _shot("28_ending")
+	get_tree().paused = false
+	_main._ending_panel.visible = false
+
 	# 標題畫面
 	_main.queue_free()
 	var title: Control = load("res://scenes/title.tscn").instantiate()

@@ -25,7 +25,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZU"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZUJ"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -377,6 +377,8 @@ func _spawn_interactables() -> void:
 					item = Terminal.new()
 				"U":
 					item = Uplink.new()
+				"J":
+					item = ShaftLift.new()
 				"x":
 					var corpse := CorpseDecor.new()
 					corpse.position = _cell_center(Vector2i(x, y))
