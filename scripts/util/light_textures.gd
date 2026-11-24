@@ -6,9 +6,13 @@ extends RefCounted
 const SIZE := 256
 const STEPS := 5.0
 
+static var _radial_cache: Texture2D
+
 
 ## 圓形光：主角身邊的微光。半徑 = SIZE / 2。
 static func make_radial() -> Texture2D:
+	if _radial_cache:
+		return _radial_cache
 	var img := Image.create(SIZE, SIZE, false, Image.FORMAT_RGBA8)
 	var center := Vector2(SIZE, SIZE) * 0.5
 	var radius := SIZE * 0.5
@@ -17,7 +21,8 @@ static func make_radial() -> Texture2D:
 			var d := (Vector2(x, y) + Vector2(0.5, 0.5)).distance_to(center) / radius
 			var a := _quantize(clampf(1.0 - d, 0.0, 1.0))
 			img.set_pixel(x, y, Color(1, 1, 1, a))
-	return ImageTexture.create_from_image(img)
+	_radial_cache = ImageTexture.create_from_image(img)
+	return _radial_cache
 
 
 ## 扇形光：手電筒。頂點在貼圖中心，朝 +X 方向，長度 = SIZE / 2。

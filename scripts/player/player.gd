@@ -1,11 +1,15 @@
-## 主角：8 方向移動（潛行／走路／奔跑）、手電筒、發出聲音。
+## 主角：8 方向移動（潛行／走路／奔跑）、手電筒、發出聲音、躲藏、撿取與投擲。
 ## 所有輸入只透過 InputMap 動作名稱讀取，之後加觸控和手把不用改這裡。
 class_name Player
 extends CharacterBody2D
 
+signal hiding_changed(is_hidden: bool)
+
 enum Gait { IDLE, SNEAK, WALK, RUN }
 
 const TILE := 16.0
+const BODY_LAYER := 2
+const WALL_MASK := 1
 
 @export_group("移動")
 @export var sneak_speed := 36.0
@@ -25,29 +29,62 @@ const TILE := 16.0
 @export var run_noise_tiles := 6.0
 @export var walk_noise_interval := 0.5
 @export var run_noise_interval := 0.3
+@export var locker_noise_tiles := 2.0
+
+@export_group("物品")
+@export var max_bottles := 3
+@export var throw_distance := 96.0
+@export var bottle_noise_tiles := 6.0
 
 var facing := Vector2.DOWN
 var gait := Gait.IDLE
 var sneaking := false
 var flashlight_on := true
 var input_enabled := true
+var bottles := 0
+
+## 躲藏狀態
+var is_hiding := false
+var hiding_in: Locker = null
+## 躲進去的那一刻有沒有被敵人看見
+var hide_spotted := false
+
+## 由 main 設定，用來找附近可以互動的東西
+var level: Level
+## 目前可以互動的對象（顯示提示用）
+var focus: Interactable = null
 
 var _noise_timer := 0.0
+var _hide_return := Vector2.ZERO
+var _flashlight_before_hide := true
+var _ambient_energy := 1.0
 
 @onready var _flashlight: PointLight2D = $Flashlight
 @onready var _ambient: PointLight2D = $AmbientLight
 @onready var _facing_marker: Node2D = $FacingMarker
+@onready var _body: Node2D = $Body
 
 
 func _ready() -> void:
 	_flashlight.texture = LightTextures.make_cone(flashlight_half_angle_deg)
 	_flashlight.texture_scale = flashlight_range / (LightTextures.SIZE * 0.5)
 	_ambient.texture = LightTextures.make_radial()
+	_ambient_energy = _ambient.energy
 	_ambient.texture_scale = (dark_sight_radius * 1.4) / (LightTextures.SIZE * 0.5)
 	_apply_flashlight()
 
 
 func _physics_process(delta: float) -> void:
+	focus = _find_focus()
+	if input_enabled and Input.is_action_just_pressed("interact") and focus:
+		focus.interact(self)
+		focus = _find_focus()
+
+	if is_hiding:
+		velocity = Vector2.ZERO
+		gait = Gait.IDLE
+		return
+
 	var move_input := Vector2.ZERO
 	if input_enabled:
 		move_input = Input.get_vector("move_left", "move_right", "move_up", "move_down")
@@ -56,6 +93,8 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_just_pressed("flashlight"):
 			flashlight_on = not flashlight_on
 			_apply_flashlight()
+		if Input.is_action_just_pressed("throw"):
+			throw_bottle()
 
 	var running := input_enabled and Input.is_action_pressed("run") and move_input != Vector2.ZERO
 	if running:
@@ -87,17 +126,105 @@ func _physics_process(delta: float) -> void:
 
 
 func reset_to(spawn: Vector2) -> void:
+	if is_hiding:
+		_leave_locker_state()
 	global_position = spawn
 	velocity = Vector2.ZERO
 	facing = Vector2.UP
 	sneaking = false
+	bottles = 0
 	_noise_timer = 0.0
+	focus = null
 
+
+# ── 躲藏 ──────────────────────────────────────────────
+
+func enter_hiding(locker: Locker) -> void:
+	# 先判斷有沒有被看見，再發出櫃門聲
+	hide_spotted = false
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if enemy.is_watching_player():
+			hide_spotted = true
+	NoiseBus.emit_noise(global_position, locker_noise_tiles * TILE, self)
+
+	is_hiding = true
+	hiding_in = locker
+	_hide_return = global_position
+	_flashlight_before_hide = flashlight_on
+	flashlight_on = false
+	_apply_flashlight()
+	global_position = locker.global_position
+	velocity = Vector2.ZERO
+	collision_layer = 0
+	collision_mask = 0
+	_body.visible = false
+	_facing_marker.visible = false
+	_ambient.energy = _ambient_energy * 0.45  # 從櫃子縫隙看出去，只看得到一點點
+	hiding_changed.emit(true)
+
+
+func exit_hiding() -> void:
+	if not is_hiding:
+		return
+	_leave_locker_state()
+	global_position = _hide_return
+	flashlight_on = _flashlight_before_hide
+	_apply_flashlight()
+	NoiseBus.emit_noise(global_position, locker_noise_tiles * TILE, self)
+
+
+func _leave_locker_state() -> void:
+	is_hiding = false
+	hiding_in = null
+	hide_spotted = false
+	collision_layer = BODY_LAYER
+	collision_mask = WALL_MASK
+	_body.visible = true
+	_facing_marker.visible = true
+	_ambient.energy = _ambient_energy
+	hiding_changed.emit(false)
+
+
+# ── 物品 ──────────────────────────────────────────────
+
+## 朝面向的方向丟出一個空瓶，碰到牆會提早落地。
+func throw_bottle() -> bool:
+	if bottles <= 0 or is_hiding:
+		return false
+	bottles -= 1
+	var target := Sight.cast(self, global_position, global_position + facing * throw_distance)
+	target -= facing * 4.0  # 不要落在牆裡
+	var bottle := ThrownBottle.new()
+	bottle.noise_radius = bottle_noise_tiles * TILE
+	get_parent().add_child(bottle)
+	bottle.launch(global_position, target)
+	return true
+
+
+func _find_focus() -> Interactable:
+	if level == null:
+		return null
+	if is_hiding:
+		return hiding_in
+	var best: Interactable = null
+	var best_dist := INF
+	for item in level.get_interactables():
+		if not item.can_interact(self):
+			continue
+		var d := global_position.distance_to(item.global_position)
+		if d <= item.interact_range and d < best_dist:
+			best = item
+			best_dist = d
+	return best
+
+
+# ── 被看見的程度 ─────────────────────────────────────────
 
 ## 主角看不看得到某一點：沒被牆擋住，而且在身邊微光或手電筒光錐範圍內。
 func can_see_point(point: Vector2) -> bool:
 	var dist := global_position.distance_to(point)
-	var lit := dist <= dark_sight_radius or is_in_flashlight(point)
+	var radius := dark_sight_radius * (0.5 if is_hiding else 1.0)  # 從櫃子縫隙看出去
+	var lit := dist <= radius or is_in_flashlight(point)
 	return lit and Sight.is_clear(self, global_position, point)
 
 
@@ -128,6 +255,8 @@ func get_detection_rate_mult() -> float:
 
 
 func get_gait_name() -> String:
+	if is_hiding:
+		return "HIDDEN"
 	return ["IDLE", "SNEAK", "WALK", "RUN"][gait]
 
 

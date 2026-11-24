@@ -1,4 +1,7 @@
-## 巡邏型敵人（原型）：扇形視野、聽覺、四種狀態。
+## 感染者（敵人）共用腳本：視野、聽覺、震動感應、四種狀態、溫度影響。
+## 不同種類只靠 @export 參數和場景外觀區分：
+##   - 值班者（巡邏型）：有視野、會被手電筒吸引
+##   - 鳴骨者（聽覺型）：全盲、聽覺極好、會感覺到附近的腳步震動、進入警戒時尖鳴呼叫同類
 ##
 ##   未察覺 ──看到／聽到──► 起疑 ──察覺值滿──► 警戒（追擊）
 ##     ▲                     │                    │
@@ -14,6 +17,9 @@ signal state_changed(new_state: State)
 enum State { UNAWARE, SUSPICIOUS, ALERT, SEARCH }
 
 const STATE_NAMES := ["UNAWARE", "SUSPICIOUS", "ALERT", "SEARCH"]
+const TILE := 16.0
+
+@export var display_name := "Watcher"
 
 @export_group("移動")
 @export var patrol_speed := 30.0
@@ -22,7 +28,9 @@ const STATE_NAMES := ["UNAWARE", "SUSPICIOUS", "ALERT", "SEARCH"]
 @export var turn_speed := 5.0
 @export var waypoint_wait := 1.2
 
-@export_group("視野")
+@export_group("視覺")
+@export var has_sight := true
+@export var reacts_to_light := true
 @export var vision_range := 110.0
 @export var vision_half_angle_deg := 35.0
 ## 這個距離內不管面向哪裡都會察覺（貼身）
@@ -30,6 +38,18 @@ const STATE_NAMES := ["UNAWARE", "SUSPICIOUS", "ALERT", "SEARCH"]
 ## 搜索結束後一段時間內視野變大
 @export var vigilance_duration := 20.0
 @export var vigilance_range_mult := 1.2
+
+@export_group("聽覺與其他感知")
+@export var hearing_mult := 1.0
+## 聽到聲音時增加的察覺值
+@export var noise_awareness_gain := 0.15
+## 震動感應：這個距離內走路或奔跑的主角會被察覺（潛行不會）；0 = 沒有
+@export var feel_radius := 0.0
+@export var feel_rate := 2.5
+## 進入警戒時尖鳴、呼叫附近同類的半徑（格）；0 = 不會
+@export var shriek_radius_tiles := 0.0
+## 回聲定位喀喀聲的間隔（秒）；0 = 不發出。只是給玩家的「聲音提示」，不影響其他敵人
+@export var click_interval := 0.0
 
 @export_group("察覺值（每秒）")
 @export var awareness_rate_far := 0.6
@@ -39,10 +59,14 @@ const STATE_NAMES := ["UNAWARE", "SUSPICIOUS", "ALERT", "SEARCH"]
 
 @export_group("狀態時間")
 @export var suspicious_pause := 0.7
-@export var lose_sight_time := 2.5
+@export var lose_contact_time := 2.5
 @export var search_duration := 8.0
 @export var search_radius := 48.0
 @export var catch_distance := 11.0
+
+@export_group("溫度（沒開暖氣的區域）")
+@export var cold_speed_mult := 0.55
+@export var cold_awareness_mult := 0.6
 
 var state := State.UNAWARE
 var awareness := 0.0
@@ -51,14 +75,18 @@ var sees_player := false
 ## 主角目前看不看得到這隻敵人（決定要不要畫出來）
 var visible_to_player := false
 var patrol_points: Array[Vector2] = []
+var in_cold := false
+## 距離上一次喀喀聲過了幾秒（除錯顯示和聲音提示用）
+var click_age := 99.0
 
 var _player: Player
+var _level: Level
 var _nav_map := RID()
 var _patrol_index := 0
 var _patrol_step := 1
 var _wait_timer := 0.0
 var _state_time := 0.0
-var _unseen_time := 0.0
+var _no_contact_time := 0.0
 var _investigate_target := Vector2.ZERO
 var _last_known := Vector2.ZERO
 var _search_points: Array[Vector2] = []
@@ -67,19 +95,23 @@ var _look_base_angle := 0.0
 var _path_refresh := 0.0
 var _spawn := Vector2.ZERO
 var _fade := 0.0
+var _click_timer := 0.0
 
 @onready var _agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _body: Node2D = $Body
 
 
 func _ready() -> void:
+	add_to_group("enemies")
 	NoiseBus.noise_emitted.connect(_on_noise)
+	_click_timer = randf() * maxf(click_interval, 0.1)
 
 
-func setup(points: Array[Vector2], player: Player, nav_map: RID) -> void:
+func setup(points: Array[Vector2], player: Player, level: Level) -> void:
 	patrol_points = points
 	_player = player
-	_nav_map = nav_map
+	_level = level
+	_nav_map = level.get_navigation_map()
 	_spawn = points[0]
 	reset()
 
@@ -92,7 +124,9 @@ func reset() -> void:
 	_patrol_step = 1
 	_wait_timer = 0.0
 	_vigilance_timer = 0.0
-	facing = (patrol_points[_patrol_index] - global_position).normalized()
+	_no_contact_time = 0.0
+	if patrol_points.size() > 1:
+		facing = (patrol_points[_patrol_index] - global_position).normalized()
 	_set_state(State.UNAWARE)
 
 
@@ -114,15 +148,30 @@ func get_half_angle() -> float:
 	return deg_to_rad(vision_half_angle_deg)
 
 
+## 主角躲進櫃子的那一刻，這隻敵人算不算「看到了」。
+func is_watching_player() -> bool:
+	if sees_player and (state == State.SUSPICIOUS or state == State.ALERT):
+		return true
+	# 聽覺型在警戒中、而且就在旁邊，會聽到你鑽進櫃子
+	return state == State.ALERT and global_position.distance_to(_player.global_position) <= 3.0 * TILE
+
+
 func _physics_process(delta: float) -> void:
 	if _player == null:
 		return
+	in_cold = _level != null and _level.is_cold(global_position)
 	_state_time += delta
 	_vigilance_timer = maxf(_vigilance_timer - delta, 0.0)
+	_no_contact_time += delta
 
 	sees_player = _check_vision()
 	_update_awareness(delta)
+	_check_feel(delta)
 	_check_flashlight_hit()
+	_update_clicks(delta)
+
+	if _check_catch():
+		return
 
 	match state:
 		State.UNAWARE:
@@ -143,6 +192,8 @@ func _physics_process(delta: float) -> void:
 # ── 感知 ──────────────────────────────────────────────
 
 func _check_vision() -> bool:
+	if not has_sight or _player.is_hiding:
+		return false
 	var to_player := _player.global_position - global_position
 	var dist := to_player.length()
 	if dist > get_effective_range():
@@ -152,24 +203,39 @@ func _check_vision() -> bool:
 	return Sight.is_clear(self, global_position, _player.global_position)
 
 
+func _awareness_mult() -> float:
+	return cold_awareness_mult if in_cold else 1.0
+
+
 func _update_awareness(delta: float) -> void:
 	if sees_player:
 		var dist := global_position.distance_to(_player.global_position)
 		var nearness := 1.0 - clampf(dist / get_effective_range(), 0.0, 1.0)
 		var rate := lerpf(awareness_rate_far, awareness_rate_near, nearness)
-		rate *= _player.get_detection_rate_mult()
+		rate *= _player.get_detection_rate_mult() * _awareness_mult()
 		awareness = minf(awareness + rate * delta, 1.0)
-		_last_known = _player.global_position
-		_unseen_time = 0.0
-	else:
-		_unseen_time += delta
-		if state != State.ALERT:
-			awareness = maxf(awareness - awareness_decay * delta, 0.0)
+		_make_contact(_player.global_position)
+	elif state != State.ALERT and _no_contact_time > 0.5:
+		awareness = maxf(awareness - awareness_decay * delta, 0.0)
 
 
-## 手電筒照到敵人：敵人會發現光，轉頭起疑。
+## 震動感應：走路、奔跑的腳步會被附近的聽覺型察覺；潛行不會。
+func _check_feel(delta: float) -> void:
+	if feel_radius <= 0.0 or _player.is_hiding:
+		return
+	if _player.gait != Player.Gait.WALK and _player.gait != Player.Gait.RUN:
+		return
+	if global_position.distance_to(_player.global_position) > feel_radius:
+		return
+	awareness = minf(awareness + feel_rate * _awareness_mult() * delta, 1.0)
+	_make_contact(_player.global_position)
+	if state == State.UNAWARE or state == State.SEARCH:
+		_investigate(_player.global_position)
+
+
+## 手電筒照到敵人：有視覺的敵人會發現光，轉頭起疑。
 func _check_flashlight_hit() -> void:
-	if sees_player or state == State.ALERT:
+	if not has_sight or not reacts_to_light or sees_player or state == State.ALERT:
 		return
 	if _player.is_in_flashlight(global_position) and Sight.is_clear(self, _player.global_position, global_position):
 		if state == State.UNAWARE or state == State.SEARCH:
@@ -177,35 +243,81 @@ func _check_flashlight_hit() -> void:
 			_investigate(_player.global_position)
 
 
-func _on_noise(pos: Vector2, radius: float, _source: Node) -> void:
-	if _player == null:
+func _on_noise(pos: Vector2, radius: float, source: Node) -> void:
+	if _player == null or source == self:
 		return
-	var effective := radius
+	var effective := radius * hearing_mult
 	if not Sight.is_clear(self, global_position, pos):
 		effective *= 0.5  # 隔著牆聽得比較不清楚
 	if global_position.distance_to(pos) > effective:
 		return
+	var is_call := source is Enemy  # 同類的尖鳴：只會過去看看，不會直接警戒
 	match state:
 		State.UNAWARE, State.SEARCH:
 			awareness = maxf(awareness, suspicious_threshold + 0.05)
+			if not is_call:
+				awareness = minf(awareness + noise_awareness_gain * _awareness_mult(), 0.95)
 			_investigate(pos)
 		State.SUSPICIOUS:
-			awareness = minf(awareness + 0.15, 1.0)
+			if not is_call:
+				awareness = minf(awareness + noise_awareness_gain * _awareness_mult(), 1.0)
 			_investigate_target = pos
 			_set_agent_target(pos)
 		State.ALERT:
-			if not sees_player:
-				_last_known = pos
+			if not is_call and not sees_player:
+				_make_contact(pos)
+
+
+func _make_contact(pos: Vector2) -> void:
+	_last_known = pos
+	_no_contact_time = 0.0
+
+
+func _update_clicks(delta: float) -> void:
+	click_age += delta
+	if click_interval <= 0.0:
+		return
+	_click_timer -= delta
+	if _click_timer <= 0.0:
+		# 越緊張喀喀聲越快；冷的時候變慢
+		var interval := click_interval * (0.4 if state == State.ALERT else 1.0)
+		if in_cold:
+			interval *= 1.6
+		_click_timer = interval
+		click_age = 0.0
+
+
+# ── 抓到主角 ──────────────────────────────────────────
+
+func _check_catch() -> bool:
+	if state == State.UNAWARE:
+		return false
+	var dist := global_position.distance_to(_player.global_position)
+	# 置物櫃本身擋路，站在櫃門前就算抓得到
+	var reach := catch_distance + (10.0 if _player.is_hiding else 0.0)
+	if dist > reach:
+		return false
+	# 躲在櫃子裡：只有被看到躲進去才會被拖出來
+	if _player.is_hiding and not _player.hide_spotted:
+		return false
+	if not _player.is_hiding and state != State.ALERT:
+		return false
+	velocity = Vector2.ZERO
+	caught_player.emit()
+	return true
 
 
 # ── 狀態 ──────────────────────────────────────────────
 
 func _set_state(new_state: State) -> void:
+	var previous := state
 	state = new_state
 	_state_time = 0.0
 	_wait_timer = 0.0
 	if new_state == State.ALERT:
 		awareness = 1.0
+		if previous != State.ALERT and shriek_radius_tiles > 0.0:
+			NoiseBus.emit_noise(global_position, shriek_radius_tiles * TILE, self)
 	state_changed.emit(new_state)
 
 
@@ -229,7 +341,7 @@ func _process_unaware(delta: float) -> void:
 		if _wait_timer <= 0.0:
 			_look_base_angle = facing.angle()
 		_wait_timer += delta
-		_look_around(delta, 0.9)
+		_look_around(0.9)
 		if _wait_timer >= waypoint_wait:
 			_wait_timer = 0.0
 			_advance_patrol()
@@ -268,11 +380,9 @@ func _process_suspicious(delta: float) -> void:
 
 
 func _process_alert(delta: float) -> void:
-	if global_position.distance_to(_player.global_position) <= catch_distance:
-		velocity = Vector2.ZERO
-		caught_player.emit()
-		return
-	if _unseen_time >= lose_sight_time:
+	if _player.is_hiding and _player.hide_spotted:
+		_make_contact(_player.global_position)  # 看到你躲進哪個櫃子了
+	if _no_contact_time >= lose_contact_time:
 		_start_search(_last_known)
 		return
 	_move_along_path(_last_known, chase_speed, delta)
@@ -291,7 +401,7 @@ func _start_search(center: Vector2) -> void:
 
 
 func _process_search(delta: float) -> void:
-	if sees_player and awareness >= 0.5:
+	if awareness >= 0.5 and _no_contact_time < 0.1:
 		_set_state(State.ALERT)
 		return
 	if sees_player and awareness >= suspicious_threshold:
@@ -306,7 +416,7 @@ func _process_search(delta: float) -> void:
 		if _wait_timer <= 0.0:
 			_look_base_angle = facing.angle()
 		_wait_timer += delta
-		_look_around(delta, 1.4)
+		_look_around(1.4)
 		if _wait_timer >= 1.0:
 			_wait_timer = 0.0
 			_search_points.pop_front()
@@ -348,19 +458,22 @@ func _move_along_path(target: Vector2, speed: float, delta: float) -> void:
 	if dir.length() < 0.5:
 		# 導航還沒準備好或已經到了：直接朝目標走
 		dir = target - global_position
+	if in_cold:
+		speed *= cold_speed_mult
 	velocity = dir.normalized() * speed if dir.length() > 0.5 else Vector2.ZERO
 
 
 func _turn_toward(dir: Vector2, delta: float) -> void:
 	if dir == Vector2.ZERO:
 		return
+	var rate := turn_speed * (cold_speed_mult if in_cold else 1.0)
 	var diff := facing.angle_to(dir)
-	var step := clampf(diff, -turn_speed * delta, turn_speed * delta)
+	var step := clampf(diff, -rate * delta, rate * delta)
 	facing = facing.rotated(step).normalized()
 
 
 ## 停下時左右張望。
-func _look_around(_delta: float, amplitude: float) -> void:
+func _look_around(amplitude: float) -> void:
 	var angle := _look_base_angle + sin(_wait_timer * 2.2) * amplitude
 	facing = Vector2.RIGHT.rotated(angle)
 
