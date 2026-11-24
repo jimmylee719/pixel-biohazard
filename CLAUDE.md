@@ -7,6 +7,13 @@
 - 只用 GDScript，不使用 C#（C# 無法匯出網頁版）
 - 命令列：`/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --import`
 
+## 常用指令
+- 行為測試（改完遊戲邏輯一定要跑，結束代碼 0 才算通過）：
+  `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tools/tests/prototype_test.tscn`
+- 截圖（會開視窗）：`/Applications/Godot.app/Contents/MacOS/Godot --path . res://tools/tests/capture.tscn -- <輸出資料夾>`
+- 重新產生 InputMap 設定：`/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tools/setup_project_settings.gd`
+- 注意：遊戲腳本用到自動載入（NoiseBus），所以測試要用「場景」執行，不能用 `--script`。
+
 ## 目標平台
 1. Steam（Windows）
 2. 網頁試玩版（Web）
