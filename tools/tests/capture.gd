@@ -127,6 +127,23 @@ func _run() -> void:
 	await _shot("12_pause")
 	_main._toggle_pause()
 
+	# 二樓宿舍：凍眠體和普通屍體混在一起
+	_main._close_radio()
+	await _main.load_area("station_2f", "stairs", false)
+	_put_player(_tile(8, 3), Vector2.RIGHT, true)
+	await _frames(40)
+	await _shot("14_dorm_sleepers")
+	_overlay.debug_enabled = true
+	await _frames(3)
+	await _shot("15_dorm_debug")
+	_overlay.debug_enabled = false
+	# 站長室
+	WorldState.access_level = 1
+	await _main.load_area("station_2f_office", "office", false)
+	_put_player(_tile(10, 3), Vector2.RIGHT, true)
+	await _frames(20)
+	await _shot("16_office")
+
 	# 標題畫面
 	_main.queue_free()
 	var title: Control = load("res://scenes/title.tscn").instantiate()

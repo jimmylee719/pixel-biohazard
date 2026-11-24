@@ -34,7 +34,17 @@ const DATA := [
 		"id": "find_stairs", "main": true, "requires": ["find_shelter"],
 		"title": "Reach the upper floor",
 		"desc": "Kovac says the antenna controls are upstairs. The stairs are in the lounge.",
-		"steps": [{"type": "interact", "target": "stairs_up"}],
+		"steps": [{"type": "enter_area", "target": "station_2f"}],
+	},
+	{
+		"id": "director_records", "main": true, "requires": ["find_stairs"],
+		"title": "Halvorsen's records",
+		"desc": "The director's office is at the east end of the upper floor. The door needs a keycard - someone in the dorms had one.",
+		"steps": [
+			{"type": "collect", "target": "keycard_2f"},
+			{"type": "interact", "target": "director_terminal"},
+		],
+		"reward": {"access": 2},
 	},
 	{
 		"id": "supply_drop", "main": false,
@@ -138,5 +148,7 @@ func _on_game_event(kind: String, id: String) -> void:
 func _give_reward(reward: Dictionary) -> void:
 	if reward.has("bottles"):
 		WorldState.bottles = WorldState.bottles + int(reward.bottles)
+	if reward.has("access"):
+		WorldState.access_level = int(reward.access)
 	if reward.has("intel"):
 		WorldState.set_flag("intel:" + String(reward.intel))

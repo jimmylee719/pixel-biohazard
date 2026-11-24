@@ -48,6 +48,14 @@ const DATA := [
 		"reveal": "reveal:cache_shore",
 	},
 	{
+		"freq": 12570, "id": "ark", "label": "Ark line",
+		"lines": [
+			"[125.70] ...ARK RELAY. WINDOW OPEN. Greycrow, report sample count.",
+			"\"Greycrow, we read your silence as consent. Collection team will proceed. Survivors are not part of the manifest.\"",
+		],
+		"reveal": "lore:ark",
+	},
+	{
 		"freq": 12605, "id": "hold", "label": "Unknown",
 		"lines": [
 			"[126.05] ...hold position. Do not transmit. Retrieval is inbound.",

@@ -3,7 +3,7 @@
 ## 全部通過時結束代碼為 0，有失敗為 1；超過 TIMEOUT 秒也算失敗。
 extends Node
 
-const TIMEOUT := 180.0
+const TIMEOUT := 300.0
 
 var _failures := 0
 var _main: Node
@@ -985,15 +985,141 @@ func _test_title() -> void:
 
 
 func _test_exit() -> void:
-	print("[exit]")
+	print("[stairs]")
 	_only(_watcher)
 	_freeze(_watcher, _tile(17, 10), Vector2.DOWN)
 	_place_player(_tile(2, 3), false, Vector2.UP)
 	await _frames(3)
-	_check(_player.focus is ExitPoint, "站在出口可以互動")
+	_check(_player.focus is ExitPoint, "站在樓梯可以互動")
 	await _press("interact")
-	_check(not _player.input_enabled, "到達出口後結束這一輪")
-	_check(Missions.is_done("find_stairs"), "完成主線：到達樓梯")
-	await _seconds(2.0)
-	await _seconds(1.0)
+	while _main._transitioning:
+		await _frames(1)
+	await _frames(5)
+	_check(_main.level.area_id == "station_2f", "樓梯通往二樓（%s）" % _main.level.area_id)
+	_check(Missions.is_done("find_stairs"), "完成主線：到達樓上")
+	_check(Missions.tracked_mission().get("id") == "director_records", "下一個主線：站長的紀錄")
+	_check(_main.level.is_cold(_player.global_position), "二樓暖氣壞了，是冷的")
+	_bind_upper()
+	await _test_sleepers()
+	await _test_keycard_and_office()
+
+
+var _sleepers: Array[Enemy] = []
+
+
+func _bind_upper() -> void:
+	_level = _main.level
+	_watcher = _main.enemies[0]
+	_sleepers.clear()
+	for e in _main.enemies:
+		if e.display_name == "Sleeper":
+			_sleepers.append(e)
+
+
+func _test_sleepers() -> void:
+	print("[sleeper]")
+	_check(_sleepers.size() == 4, "二樓有 4 隻凍眠體")
+	var s: Enemy = _sleepers[0]  # 宿舍 A (12,4)
+	_check(s.is_dormant and s.can_be_taken_down_by(_player), "凍眠體一開始躺著（可以偷襲）")
+	var decoys := _level.get_children().filter(func(n): return n is CorpseDecor)
+	_check(decoys.size() == 5, "地上還有 5 具普通屍體")
+	_only(s)
+	# 自動鎖定不會鎖到睡著的凍眠體
+	_place_player(_tile(9, 4), false, Vector2.RIGHT)
+	WorldState.inv_add("pistol", 1)
+	Input.action_press("aim")
+	await _seconds(0.3)
+	_check(_player.combat.target == null, "舉槍不會鎖定睡著的凍眠體")
+	Input.action_release("aim")
+	await _frames(3)
+	# 潛行經過不會醒
+	_player.sneaking = true
+	_place_player(_tile(10, 3), false, Vector2.RIGHT)
+	_player.sneaking = true
+	Input.action_press("move_right")
+	await _seconds(0.6)
+	Input.action_release("move_right")
+	await _frames(5)
+	_check(s.is_dormant, "潛行經過不會吵醒凍眠體")
+	# 走路經過會醒
+	s.reset()
+	_place_player(_tile(10, 3), false, Vector2.RIGHT)
+	Input.action_press("move_right")
+	await _seconds(0.5)
+	Input.action_release("move_right")
+	_check(not s.is_dormant and s.state == Enemy.State.ALERT, "走路經過會吵醒凍眠體並直接警戒")
+	await _await_reset()
+	# 聲音會吵醒
+	s.reset()
+	_place_player(_tile(3, 10), false)
+	NoiseBus.emit_noise(s.global_position + Vector2(20, 0), 32.0, null)
+	await _frames(2)
+	_check(not s.is_dormant, "附近的聲音會吵醒凍眠體")
+	# 區域變暖會醒
+	s.reset()
+	_level.set_zone_heated("upper", true)
+	await _frames(3)
+	_check(not s.is_dormant, "暖氣恢復時凍眠體甦醒")
+	_level.set_zone_heated("upper", false)
+	# 偷襲：潛行靠近一刀解決
+	s.reset()
+	_place_player(_tile(11, 4), false, Vector2.RIGHT)
+	_player.sneaking = true
+	await _seconds(0.6)
+	await _press("fire")
+	_check(s.is_dead, "潛行靠近睡著的凍眠體可以一刀解決")
+	await _reset_world()
+	_enable_all()
+
+
+## 等被攻擊之類的延遲重來跑完
+func _await_reset() -> void:
+	await _seconds(0.2)
+	while _main._resetting:
+		await _frames(1)
+
+
+func _test_keycard_and_office() -> void:
+	print("[keycard / office]")
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	_check(WorldState.access_level == 0, "一開始沒有權限卡")
+	# 走到辦公室門口：鎖著
+	_place_player(_tile(37, 10), false, Vector2.RIGHT)
+	Input.action_press("move_right")
+	await _seconds(0.6)
+	Input.action_release("move_right")
+	await _frames(5)
+	_check(_main.level.area_id == "station_2f", "沒有權限卡時辦公室的門打不開")
+	_check(_main.get_node("HUD/Message").visible and "Locked" in _main.get_node("HUD/Message").text, "顯示需要權限卡")
+	# 拿權限卡
+	var card := _find_item(AccessCard, Vector2i(27, 2))
+	_place_player(_tile(27, 3), false, Vector2.UP)
+	await _frames(3)
+	_check(_player.focus == card, "可以拿權限卡")
+	await _press("interact")
+	_check(WorldState.access_level == 1, "權限等級 1")
+	_check(Missions.step_index("director_records") == 1, "主線進行到使用終端機")
+	_check(WorldState.inventory().all(func(s): return s.get("id", "") != "keycard"), "權限卡不佔物品欄")
+	# 進辦公室
+	_place_player(_tile(37, 10), false, Vector2.RIGHT)
+	await _walk_until_area("move_right", "station_2f_office")
+	_check(_main.level.area_id == "station_2f_office", "有權限卡就能進站長室")
+	_level = _main.level
+	var note := _find_item(ReadableNote, Vector2i(3, 2))
+	_place_player(_tile(3, 3), false, Vector2.UP)
+	await _frames(3)
+	await _press("interact")
+	_check(WorldState.is_freq_known(12570), "站長的便條：記下 125.70")
+	var terminal := _find_item(Terminal, Vector2i(12, 2))
+	_place_player(_tile(12, 3), false, Vector2.UP)
+	await _frames(3)
+	_check(_player.focus == terminal, "可以使用終端機")
+	await _press("interact")
+	_check(Missions.is_done("director_records"), "完成主線：站長的紀錄")
+	_check(WorldState.access_level == 2, "權限卡升到等級 2")
+	_check(not _player.input_enabled, "原型在這裡結束")
+	await _seconds(7.5)
 	_check(_main.level.area_id == "south_shore", "原型結束後重新開始（%s）" % _main.level.area_id)
+
+

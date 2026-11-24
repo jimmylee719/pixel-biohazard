@@ -9,6 +9,7 @@
 ##   A  彈藥   M  急救包   V  抗菌藥劑   W  手槍（數量見 Items.MAP_PICKUPS）
 ##   R  無線電（存檔、接收支線、調頻）   Y  儲物箱（所有安全屋共用）
 ##   N  筆記／白板（可重複閱讀）   S  散彈槍   L  散彈
+##   Q  權限卡（提升權限等級，不佔物品欄）   O  終端機   x  屍體（裝飾；和凍眠體很像）
 ##   1～9、a～i  敵人巡邏點，哪些點屬於哪隻敵人見 enemies
 ##
 ## 每個區域的欄位：
@@ -22,6 +23,8 @@
 ##              兩個區域裡 id 相同的門互相連通
 ##   safe       安全屋：沒有敵人、燈光溫暖、有無線電（存檔＋接支線）和儲物箱
 ##   entries    其他入口 {id: 格子}（例如無線電旁邊，存檔後從這裡重來）
+##   stairs     {"x,y": 目標區域}，G 樓梯通往哪裡（到達後站在目標區域的 entries.stairs）
+##   access     門的欄位：需要的權限等級（WorldState.access_level）
 ##   names      {"x,y": 名稱}，給任務系統辨認特定物件用
 ##   hidden     {"x,y": 旗標}，這格的物品要等旗標設定後才會出現（例如聽了某個頻率）
 ##   learn      {名稱: 頻率}，讀到／撿到這個物件時，把頻率記進無線電備忘錄
@@ -129,6 +132,8 @@ const DATA := {
 			"cargo": {"cell": Vector2i(35, 24), "to": "south_shore", "spawn_dir": Vector2i(0, -1)},
 			"safe": {"cell": Vector2i(14, 20), "to": "station_safe", "spawn_dir": Vector2i(0, -1)},
 		},
+		"stairs": {"2,2": "station_2f"},
+		"entries": {"stairs": Vector2i(2, 3)},
 		"names": {
 			"31,2": "lounge_breaker",
 			"2,2": "stairs_up",
@@ -180,6 +185,84 @@ const DATA := {
 			"3,2": "radio_safe",
 		},
 		"messages": {},
+	},
+
+	"station_2f": {
+		"title": "Station 2F",
+		"outdoor": false,
+		"map": [
+			"########################################",
+			"#.....#...........#...........#.......##",
+			"#.G...#.CC.....CC.#.CC...d.Q..#.....M.##",
+			"#.....#.......x...#...........#..CC...##",
+			"#.....#.....a.....#....b......#..CC...##",
+			"#.....#.CC.....CC.#.CC.....CC.#.......##",
+			"#.....#....x......#...x.......#......H##",
+			"#.....#...........#...........#.......##",
+			"###.########.###########.#########.#####",
+			"#......................................#",
+			"#....1....................c.........2..D",
+			"#H...............................x.....#",
+			"############.###########################",
+			"#######...........######################",
+			"#######..x......L.######################",
+			"########################################",
+		],
+		"enemies": [
+			{"type": "patroller", "route": "12"},
+			{"type": "sleeper", "route": "a"},
+			{"type": "sleeper", "route": "b"},
+			{"type": "sleeper", "route": "c"},
+			{"type": "sleeper", "route": "d"},
+		],
+		# 二樓的暖氣壞了：整層都是冷的，凍眠體才會一直睡著
+		"zones": {
+			"upper": {"rect": Rect2i(0, 0, 40, 16), "heated": false},
+		},
+		"breakers": [],
+		"doors": {
+			"office": {"cell": Vector2i(39, 10), "to": "station_2f_office", "spawn_dir": Vector2i(-1, 0), "access": 1},
+		},
+		"stairs": {"2,2": "station_1f"},
+		"entries": {"stairs": Vector2i(2, 3)},
+		"names": {
+			"27,2": "keycard_2f",
+		},
+		"messages": {},
+	},
+
+	"station_2f_office": {
+		"title": "Director's Office",
+		"outdoor": false,
+		"map": [
+			"################",
+			"#..............#",
+			"#..N........O..#",
+			"#..............#",
+			"#.......CC.....#",
+			"D.......CC.....#",
+			"#..............#",
+			"#............V.#",
+			"#..............#",
+			"################",
+		],
+		"enemies": [],
+		"zones": {},
+		"breakers": [],
+		"doors": {
+			"office": {"cell": Vector2i(0, 5), "to": "station_2f", "spawn_dir": Vector2i(1, 0)},
+		},
+		"names": {
+			"12,2": "director_terminal",
+			"3,2": "note_office",
+		},
+		"learn": {
+			"note_office": 12570,
+		},
+		"messages": {
+			"note_office": "DESK NOTE (Halvorsen): \"Ark line, 125.70, scheduled windows only. They promised a pickup for the samples. Not for us.\"",
+			"director_terminal": "HALVORSEN'S RECORDS: \"Day 3: Mendez and Lund show the clicking. Kept off the report - the Ark people paid for this season. Day 6: moved the infected to cold storage. Day 9: power cut. God help us.\"",
+		},
 	},
 }
 

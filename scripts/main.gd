@@ -15,7 +15,10 @@ const KOVAC_INTRO := "KOVAC: \"...is anyone on this channel? This is Dr. Ina Kov
 const ENEMY_SCENES := {
 	"patroller": preload("res://scenes/enemy.tscn"),
 	"listener": preload("res://scenes/enemy_listener.tscn"),
+	"sleeper": preload("res://scenes/enemy_sleeper.tscn"),
 }
+## 原型的終點：讀完站長的紀錄
+const PROTOTYPE_END_TERMINAL := "director_terminal"
 
 var level: Level
 var enemies: Array[Enemy] = []
@@ -28,6 +31,8 @@ var _inventory_cursor := 0
 var _storage_cursor := 0
 var _radio_freq := 12150
 var _radio_transcript: Array[String] = []
+## 剛剛已經提示過「門鎖著」的門（避免每一幀都跳訊息）
+var _locked_door_notice := ""
 
 @onready var _darkness: CanvasModulate = $Darkness
 @onready var _player: Player = $Player
@@ -128,8 +133,16 @@ func _physics_process(_delta: float) -> void:
 	if level == null or _transitioning or _resetting or _player.is_hiding or not _player.input_enabled:
 		return
 	var door := level.door_at(_player.global_position)
-	if door != "":
-		load_area(level.door_target(door), door)
+	if door == "":
+		_locked_door_notice = ""
+		return
+	var need := level.door_access(door)
+	if need > WorldState.access_level:
+		if _locked_door_notice != door:
+			_locked_door_notice = door
+			show_message("Locked. Keycard access level %d required." % need, true)
+		return
+	load_area(level.door_target(door), door)
 
 
 # ── 區域 ──────────────────────────────────────────────
@@ -163,7 +176,9 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 
 	for item in level.get_interactables():
 		if item is ExitPoint:
-			item.reached.connect(_on_stairs)
+			item.reached.connect(func(target: String): load_area(target, "stairs"))
+		elif item is Terminal:
+			item.used.connect(_on_terminal_used)
 		elif item is TapePickup:
 			item.message_shown.connect(show_message)
 		elif item is ReadableNote:
@@ -202,11 +217,13 @@ func _fade_to(alpha: float) -> void:
 
 # ── 被抓到、重來 ──────────────────────────────────────
 
-func _on_stairs() -> void:
-	_end_attempt("TO BE CONTINUED", Color(0.5, 1, 0.6), true)
+func _on_terminal_used(item_name: String) -> void:
+	show_message(level.get_message(item_name))
+	if item_name == PROTOTYPE_END_TERMINAL:
+		_end_attempt("TO BE CONTINUED", Color(0.5, 1, 0.6), true, MESSAGE_TIME)
 
 
-func _end_attempt(text: String, color: Color, new_game := false) -> void:
+func _end_attempt(text: String, color: Color, new_game := false, delay := RESET_DELAY) -> void:
 	if _resetting:
 		return
 	_resetting = true
@@ -214,7 +231,7 @@ func _end_attempt(text: String, color: Color, new_game := false) -> void:
 	_banner.text = text
 	_banner.add_theme_color_override("font_color", color)
 	_banner.visible = true
-	await get_tree().create_timer(RESET_DELAY).timeout
+	await get_tree().create_timer(delay).timeout
 	if new_game:
 		WorldState.new_game()
 		_banner.visible = false
@@ -240,8 +257,15 @@ func reset_attempt() -> void:
 # ── HUD ───────────────────────────────────────────────
 
 ## 畫面下方的訊息（錄音內容、無線電、任務完成）。同時有好幾則就依序顯示。
-func show_message(text: String) -> void:
+## urgent = 立刻顯示（例如「門鎖著」），原本顯示中的訊息排回佇列最前面。
+func show_message(text: String, urgent := false) -> void:
 	if text == "":
+		return
+	if urgent:
+		if _message.visible:
+			_message_queue.push_front(_message.text)
+		_message_queue.push_front(text)
+		_show_next_message()
 		return
 	_message_queue.append(text)
 	if not _message.visible:
@@ -469,6 +493,8 @@ func _build_items_text() -> String:
 		parts.append("%s %s (+%d)" % [Items.display_name(weapon), mag,
 			WorldState.inv_count(combat.stats().ammo)])
 	parts.append("Bottles %d" % _player.bottles)
+	if WorldState.access_level > 0:
+		parts.append("Card Lv%d" % WorldState.access_level)
 	return "  ".join(parts)
 
 

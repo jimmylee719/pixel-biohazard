@@ -56,6 +56,11 @@ func _draw() -> void:
 	for enemy in _enemies:
 		if enemy.is_dead:
 			continue
+		if enemy.is_dormant:
+			_draw_glint(enemy)
+			if debug_enabled:
+				draw_arc(enemy.global_position, enemy.wake_radius, 0.0, TAU, 24, Color(0.6, 0.9, 1.0, 0.35), 1.0)
+			continue
 		if enemy.winding_up and (enemy.visible_to_player or debug_enabled):
 			_draw_windup(enemy)
 		if debug_enabled:
@@ -103,6 +108,17 @@ func _draw_combat() -> void:
 		var p := _player.global_position + Vector2(-6, 9)
 		draw_rect(Rect2(p, Vector2(12, 2)), Color(0, 0, 0, 0.6))
 		draw_rect(Rect2(p, Vector2(12 * combat.reload_progress(), 2)), Color(0.9, 0.85, 0.5))
+
+
+## 睡著的凍眠體：偶爾閃一下結晶的微光，這是和普通屍體唯一的差別。
+func _draw_glint(enemy: Enemy) -> void:
+	if not (enemy.visible_to_player or debug_enabled):
+		return
+	var phase := fmod(Time.get_ticks_msec() * 0.001 + float(enemy.enemy_key.hash() % 100) * 0.037, 2.6)
+	if phase < 0.18:
+		var p := enemy.global_position + Vector2(2, -1)
+		draw_rect(Rect2(p, Vector2(1, 1)), Color(0.7, 1.0, 1.0, 0.9))
+		draw_rect(Rect2(p + Vector2(-1, 0), Vector2(3, 1)), Color(0.7, 1.0, 1.0, 0.35))
 
 
 ## 敵人出手前：身上閃紅光，提示玩家快閃開。

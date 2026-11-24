@@ -25,7 +25,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRYNSL"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOx"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -123,6 +123,11 @@ func door_at(pos: Vector2) -> String:
 
 func door_target(door_id: String) -> String:
 	return _data.doors[door_id].to
+
+
+## 這扇門需要的權限等級（0 = 不需要）
+func door_access(door_id: String) -> int:
+	return _data.doors[door_id].get("access", 0)
 
 
 func cell_of(pos: Vector2) -> Vector2i:
@@ -310,7 +315,17 @@ func _spawn_interactables() -> void:
 					breaker_index += 1
 					item = breaker
 				"G":
-					item = ExitPoint.new()
+					var stairs := ExitPoint.new()
+					stairs.target_area = _data.get("stairs", {}).get("%d,%d" % [x, y], "")
+					item = stairs
+				"Q":
+					item = AccessCard.new()
+				"O":
+					item = Terminal.new()
+				"x":
+					var corpse := CorpseDecor.new()
+					corpse.position = _cell_center(Vector2i(x, y))
+					add_child(corpse)
 				"R":
 					item = RadioConsole.new()
 				"Y":

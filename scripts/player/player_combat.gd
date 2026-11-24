@@ -134,7 +134,8 @@ func find_targets() -> Array[Enemy]:
 	var half := deg_to_rad(aim_half_angle_deg)
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
-		if enemy == null or enemy.is_dead:
+		# 睡著的凍眠體不會被鎖定：玩家要自己分辨牠和真正的屍體
+		if enemy == null or enemy.is_dead or enemy.is_dormant:
 			continue
 		if not Sight.in_cone(player.global_position, player.facing, enemy.global_position, half, stats().get("range", 0.0)):
 			continue

@@ -1,8 +1,10 @@
-## 樓梯：原型的終點（二樓還沒做）。
+## 樓梯：通往另一層（target_area），到達後站在對方的 entries.stairs。
 class_name ExitPoint
 extends Interactable
 
-signal reached
+signal reached(target_area: String)
+
+var target_area := ""
 
 var _glow: PointLight2D
 
@@ -21,11 +23,11 @@ func can_interact(player: Player) -> bool:
 
 
 func get_prompt(_player: Player) -> String:
-	return "Go upstairs"
+	return "Go upstairs" if target_area.ends_with("2f") else "Go downstairs"
 
 
 func interact(_player: Player) -> void:
-	reached.emit()
+	reached.emit(target_area)
 
 
 func _draw() -> void:

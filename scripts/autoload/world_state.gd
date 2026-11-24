@@ -34,6 +34,7 @@ func new_game() -> void:
 		"infection": 0.0,
 		"loaded": {"pistol": 0, "shotgun": 0},
 		"equipped": "pistol",
+		"access_level": 0,
 		"storage": {},
 		"flags": {},
 	}
@@ -86,6 +87,15 @@ func get_loaded(weapon: String) -> int:
 func set_loaded(weapon: String, value: int) -> void:
 	data.loaded[weapon] = value
 	changed.emit()
+
+
+## 權限卡等級（取代一堆彩色鑰匙，見 GDD 8.3）
+var access_level: int:
+	get:
+		return data.access_level
+	set(value):
+		data.access_level = maxi(data.access_level, value)
+		changed.emit()
 
 
 var equipped: String:
@@ -300,6 +310,7 @@ func _migrate(old: Dictionary) -> Dictionary:
 		"infection": 0.0,
 		"loaded": {"pistol": 0, "shotgun": 0},
 		"equipped": "pistol",
+		"access_level": 0,
 		"storage": {},
 		"flags": {},
 	}

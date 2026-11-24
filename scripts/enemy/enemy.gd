@@ -2,6 +2,7 @@
 ## 不同種類只靠 @export 參數和場景外觀區分：
 ##   - 值班者（巡邏型）：有視野、會被手電筒吸引
 ##   - 鳴骨者（聽覺型）：全盲、聽覺極好、會感覺到附近的腳步震動、進入警戒時尖鳴呼叫同類
+##   - 凍眠體（伏擊型）：躺著像屍體（dormant），有人走過、附近有聲音、或區域暖起來就會醒
 ##
 ##   未察覺 ──看到／聽到──► 起疑 ──察覺值滿──► 警戒（追擊）
 ##     ▲                     │                    │
@@ -76,6 +77,14 @@ const TILE := 16.0
 ## 從背後被偷襲時，主角要在牠背後多大的角度內（度）
 @export var takedown_back_angle_deg := 110.0
 
+@export_group("休眠（凍眠體）")
+## 一開始是躺著睡著的
+@export var dormant := false
+## 走路或奔跑經過這個距離內就會醒（潛行不會）
+@export var wake_radius := 30.0
+## 從地上爬起來的時間（這段時間內不會攻擊）
+@export var rise_time := 0.7
+
 @export_group("溫度（沒開暖氣的區域）")
 @export var cold_speed_mult := 0.55
 @export var cold_awareness_mult := 0.6
@@ -92,6 +101,8 @@ var in_cold := false
 var click_age := 99.0
 var health := 80.0
 var is_dead := false
+## 正在休眠（凍眠體）：看起來像屍體，不會動、不會被自動鎖定
+var is_dormant := false
 ## 正在出手的預備動作（畫面提示用）
 var winding_up := false
 ## 用來記錄「這隻已經死了」的 id（區域:編號），由 main 設定
@@ -152,6 +163,12 @@ func reset() -> void:
 		_apply_dead_state()
 		return
 	_revive()
+	is_dormant = dormant
+	if is_dormant:
+		facing = Vector2.RIGHT
+		_set_body_color(_body_color.darkened(0.6))
+		_body.scale = Vector2(1.2, 0.6)
+		_set_details_visible(false)  # 睡著時藏起結晶，看起來和普通屍體一樣
 	velocity = Vector2.ZERO
 	awareness = 0.0
 	_patrol_index = 1 if patrol_points.size() > 1 else 0
@@ -184,6 +201,8 @@ func get_half_angle() -> float:
 
 ## 主角躲進櫃子的那一刻，這隻敵人算不算「看到了」。
 func is_watching_player() -> bool:
+	if is_dormant:
+		return false
 	if sees_player and (state == State.SUSPICIOUS or state == State.ALERT):
 		return true
 	# 聽覺型在警戒中、而且就在旁邊，會聽到你鑽進櫃子
@@ -194,6 +213,11 @@ func _physics_process(delta: float) -> void:
 	if _player == null:
 		return
 	if is_dead:
+		_update_visibility(delta)
+		return
+	if is_dormant:
+		in_cold = _level != null and _level.is_cold(global_position)
+		_check_wake()
 		_update_visibility(delta)
 		return
 	_attack_cd = maxf(_attack_cd - delta, 0.0)
@@ -297,6 +321,9 @@ func _on_noise(pos: Vector2, radius: float, source: Node) -> void:
 		effective *= 0.5  # 隔著牆聽得比較不清楚
 	if global_position.distance_to(pos) > effective:
 		return
+	if is_dormant:
+		wake(pos)
+		return
 	var is_call := source is Enemy  # 同類的尖鳴：只會過去看看，不會直接警戒
 	match state:
 		State.UNAWARE, State.SEARCH:
@@ -370,6 +397,8 @@ func take_damage(amount: float, from_pos: Vector2, stagger: float) -> void:
 	if is_dead:
 		return
 	health -= amount
+	if is_dormant and health > 0.0:
+		wake(from_pos)
 	if health <= 0.0:
 		_die()
 		return
@@ -384,9 +413,43 @@ func take_damage(amount: float, from_pos: Vector2, stagger: float) -> void:
 		_set_state(State.ALERT)
 
 
-## 能不能從背後偷襲：沒察覺主角、而且主角在牠背後。
+# ── 休眠（凍眠體）────────────────────────────────────
+
+## 睡著時：區域變暖、或有人走路／奔跑經過、或貼得太近就會醒。
+func _check_wake() -> void:
+	if not in_cold and _level != null and _level.zone_at(global_position) != "":
+		wake(global_position)  # 暖氣恢復：霜鳴菌甦醒
+		return
+	if _player.is_hiding or _player.is_dead:
+		return
+	var dist := global_position.distance_to(_player.global_position)
+	var loud_steps := _player.gait == Player.Gait.WALK or _player.gait == Player.Gait.RUN
+	if (loud_steps and dist <= wake_radius) or dist <= proximity_sense * 0.6:
+		wake(_player.global_position)
+
+
+## 醒來：先花一點時間爬起來，然後直接進入警戒。
+func wake(toward: Vector2) -> void:
+	if not is_dormant:
+		return
+	is_dormant = false
+	_set_body_color(_body_color)
+	_body.scale = Vector2.ONE
+	_set_details_visible(true)
+	_stagger = rise_time
+	facing = (toward - global_position).normalized() if toward != global_position else facing
+	awareness = 1.0
+	_make_contact(toward)
+	_set_state(State.ALERT)
+
+
+## 能不能從背後偷襲：沒察覺主角、而且主角在牠背後（睡著的凍眠體一定可以）。
 func can_be_taken_down_by(player: Player) -> bool:
-	if is_dead or state != State.UNAWARE or sees_player:
+	if is_dead:
+		return false
+	if is_dormant:
+		return true
+	if state != State.UNAWARE or sees_player:
 		return false
 	if not has_sight:
 		return true  # 看不到的敵人只要沒察覺就可以
@@ -422,6 +485,12 @@ func _revive() -> void:
 	collision_layer = 4
 	_set_body_color(_body_color)
 	_body.scale = Vector2.ONE
+
+
+## 身體以外的細節（眼睛、結晶）
+func _set_details_visible(on: bool) -> void:
+	for i in range(1, _body.get_child_count()):
+		_body.get_child(i).visible = on
 
 
 func _set_body_color(c: Color) -> void:
