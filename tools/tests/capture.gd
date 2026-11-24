@@ -213,6 +213,33 @@ func _run() -> void:
 	get_tree().paused = false
 	_main._ending_panel.visible = false
 
+	# 環境互動：汽油彈的火、燒起來的油桶、滅火器的白霧；氣象小屋群；觸控介面
+	WorldState.data.flags.erase("signal")
+	await _main.load_area("weather_huts", "huts", false)
+	_put_player(_tile(19, 21), Vector2.UP, false)
+	_player.cycle_light()
+	_player.cycle_light()  # 打火機
+	await _frames(20)
+	await _shot("29_huts_lighter")
+	_main.level.get_interactables().filter(func(i): return i is OilDrum)[0].interact(_player)
+	var fire := Fire.new()
+	fire.duration = 0.0
+	_main.level.add_child(fire)
+	fire.global_position = _tile(24, 21)
+	var cloud := SmokeCloud.new()
+	cloud.duration = 99.0
+	_main.level.add_child(cloud)
+	cloud.global_position = _tile(14, 22)
+	await _frames(30)
+	await _shot("30_fire_smoke")
+	_main.touch_controls.set_enabled(true)
+	_main.touch_controls.joystick.touch_down(0, Vector2(60, 200))
+	_main.touch_controls.joystick.touch_move(Vector2(80, 190))
+	await _frames(5)
+	await _shot("31_touch_ui")
+	_main.touch_controls.joystick.release()
+	_main.touch_controls.set_enabled(false)
+
 	# 標題畫面
 	_main.queue_free()
 	var title: Control = load("res://scenes/title.tscn").instantiate()

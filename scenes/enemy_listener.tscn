@@ -11,6 +11,7 @@ collision_mask = 1
 motion_mode = 1
 script = ExtResource("1_enemy")
 display_name = "Chimer"
+sprite_set = "listener"
 patrol_speed = 24.0
 investigate_speed = 34.0
 chase_speed = 78.0

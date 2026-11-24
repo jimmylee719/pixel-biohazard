@@ -19,6 +19,8 @@ extends Node
 @export var aim_half_angle_deg := 45.0
 ## 舉槍後多久準心完全收束
 @export var aim_focus_time := 0.8
+## 邊走邊射時準心最多收到多少（0～1）
+@export var moving_focus_cap := 0.6
 
 ## 槍械數值。falloff = 傷害隨距離下降（散彈槍）
 const WEAPONS := {
@@ -125,7 +127,15 @@ func _update_aim(delta: float) -> void:
 		aim_focus = 0.0
 	if target:
 		player.facing = (target.global_position - player.global_position).normalized()
-		aim_focus = minf(aim_focus + delta / aim_focus_time, 1.0)
+		# 邊走邊射：準心收得比較慢，而且收不到最準
+		var moving := player.velocity.length() > 10.0
+		var rate := 0.5 if moving else 1.0
+		if player.is_shivering():
+			rate *= 0.6  # 手在發抖
+		var cap := moving_focus_cap if moving else 1.0
+		aim_focus = minf(aim_focus + rate * delta / aim_focus_time, maxf(cap, minf(aim_focus, 1.0)))
+		if moving:
+			aim_focus = minf(aim_focus, cap)
 
 
 ## 主角面前、射程內、沒被牆擋住的活著的敵人，由近到遠。
@@ -220,6 +230,12 @@ func melee() -> bool:
 			damage *= takedown_mult
 			takedown = true
 		enemy.take_damage(damage, origin, melee_stagger)
+	# 小刀也可以割開木箱、木板（安靜，但要割好幾下）
+	if player.level:
+		for item in player.level.get_interactables():
+			if item is Breakable and item.enabled \
+					and Sight.in_cone(origin, player.facing, item.global_position, half, melee_range + 8.0):
+				item.cut()
 	# 先結算傷害再發出聲音：不然被偷襲的敵人會在同一瞬間「聽到」揮刀聲而無法偷襲
 	NoiseBus.emit_noise(origin, melee_noise_tiles * Player.TILE, player)
 	last_melee = {"pos": origin, "dir": player.facing, "t": 0.0, "takedown": takedown}

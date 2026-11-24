@@ -32,6 +32,16 @@
 - 電力：`WorldState.power_on`；區域的 `powered_area`（燈）、溫度區域的 `powered`（暖氣）。搬運中的東西：`WorldState.carrying`。
 - 支線可以設 `radio` 欄位：要在安全屋用無線電聽到才會出現（GDD 第 8.4 節）。
 - 瞄準一律是「朝向＋自動鎖定」，不要做需要滑鼠精準瞄準的玩法（觸控版要能玩）。
+- 環境互動（P11）：投擲物 `Items.THROWABLES`（物品欄「使用」= 準備丟）、材料 `kind: craft` 的 `recipe`；火 `scripts/fx/fire.gd`（group "fires"）、滅火器白霧 `scripts/fx/smoke_cloud.gd`；
+  地圖小寫符號 o 油桶、w 木箱、p 木板、q 滅火器、r 碎石堆（見 areas.gd 開頭）。會擋路的物件用 `Level.add_nav_obstacle()`，拆掉後 `rebake_navigation()`。
+- 失溫依區域氣候：`scripts/world/climates.gd`，區域資料 `climate`（預設 `Areas.DEFAULT_CLIMATE`）；`Level.exposure_at()`。
+- 美術：`art_raw/`（ComfyUI 原圖，不進版本控制）→ `tools/import_art.gd`（清單在檔案裡）→ `assets/sprites/`，之後跑一次 `--import`。
+  執行：`/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tools/import_art.gd`。
+  角色動畫 `scripts/fx/character_sprite.gd`（5 方向＋鏡像），讀圖用 `Art.tex()`，沒有圖時退回色塊。
+- 觸控：`scripts/ui/touch_controls.gd`、`touch_stick.gd`（全部轉成 InputMap 動作）。注意 Godot 4.7 內建 `VirtualJoystick` 類別，自己的類別不要取這個名字。
+- 多語系：介面與劇情文字一律寫英文原文，顯示時用 `tr()`（資料裡的整句在 `show_message`、面板顯示處翻譯）。
+  中文在 `tools/locale/zh_TW.py`，改完跑 `python3 tools/locale/make_po.py` 產生 `locale/zh_TW.po`；測試會檢查劇情、任務、物品文字都有中文。
+  字型：俐方體11號（`assets/fonts/`，OFL），只用 12、24 號字才清楚。測試用英文跑（`TranslationServer.set_locale("en")`）。
 - 地圖是半開放結構（見 GDD 第 8 節）：用寒冷、電力、工具、權限卡等級等軟性門檻，不要一直做彩色鑰匙。
 
 ## 目標平台

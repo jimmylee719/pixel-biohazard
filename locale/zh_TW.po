@@ -1,0 +1,802 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_TW\n"
+
+msgid "South Shore"
+msgstr "南岸雪原"
+
+msgid "Station 1F"
+msgstr "北緯站 一樓"
+
+msgid "Clean Room (Safe)"
+msgstr "無菌室（安全屋）"
+
+msgid "Station 2F"
+msgstr "北緯站 二樓"
+
+msgid "Director's Office"
+msgstr "站長室"
+
+msgid "Fuel Depot"
+msgstr "燃料庫"
+
+msgid "Station B1"
+msgstr "北緯站 地下一樓"
+
+msgid "Hangar"
+msgstr "機庫"
+
+msgid "Antenna Tower - Yard"
+msgstr "天線塔・庭院"
+
+msgid "Antenna Tower - Comms Deck"
+msgstr "天線塔・通訊甲板"
+
+msgid "Drill Shaft"
+msgstr "鑽探井"
+
+msgid "Shaft Bottom"
+msgstr "井底"
+
+msgid "Weather Huts"
+msgstr "氣象小屋群"
+
+msgid "Bunk Hut (Safe)"
+msgstr "床鋪小屋（安全屋）"
+
+msgid "TUNDRA MOTHER"
+msgstr "苔原之母"
+
+msgid "THE DEEP WELL"
+msgstr "深井"
+
+msgid "dish de-icer"
+msgstr "天線碟除冰器"
+
+msgid "drill heaters"
+msgstr "鑽頭加熱器"
+
+msgid "TAPE (Mendez): \"...the clicking started on day four. They follow the sound of our boots. If anything happens, I'll keep a loop running on 124.35.\""
+msgstr "錄音帶（曼德茲）：「……喀喀聲從第四天開始。牠們循著我們的腳步聲走。萬一我出事，我會在 124.35 一直重播。」"
+
+msgid "WHITEBOARD: \"OPS LOG / drop schedule -> 127.80 (automated). Don't use the ops channel for chatter! - H.\""
+msgstr "白板：「作業日誌／空投時程 → 127.80（自動）。不准在作業頻道聊天！——H」"
+
+msgid "DESK NOTE (Halvorsen): \"Ark line, 125.70, scheduled windows only. They promised a pickup for the samples. Not for us.\""
+msgstr "桌上的便條（哈爾沃森）：「方舟專線，125.70，只在排定的時段。他們答應來接樣本。不是來接我們。」"
+
+msgid "HALVORSEN'S RECORDS: \"Day 3: Mendez and Lund show the clicking. Kept off the report - the Ark people paid for this season. Day 6: moved the infected to cold storage. Day 9: power cut. God help us.\""
+msgstr "哈爾沃森的紀錄：「第 3 天：曼德茲和倫德開始出現喀喀聲。沒寫進報告——這一季的經費是方舟出的。第 6 天：把感染者移到冷藏庫。第 9 天：停電。願上帝幫助我們。」"
+
+msgid "MANIFEST: \"Drum 7 - diesel, generator grade. Moved to the back of the warehouse after the storm. The thing in here hunts by sound. Walk soft.\""
+msgstr "貨單：「7 號桶——發電機用柴油。暴風雪之後移到倉庫最裡面。這裡面那東西靠聲音獵食。腳步放輕。」"
+
+msgid "Relay shed log: \"Dish iced over again. The de-icer breaker is out on the dish platform - and don't run it with the comms deck unguarded, Halvorsen says the noise carries.\""
+msgstr "中繼小屋日誌：「天線碟又結冰了。除冰器的配電箱在天線碟平台上——通訊甲板沒人顧的時候別開，哈爾沃森說那聲音傳得很遠。」"
+
+msgid "Uplink log, last entry: \"Outbound blocked by order of the director. Inbound only. Something keeps answering on 126.05 - not our people.\""
+msgstr "上行日誌，最後一筆：「站長下令封鎖對外發訊，只能接收。有東西一直在 126.05 回應——不是我們的人。」"
+
+msgid "MET LOG, day 12: \"Wind ninety knots. Anyone caught between huts won't make it. The ridge beacon still has kerosene - the supply drone homes on it.\""
+msgstr "氣象日誌，第 12 天：「風速九十節。在小屋之間被困住的人撐不過去。稜線上的信標還有煤油——補給無人機會循著它飛來。」"
+
+msgid "PIETER (scrawled): \"Kept the bunk hut warm for whoever makes it. Radio's on the shelf. Light the beacon on the ridge - the drone drops by the south fence. Too cold to walk back. Sorry.\""
+msgstr "彼得（潦草的字跡）：「床鋪小屋我一直開著暖氣，留給撐得到的人。無線電在架子上。點燃稜線上的信標——無人機會把東西投在南邊的圍欄旁。太冷了，走不回去了。抱歉。」"
+
+msgid "Get inside the station"
+msgstr "進入研究站"
+
+msgid "The blizzard will kill you out here. Find a way into the research station."
+msgstr "在外面會被暴風雪凍死。找路進入研究站。"
+
+msgid "Find somewhere safe"
+msgstr "找到安全的地方"
+
+msgid "There has to be a sealed room somewhere off the corridors. Find it and get on the radio."
+msgstr "走廊旁邊一定有密封的房間。找到它，用無線電聯絡。"
+
+msgid "Reach the upper floor"
+msgstr "到達樓上"
+
+msgid "Kovac says the antenna controls are upstairs. The stairs are in the lounge."
+msgstr "柯瓦奇說天線的控制在樓上。樓梯在交誼廳。"
+
+msgid "Halvorsen's records"
+msgstr "哈爾沃森的紀錄"
+
+msgid "The director's office is at the east end of the upper floor. The door needs a keycard - someone in the dorms had one."
+msgstr "站長室在二樓東側盡頭。門要權限卡——宿舍裡有人帶著一張。"
+
+msgid "Restore power"
+msgstr "恢復電力"
+
+msgid "The B1 generator ran dry. There's diesel at the fuel depot east of the shore. Your level 2 card opens the basement door in the lab."
+msgstr "地下一樓的發電機沒油了。南岸東邊的燃料庫有柴油。等級 2 的權限卡可以打開實驗室裡往地下層的門。"
+
+msgid "The hangar"
+msgstr "機庫"
+
+msgid "With power back, the hangar door north of the shore will open. The snowcat inside can reach the antenna. Something big was locked in there."
+msgstr "恢復電力後，南岸北邊的機庫門就打得開。裡面的雪地車可以開到天線塔。有個很大的東西被關在裡面。"
+
+msgid "The antenna"
+msgstr "天線塔"
+
+msgid "Climb to the comms deck at the top of the antenna tower and get a message off the island. What you ask for is up to you."
+msgstr "爬上天線塔頂的通訊甲板，把訊息發出這座島。要請求什麼，由你決定。"
+
+msgid "The drill shaft"
+msgstr "鑽探井"
+
+msgid "Whatever answered on 126.05 is coming. It all started in the drill shaft under B1 - your card now opens the door at the south end of the basement. End it at the bottom, then take the lift up."
+msgstr "在 126.05 回應的那些人要來了。一切都是從地下一樓底下的鑽探井開始的——你的權限卡現在打得開地下層南端的門。到井底結束這一切，再搭升降機上來。"
+
+msgid "KOVAC: \"Going to the depot? Find the manifest first. Mendez said something nests in that warehouse.\""
+msgstr "柯瓦奇：「要去燃料庫？先找到貨單。曼德茲說那間倉庫裡有東西在築巢。」"
+
+msgid "Depot manifest"
+msgstr "燃料庫的貨單"
+
+msgid "Read the manifest in the depot warehouse before you go for the fuel."
+msgstr "去拿燃料之前，先讀燃料庫倉庫裡的貨單。"
+
+msgid "KOVAC: \"West of the shore there's the old weather camp. Pieter Lund kept the bunk hut heated - if anyone's alive out there, it's him. Dress for it: the wind out there kills.\""
+msgstr "柯瓦奇：「南岸西邊是舊的氣象營地。彼得．倫德一直讓床鋪小屋開著暖氣——外面要是還有人活著，就是他。穿暖一點：那裡的風會要人命。」"
+
+msgid "The weather camp"
+msgstr "氣象營地"
+
+msgid "Cross the snowfield west of the shore. Find the warm bunk hut and find out what happened to Pieter Lund."
+msgstr "穿過南岸西邊的雪原。找到溫暖的床鋪小屋，查出彼得．倫德出了什麼事。"
+
+msgid "Beacon on the ridge"
+msgstr "稜線上的信標"
+
+msgid "Pieter's note: light the beacon drum on the north ridge of the weather camp. The supply drone will drop by the south fence."
+msgstr "彼得的紙條：點燃氣象營地北邊稜線上的信標油桶。補給無人機會把東西投在南邊的圍欄旁。"
+
+msgid "Supply drop"
+msgstr "空投補給"
+
+msgid "A supply crate fell from the helicopter somewhere on the shore."
+msgstr "有一個補給箱從直升機上掉到南岸的某處。"
+
+msgid "KOVAC: \"Mendez kept a recorder in the lab. If it's still there, it'll tell you how they hunt.\""
+msgstr "柯瓦奇：「曼德茲在實驗室放了一台錄音機。如果還在，它會告訴你牠們怎麼獵食。」"
+
+msgid "The researcher's tape"
+msgstr "研究員的錄音帶"
+
+msgid "Mendez's recorder should still be in the lab. It may reveal the patrol patterns."
+msgstr "曼德茲的錄音機應該還在實驗室。也許能知道牠們的巡邏路線。"
+
+msgid "KOVAC: \"They go sluggish in the cold. The lab breaker controls the lounge heating. Use it.\""
+msgstr "柯瓦奇：「牠們在冷的地方會變遲鈍。實驗室的配電箱控制交誼廳的暖氣。好好利用。」"
+
+msgid "Cut the heat"
+msgstr "關掉暖氣"
+
+msgid "The infected slow down in the cold. Shut off the lounge heating from the lab breaker."
+msgstr "感染者在冷的地方會變慢。用實驗室的配電箱關掉交誼廳的暖氣。"
+
+msgid "ENDING: QUARANTINE"
+msgstr "結局：隔離"
+
+msgid "The lift groans up through the dark. By the time you reach the hangar, the sky over Greycrow is full of engines."
+msgstr "升降機在黑暗中嘎吱上升。等你走到機庫，灰鴉島的天空已經滿是引擎聲。"
+
+msgid "Nobody lands. Nobody leaves. Three days later the station burns from the air - exactly as you asked."
+msgstr "沒有人降落，也沒有人離開。三天後，研究站在空襲中燃燒——正如你所要求的。"
+
+msgid "On the fourth day a helicopter with no markings sets down on the south shore. The pilot says your name before you do."
+msgstr "第四天，一架沒有任何標誌的直升機降落在南岸。你還沒開口，駕駛就先叫出了你的名字。"
+
+msgid "You never learn who sent it. Somewhere under your skin, the cold goes quiet and waits."
+msgstr "你始終不知道是誰派它來的。在你皮膚底下的某處，那股寒意安靜下來，等待著。"
+
+msgid "ENDING: EVACUATION"
+msgstr "結局：撤離"
+
+msgid "The rescue flight comes on the third morning. Blankets, hot tea, a medic who won't stop talking."
+msgstr "第三天早上，救援班機來了。毯子、熱茶、一個講個不停的醫護兵。"
+
+msgid "They take the survivors, the logs, the sealed sample cases. Nobody opens the sample cases."
+msgstr "他們帶走了倖存者、紀錄，還有密封的樣本箱。沒有人打開那些樣本箱。"
+
+msgid "Somewhere over the sea, behind the cargo net, something begins to click."
+msgstr "在海面上空的某處，貨網後面，有什麼東西開始喀喀作響。"
+
+msgid "ENDING: THE LAST LIGHT"
+msgstr "結局：最後的光"
+
+msgid "You know before the lift stops: there is nobody coming that you could let near this island."
+msgstr "升降機還沒停下，你就知道了：不管誰要來，都不能讓他們靠近這座島。"
+
+msgid "You open every valve on the fuel line and walk back down into the station."
+msgstr "你打開燃料管線上的每一個閥門，轉身走回研究站。"
+
+msgid "From the sea, the rescue crew will report a single bright light on Greycrow. Then nothing."
+msgstr "海上的救援隊後來回報：灰鴉島上亮起一道強光。然後，什麼都沒有了。"
+
+msgid "You know before the lift stops: the cold in your blood isn't the weather anymore."
+msgstr "升降機還沒停下，你就知道了：血裡的寒意，已經不是天氣造成的。"
+
+msgid "Air emergency"
+msgstr "航空緊急頻率"
+
+msgid "[121.50] ...EMERGENCY LOCATOR. AIRCRAFT B-77031. POSITION GREYCROW ISLAND SOUTH SHORE..."
+msgstr "[121.50] ……緊急定位信標。航空器 B-77031。位置：灰鴉島南岸……"
+
+msgid "That's your own beacon. Under it, fainter: a second one. B-6204 - the supply flight that vanished three weeks ago."
+msgstr "那是你自己的信標。底下還有一個更微弱的：B-6204——三週前失蹤的那班補給機。"
+
+msgid "Mendez"
+msgstr "曼德茲"
+
+msgid "MENDEZ (looped): \"Day nine. If someone hears this - security's shotgun is not in the armory.\""
+msgstr "曼德茲（重複播放）：「第九天。如果有人聽到——保全的散彈槍不在軍械室。」"
+
+msgid "\"I hid it under the floor grate at the far east end of the south corridor. Two shells in it, a few more beside it.\""
+msgstr "「我把它藏在南走廊最東邊的地板格柵底下。裡面有兩發，旁邊還有幾發。」"
+
+msgid "\"Don't let Halvorsen find it. He'd rather keep them alive than keep us alive.\""
+msgstr "「別讓哈爾沃森找到。他寧可讓牠們活著，也不管我們的死活。」"
+
+msgid "Ops log"
+msgstr "作業日誌"
+
+msgid "[127.80] GREYCROW OPS - AUTOMATED LOG. SUPPLY DROP 11 CACHED, EAST SHORE ROCKS BELOW THE STATION WALL."
+msgstr "[127.80] 灰鴉作業——自動日誌。第 11 次空投已存放於研究站外牆下方的東岸岩石區。"
+
+msgid "CONTENTS: 9MM AMMUNITION. LOG ENDS."
+msgstr "內容物：9 毫米子彈。日誌結束。"
+
+msgid "Ark line"
+msgstr "方舟專線"
+
+msgid "[125.70] ...ARK RELAY. WINDOW OPEN. Greycrow, report sample count."
+msgstr "[125.70] ……方舟中繼。通訊窗口開啟。灰鴉，回報樣本數量。"
+
+msgid "\"Greycrow, we read your silence as consent. Collection team will proceed. Survivors are not part of the manifest.\""
+msgstr "「灰鴉，我們把你們的沉默視為同意。回收小組將照計畫進行。倖存者不在清單上。」"
+
+msgid "Unknown"
+msgstr "不明"
+
+msgid "[126.05] ...hold position. Do not transmit. Retrieval is inbound."
+msgstr "[126.05] ……原地待命。不要發訊。回收隊正在路上。"
+
+msgid "\"Sample integrity is priority one. Survivors are... secondary.\""
+msgstr "「樣本完整是第一優先。倖存者……其次。」"
+
+msgid "Empty bottle"
+msgstr "空瓶"
+
+msgid "Throw it to make noise somewhere else. Loud glass."
+msgstr "丟出去在別的地方製造聲音。玻璃碎裂聲很大。"
+
+msgid "Stone"
+msgstr "石頭"
+
+msgid "Clacks off the ice. Quieter than glass - good for a nudge."
+msgstr "打在冰上喀一聲。比玻璃安靜——適合輕輕引開一隻。"
+
+msgid "Firebomb"
+msgstr "汽油彈"
+
+msgid "Bottle, ethanol, a strip of your sleeve. Your lighter does the rest. Burns anything standing in it."
+msgstr "瓶子、酒精、一條從袖子撕下來的布。剩下的交給打火機。站在火裡的都會被燒。"
+
+msgid "Heat pack"
+msgstr "暖暖包"
+
+msgid "Crack it and stuff it in your jacket. Buys you time in the cold."
+msgstr "折一下塞進外套。能在寒冷中多撐一會兒。"
+
+msgid "Lab ethanol"
+msgstr "實驗室酒精"
+
+msgid "Use it with an empty bottle to make a firebomb."
+msgstr "和空瓶組合可以做成汽油彈。"
+
+msgid "Pistol rounds"
+msgstr "手槍子彈"
+
+msgid "9mm. Never enough."
+msgstr "9 毫米。永遠不夠用。"
+
+msgid "First aid kit"
+msgstr "急救包"
+
+msgid "Stops the bleeding. Restores health."
+msgstr "止血。恢復生命值。"
+
+msgid "Antibacterial shot"
+msgstr "抗菌藥劑"
+
+msgid "Experimental. Pushes the infection back."
+msgstr "實驗性藥物。能壓下感染。"
+
+msgid "Pistol"
+msgstr "手槍"
+
+msgid "Station security sidearm. 8-round magazine."
+msgstr "研究站保全的配槍。彈匣 8 發。"
+
+msgid "Shotgun"
+msgstr "散彈槍"
+
+msgid "Pump shotgun. Devastating up close, useless at range. 2-shell tube."
+msgstr "泵動式散彈槍。近距離威力驚人，遠了就沒用。彈倉 2 發。"
+
+msgid "Shotgun shells"
+msgstr "散彈"
+
+msgid "12 gauge. Count every one."
+msgstr "12 號口徑。每一發都要算好。"
+
+msgid "GREYCROW UPLINK  -  CARRIER LOCKED"
+msgstr "灰鴉上行站　－　載波鎖定"
+
+msgid "The tower battery is almost gone. One transmission, then nothing."
+msgstr "天線塔的電池快沒電了。只能發一次，之後就什麼都沒有。"
+
+msgid "Whatever you send decides who comes to this island - and who leaves it."
+msgstr "你發出的內容，將決定誰會來到這座島——以及誰能離開。"
+
+msgid "EVACUATE - send aircraft, get the survivors off the island"
+msgstr "撤離——派飛機來，把倖存者帶離這座島"
+
+msgid "[OUT] GREYCROW TO ANY STATION. SURVIVORS AT NORTH LATITUDE STATION. REQUEST IMMEDIATE EVACUATION."
+msgstr "[發送] 灰鴉呼叫任何電台。北緯站有倖存者。請求立即撤離。"
+
+msgid "[IN] RESCUE CENTRE: Copy, Greycrow. Evacuation flight tasked, weather permitting. Seventy-two hours. Hang on."
+msgstr "[接收] 救援中心：收到，灰鴉。撤離班機已排定，視天候而定。七十二小時。撐住。"
+
+msgid "QUARANTINE - seal Greycrow, nobody leaves, nothing lands"
+msgstr "隔離——封鎖灰鴉島，沒有人離開，什麼都不准降落"
+
+msgid "[OUT] GREYCROW TO ANY STATION. BIOLOGICAL CONTAMINATION. QUARANTINE THE ISLAND. DO NOT LAND. NOBODY LEAVES."
+msgstr "[發送] 灰鴉呼叫任何電台。生物汙染。隔離這座島。不要降落。任何人都不准離開。"
+
+msgid "[IN] RESCUE CENTRE: ...Say again, Greycrow? Copy quarantine. Passing it up the chain. Stay off the air."
+msgstr "[接收] 救援中心：……灰鴉，請再說一次？收到隔離要求。會往上呈報。保持無線電靜默。"
+
+msgid "DESTROY - the station must burn, with everything in it"
+msgstr "摧毀——研究站必須燒掉，連同裡面的一切"
+
+msgid "[OUT] GREYCROW TO ANY STATION. THE STATION IS LOST. DESTROY IT. DO NOT SEND PEOPLE."
+msgstr "[發送] 灰鴉呼叫任何電台。研究站已經失守。摧毀它。不要派人來。"
+
+msgid "[IN] RESCUE CENTRE: Greycrow, we can't act on that. Who is transmitting? Identify yourself."
+msgstr "[接收] 救援中心：灰鴉，我們無法照辦。發訊的是誰？表明你的身分。"
+
+msgid "[IN 126.05] Hold position. Do not transmit again. We will come to you."
+msgstr "[接收 126.05] 原地等待。不要再發訊。我們會去接你。"
+
+msgid "That wasn't the rescue centre. The carrier dies. Below the station, the drill shaft is humming."
+msgstr "那不是救援中心。載波斷了。研究站底下，鑽探井正在嗡嗡作響。"
+
+msgid "  (STUNNED)"
+msgstr "　（暈眩）"
+
+msgid "  (RESONATING)"
+msgstr "　（共鳴中）"
+
+msgid "  (CORE EXPOSED)"
+msgstr "　（核心露出）"
+
+msgid "Take keycard (Level %d)"
+msgstr "拿起權限卡（等級 %d）"
+
+msgid "Take bottle"
+msgstr "撿起空瓶"
+
+msgid "Kick %s (loud)  - or knife it quietly"
+msgstr "%s（很大聲）——或用小刀安靜地割開"
+
+msgid "it open"
+msgstr "踢開"
+
+msgid "the boards down"
+msgstr "踢倒木板"
+
+msgid "Heat OFF (%s)"
+msgstr "關掉暖氣（%s）"
+
+msgid "Heat ON (%s)"
+msgstr "打開暖氣（%s）"
+
+msgid "Go upstairs"
+msgstr "上樓"
+
+msgid "Go downstairs"
+msgstr "下樓"
+
+msgid "Take the fire extinguisher (both hands)"
+msgstr "拿起滅火器（雙手）"
+
+msgid "Carry fuel can (both hands)"
+msgstr "搬起燃料桶（雙手）"
+
+msgid "Generator (running)"
+msgstr "發電機（運轉中）"
+
+msgid "Refuel and start generator"
+msgstr "加油並啟動發電機"
+
+msgid "Generator (no fuel)"
+msgstr "發電機（沒有燃料）"
+
+msgid "No room (%s)"
+msgstr "放不下（%s）"
+
+msgid "Take %s"
+msgstr "撿起%s"
+
+msgid "Take %s x%d"
+msgstr "撿起%s x%d"
+
+msgid "Light the drum (lighter)"
+msgstr "點燃油桶（打火機）"
+
+msgid "Radio (save)"
+msgstr "無線電（存檔）"
+
+msgid "Frequency %s noted in the radio memo."
+msgstr "頻率 %s 已記進無線電備忘錄。"
+
+msgid "Ride the lift up"
+msgstr "搭升降機上去"
+
+msgid "Lift (jammed)"
+msgstr "升降機（卡住了）"
+
+msgid "The lift cage is wrapped in crystal. It won't move while that thing is still singing."
+msgstr "升降機的籠子被結晶包住了。那東西還在鳴唱，它就動不了。"
+
+msgid "Snowcat (not safe yet)"
+msgstr "雪地車（還不安全）"
+
+msgid "Drive to %s"
+msgstr "開往%s"
+
+msgid "Pick up stones"
+msgstr "撿石頭"
+
+msgid "Storage box"
+msgstr "儲物箱"
+
+msgid "Open crate"
+msgstr "打開補給箱"
+
+msgid "Take tape"
+msgstr "撿起錄音帶"
+
+msgid "Use terminal"
+msgstr "使用終端機"
+
+msgid "Uplink (signal sent)"
+msgstr "上行終端機（已發訊）"
+
+msgid "Uplink (no signal)"
+msgstr "上行終端機（沒有訊號）"
+
+msgid "The uplink is silent. Whatever comes now, you already called it."
+msgstr "上行終端機一片沉默。接下來來的不管是什麼，都是你叫來的。"
+
+msgid "NO CARRIER. The dish outside is iced over - the de-icer must be off."
+msgstr "沒有載波。外面的天線碟結冰了——除冰器一定沒開。"
+
+msgid "Leave"
+msgstr "出來"
+
+msgid "Hide"
+msgstr "躲進去"
+
+msgid "Read"
+msgstr "閱讀"
+
+msgid "Transmit"
+msgstr "發訊"
+
+msgid "Close"
+msgstr "關閉"
+
+msgid "KOVAC: \"...is anyone on this channel? This is Dr. Ina Kovac, I left Greycrow two weeks ago. If you're in the clean room, you're safe. Listen carefully.\""
+msgstr "柯瓦奇：「……這個頻道有人嗎？我是伊娜．柯瓦奇博士，兩週前離開了灰鴉。如果你在無菌室裡，你是安全的。仔細聽好。」"
+
+msgid "YOU DIED"
+msgstr "你死了"
+
+msgid "CAUGHT"
+msgstr "被抓到了"
+
+msgid "MISSION COMPLETE: %s"
+msgstr "任務完成：%s"
+
+msgid "[%s] Knock on the wall"
+msgstr "[%s] 敲牆"
+
+msgid "  Body: %s"
+msgstr "　體溫：%s"
+
+msgid "Condition: %s%s%s"
+msgstr "狀態：%s%s%s"
+
+msgid "  (infected)"
+msgstr "　（已感染）"
+
+msgid "The door is electric. There's no power."
+msgstr "這是電動門。沒有電。"
+
+msgid "Locked. Keycard access level %d required."
+msgstr "鎖著。需要權限卡等級 %d。"
+
+msgid "The generator roars to life. Lights flicker on across the station - and the heating with them."
+msgstr "發電機轟然啟動。整座研究站的燈閃爍著亮起——暖氣也跟著恢復了。"
+
+msgid "Progress saved."
+msgstr "已存檔。"
+
+msgid "Save failed."
+msgstr "存檔失敗。"
+
+msgid "Only static."
+msgstr "只有雜訊。"
+
+msgid "Something is there, buried in the static... fine-tune it."
+msgstr "雜訊底下好像有什麼……再微調一下。"
+
+msgid "RADIO"
+msgstr "無線電"
+
+msgid "FREQUENCY  %s MHz"
+msgstr "頻率　%s MHz"
+
+msgid "SIGNAL     [%s%s]"
+msgstr "訊號　　[%s%s]"
+
+msgid "MEMO       %s"
+msgstr "備忘錄　%s"
+
+msgid "(none)"
+msgstr "（沒有）"
+
+msgid "[%s/%s] fine  [%s/%s] coarse  [%s] memo  [%s] listen  [%s] close"
+msgstr "[%s/%s] 微調　[%s/%s] 粗調　[%s] 備忘錄　[%s] 收聽　[%s] 關閉"
+
+msgid "No room."
+msgstr "放不下。"
+
+msgid "STORAGE BOX   (shared by all safe rooms)"
+msgstr "儲物箱　（所有安全屋共用）"
+
+msgid "-- carried --"
+msgstr "── 身上 ──"
+
+msgid "-- in box --"
+msgstr "── 箱子裡 ──"
+
+msgid "[%s] move   [%s] close"
+msgstr "[%s] 搬移　[%s] 關閉"
+
+msgid "[%s] close"
+msgstr "[%s] 關閉"
+
+msgid "Send this? There is no second transmission. Select it again to transmit."
+msgstr "確定要發出嗎？沒有第二次機會。再選一次就會發出。"
+
+msgid "[%s/%s] choose   [%s] select   [%s] step away"
+msgstr "[%s/%s] 選擇　[%s] 確定　[%s] 先離開"
+
+msgid "  [SELECT AGAIN TO SEND]"
+msgstr "　［再選一次發出］"
+
+msgid "  Step away (decide later)"
+msgstr "　先離開（之後再決定）"
+
+msgid "Return to title"
+msgstr "回到標題畫面"
+
+msgid "THE END"
+msgstr "全劇終"
+
+msgid "[%s] return to title"
+msgstr "[%s] 回到標題畫面"
+
+msgid "MAIN OPS"
+msgstr "主線任務"
+
+msgid "SIDE OPS"
+msgstr "支線任務"
+
+msgid "Throw: %s x%d"
+msgstr "投擲：%s x%d"
+
+msgid "Light: %s"
+msgstr "光源：%s"
+
+msgid "Card Lv%d"
+msgstr "權限卡 Lv%d"
+
+msgid "CARRYING FUEL"
+msgstr "搬運燃料中"
+
+msgid "EXTINGUISHER %d  [%s] spray  [%s] throw"
+msgstr "滅火器 %d　[%s] 噴　[%s] 丟"
+
+msgid "Equipped %s."
+msgstr "裝備了%s。"
+
+msgid "%s ready to throw."
+msgstr "準備好投擲%s。"
+
+msgid "The heat pack spreads warmth through your chest."
+msgstr "暖暖包的熱慢慢擴散到胸口。"
+
+msgid "Made a %s. (Your lighter is always on you.)"
+msgstr "做好了一個%s。（打火機一直在身上。）"
+
+msgid "Used %s."
+msgstr "使用了%s。"
+
+msgid "Can't use that now."
+msgstr "現在不能用。"
+
+msgid "ITEMS   Condition: %s"
+msgstr "物品　　狀態：%s"
+
+msgid "[%s] use   [%s] close"
+msgstr "[%s] 使用　[%s] 關閉"
+
+msgid "Fine"
+msgstr "良好"
+
+msgid "Caution"
+msgstr "注意"
+
+msgid "Danger"
+msgstr "危險"
+
+msgid "Warm"
+msgstr "溫暖"
+
+msgid "Cold"
+msgstr "寒冷"
+
+msgid "Freezing"
+msgstr "凍僵"
+
+msgid "Hypothermic"
+msgstr "失溫"
+
+msgid "Flashlight"
+msgstr "手電筒"
+
+msgid "Lighter"
+msgstr "打火機"
+
+msgid "Dark"
+msgstr "全暗"
+
+msgid "%s move"
+msgstr "%s 移動"
+
+msgid "%s run"
+msgstr "%s 奔跑"
+
+msgid "%s sneak"
+msgstr "%s 潛行"
+
+msgid "%s light/lighter"
+msgstr "%s 手電筒／打火機"
+
+msgid "%s throw"
+msgstr "%s 投擲"
+
+msgid "%s use"
+msgstr "%s 互動"
+
+msgid "%s aim %s fire/knife"
+msgstr "%s 舉槍 %s 開槍／小刀"
+
+msgid "%s items"
+msgstr "%s 物品"
+
+msgid "%s ops"
+msgstr "%s 任務"
+
+msgid "%s debug"
+msgstr "%s 除錯"
+
+msgid "Move"
+msgstr "移動"
+
+msgid "Run"
+msgstr "跑"
+
+msgid "Sneak"
+msgstr "潛行"
+
+msgid "Light"
+msgstr "光源"
+
+msgid "Throw"
+msgstr "丟"
+
+msgid "Use"
+msgstr "互動"
+
+msgid "Aim"
+msgstr "舉槍"
+
+msgid "Fire"
+msgstr "開火"
+
+msgid "Items"
+msgstr "物品"
+
+msgid "Ops"
+msgstr "任務"
+
+msgid "FIRE"
+msgstr "開火"
+
+msgid "AIM"
+msgstr "舉槍"
+
+msgid "USE"
+msgstr "互動"
+
+msgid "THROW"
+msgstr "投擲"
+
+msgid "RLD"
+msgstr "裝填"
+
+msgid "RUN"
+msgstr "跑"
+
+msgid "TGT"
+msgstr "目標"
+
+msgid "LIGHT"
+msgstr "光源"
+
+msgid "SNEAK"
+msgstr "潛行"
+
+msgid "OPS"
+msgstr "任務"
+
+msgid "ITEMS"
+msgstr "物品"
+
+msgid "PAUSED"
+msgstr "暫停"
+
+msgid "Resume"
+msgstr "繼續"
+
+msgid "Quit to title (unsaved progress is lost)"
+msgstr "回到標題畫面（沒存檔的進度會遺失）"
+
+msgid "Greycrow Island, Arctic Ocean - November 2031"
+msgstr "北冰洋．灰鴉島——2031 年 11 月"
+
+msgid "New Game"
+msgstr "新遊戲"
+
+msgid "Continue"
+msgstr "繼續遊戲"
+
+msgid "Quit"
+msgstr "離開"
+
+msgid "Language: English"
+msgstr "語言：English"
+
+msgid "Language: 中文"
+msgstr "語言：中文"

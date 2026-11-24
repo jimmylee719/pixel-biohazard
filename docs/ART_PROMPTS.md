@@ -325,3 +325,88 @@ pixel art scene, high top-down 3/4 view, snowy helipad at an arctic research sta
 14. 主角頭像（3 種表情）
 
 每一項可以多生幾張（例如 4～8 張），我會挑最好的那張；不需要每張都完美。
+
+---
+
+## 7. 第二批（2026-11-25）：第一批已經進遊戲，接下來要這些
+
+### 7.1 第一批的經驗（第二批請照這樣生，去背和縮圖會乾淨很多）
+- **背景一律用純洋紅色 `#FF00FF`、完全平的、不要漸層、不要地面陰影**。灰藍色背景和角色褲子顏色太接近，去背時容易吃到身體；地面投影會留下雜點。
+  在正向提示詞最後加上：`solid flat magenta background #FF00FF, no ground shadow, no cast shadow`
+- **背面（up、upright）**：第一批 v1 很多還是正面。v3 的寫法有效，請沿用：`seen from behind, back view, back of head visible, face not visible`。
+- 每張只要 **一個角色、置中、全身入鏡、上下留一點空白**。
+- 一個方向兩張（_01、_02）就能做成兩格動畫；動作差異要明顯（走路左右腳交替）。
+- 檔名規則照舊：`<角色>_<動作>_<方向>_<編號>`，放進 `art_raw/` 對應的資料夾。工具 `tools/import_art.gd` 會自動處理。
+
+### 7.2 主角 沈若寧（補動作，5 個方向：down、downright、right、upright、up，各 2 張）
+```text
+pixel art game sprite, young East Asian woman helicopter pilot, orange insulated flight jacket with reflective stripes, dark cargo pants, aviation headset around neck, black ponytail, RUNNING pose, leaning forward, long stride, arms swinging, facing {DIRECTION}, full body, single character, centered, solid flat magenta background #FF00FF, no ground shadow
+```
+```text
+pixel art game sprite, same pilot woman, AIMING A PISTOL with both hands, arms extended, steady stance, facing {DIRECTION}, full body, single character, centered, solid flat magenta background #FF00FF, no ground shadow
+```
+```text
+pixel art game sprite, same pilot woman, THROWING motion, one arm raised behind head about to throw a glass bottle, facing {DIRECTION}, full body, single character, centered, solid flat magenta background #FF00FF, no ground shadow
+```
+- 另外各 1 張（方向用 down 就好）：受傷後仰（`flinching, hit, recoiling backward`）、倒地（`collapsed lying on the ground, top-down view`）、拿著滅火器（`holding a red fire extinguisher with both hands, spraying`）。
+
+### 7.3 敵人（補動作）
+- 值班者：待機（`standing still, slight sway, head tilted`）、攻擊（`lunging forward, arms grabbing`），5 方向各 1 張。
+- 鳴骨者：第二張走路（現在每方向只有 1 張，動畫會很僵），5 方向各 1 張。
+- 凍眠體（新，**躺姿、俯視**，32×16 比例的橫長圖）：
+```text
+pixel art game sprite, top-down view, frozen human body lying on the floor, lab coat dusted with frost, thin ice crust, small translucent cyan crystal shards growing from the spine, pale skin, arms at sides, horizontal composition, single character, centered, solid flat magenta background #FF00FF, no ground shadow
+```
+  另外 1 張 `same frozen body pushing itself up from the floor, waking, crystals glowing cyan`（甦醒）。
+- 地上的屍體要和凍眠體「幾乎一樣」：用同一張圖，遊戲裡只差偶爾的結晶微光，所以不用另外生。
+
+### 7.4 Boss
+```text
+pixel art game sprite, huge infected polar bear, blind milky eyes, translucent cyan crystal growths bursting from its back and shoulders, matted dirty white fur, walking on all fours, facing {DIRECTION}, single creature, centered, solid flat magenta background #FF00FF, no ground shadow
+```
+- 北極熊：走路 5 方向各 2 張、衝撞（`charging, head lowered, front legs extended`）5 方向各 1 張、暈眩（`dazed, sitting, stars of ice around head`）1 張。
+```text
+pixel art game asset, top-down view, a massive mound of fused translucent cyan crystal and frozen human figures, several pale faces half-embedded in the crystal, dark cracks, faint inner glow, symmetrical, centered, solid flat magenta background #FF00FF, no ground shadow
+```
+- 深井：本體 1～2 張；`same crystal mound split open, glowing orange-red pulsing core exposed in the center`（核心露出）1 張。
+
+### 7.5 戶外與研究站地圖格（俯視、無縫、平鋪）
+```text
+pixel art seamless tileable top-down texture, {SURFACE}, 16-bit survival horror, cold blue-grey palette, no perspective, flat lighting, square, fills the whole image
+```
+- `{SURFACE}` 依序換成：`wind-packed snow with faint footprints`、`fresh powder snow`、`blue sea ice with cracks`、`frozen gravel and rocks`、`metal grating floor`、`wooden plank floor of a weather hut`。
+- 研究站外牆（俯視、看得到牆頂）：`top-down view of a concrete research station exterior wall top, snow piled on top edge, seamless horizontal`。
+
+### 7.6 道具（地圖上，3/4 俯視，單一物件置中，純洋紅背景）
+| 物件 | 提示詞（加在統一風格後面） |
+|---|---|
+| 油桶 | `rusty oil drum, steel barrel, dented` ＋ 另一張 `same oil drum burning, flames rising from the top` |
+| 木箱 | `wooden supply crate, stenciled markings, frost on edges` |
+| 木板封住的門 | `doorway boarded up with nailed wooden planks, front view` |
+| 滅火器 | `red fire extinguisher mounted on a wall bracket` |
+| 碎石堆 | `small pile of grey rocks and stones on snow` |
+| 無線電 | `old shortwave radio console on a desk, glowing dials` |
+| 儲物箱 | `large metal storage trunk, padlock` |
+| 發電機 | `industrial diesel generator, pipes, warning stripes` |
+| 燃料桶 | `red metal jerry can` |
+| 雪地車 | `orange tracked snowcat vehicle, top-down 3/4 view` |
+| 上行終端機 | `satellite uplink terminal with a small screen and keyboard, antenna cable` |
+| 升降機 | `industrial cage elevator platform, yellow safety rails, top-down` |
+
+### 7.7 物品欄圖示（16×16，純洋紅背景，物件置中，粗外框）
+`pistol`、`pump shotgun`、`box of 9mm ammunition`、`shotgun shells`、`grey stone`、`glass bottle with burning rag (firebomb)`、`brown glass bottle of lab ethanol`、`chemical heat pack`、`plastic keycard with chip`、`fire extinguisher`。
+```text
+pixel art inventory icon, {ITEM}, single object, centered, thick dark outline, 16-bit survival horror, solid flat magenta background #FF00FF
+```
+
+### 7.8 標題畫面主視覺（480×270 的比例，16:9）
+```text
+pixel art title screen key art, polar night, a lone research station on a black arctic island under heavy blizzard, a small orange-clad figure with a flashlight walking toward it, a tall radio antenna tower with a red light, faint cyan glow from beneath the snow, 16:9 wide composition, empty dark sky at the top for the title text, cold blue palette with a single orange accent
+```
+
+### 7.9 第二批的優先順序
+1. 凍眠體躺姿（目前借用值班者的圖躺平）
+2. 戶外雪地格（目前戶外還是色塊）
+3. 主角跑步、舉槍
+4. 北極熊、深井
+5. 道具、物品欄圖示、標題畫面

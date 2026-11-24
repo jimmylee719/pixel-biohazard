@@ -21,6 +21,9 @@ const STATE_NAMES := ["UNAWARE", "SUSPICIOUS", "ALERT", "SEARCH"]
 const TILE := 16.0
 
 @export var display_name := "Watcher"
+## 像素圖（assets/sprites/<sprite_set>/），空字串 = 用色塊
+@export var sprite_set := ""
+@export var sprite_tint := Color.WHITE
 
 @export_group("移動")
 @export var patrol_speed := 30.0
@@ -129,6 +132,9 @@ var _stagger := 0.0
 var _windup := 0.0
 var _attack_cd := 0.0
 var _body_color := Color.WHITE
+## 被火燒到的閃爍時間
+var burn_flash := 0.0
+var _sprite: CharacterSprite
 
 @onready var _agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _body: Node2D = $Body
@@ -136,6 +142,13 @@ var _body_color := Color.WHITE
 
 func _ready() -> void:
 	add_to_group("enemies")
+	if sprite_set != "":
+		_sprite = CharacterSprite.new()
+		if _sprite.setup(sprite_set):
+			add_child(_sprite)
+			_body.visible = false  # 色塊只留著當狀態（顏色、縮放），畫面上用像素圖
+		else:
+			_sprite = null
 	var square := _body.get_child(0) as Polygon2D
 	if square:
 		_body_color = square.color
@@ -270,6 +283,8 @@ func _check_vision() -> bool:
 		return false
 	if dist > proximity_sense and absf(facing.angle_to(to_player)) > get_half_angle():
 		return false
+	if SmokeCloud.blocks(get_tree(), global_position, _player.global_position):
+		return false  # 滅火器的白霧擋住視線
 	return Sight.is_clear(self, global_position, _player.global_position)
 
 
@@ -307,7 +322,8 @@ func _check_feel(delta: float) -> void:
 func _check_flashlight_hit() -> void:
 	if not has_sight or not reacts_to_light or sees_player or state == State.ALERT:
 		return
-	if _player.is_in_flashlight(global_position) and Sight.is_clear(self, _player.global_position, global_position):
+	if _player.is_in_flashlight(global_position) and Sight.is_clear(self, _player.global_position, global_position) \
+			and not SmokeCloud.blocks(get_tree(), _player.global_position, global_position):
 		if state == State.UNAWARE or state == State.SEARCH:
 			awareness = maxf(awareness, suspicious_threshold)
 			_investigate(_player.global_position)
@@ -444,6 +460,37 @@ func wake(toward: Vector2) -> void:
 
 
 ## 能不能從背後偷襲：沒察覺主角、而且主角在牠背後（睡著的凍眠體一定可以）。
+## 被火燒到：受傷但不會因此知道主角在哪裡（只會原地掙扎一下）。Boss 走自己的受傷邏輯。
+func burn(amount: float) -> void:
+	if is_dead:
+		return
+	if is_boss():
+		take_damage(amount, global_position, 0.0)
+		return
+	if is_dormant:
+		wake(global_position)
+	health -= amount
+	burn_flash = 0.5
+	if health <= 0.0:
+		_die()
+		return
+	_stagger = maxf(_stagger, 0.25)
+
+
+## 被滅火器噴到：看不見、原地亂抓一陣子，失去你的位置。
+func blind(duration: float) -> void:
+	if is_dead or is_boss():
+		return
+	if is_dormant:
+		wake(global_position)
+	_stagger = maxf(_stagger, duration)
+	_windup = 0.0
+	winding_up = false
+	if state == State.ALERT or state == State.SUSPICIOUS:
+		_start_search(global_position)
+	awareness = minf(awareness, 0.5)
+
+
 ## Boss（畫面上方顯示血條）
 func is_boss() -> bool:
 	return false
@@ -498,6 +545,27 @@ func _revive() -> void:
 
 
 ## 身體以外的細節（眼睛、結晶）
+## 像素圖：睡著／死掉時躺平、變暗；被燒時閃橘色；走路時播放動畫。
+func _update_sprite(tint: Color) -> void:
+	var lying := is_dead or is_dormant
+	_sprite.rotation = PI * 0.5 if lying else 0.0
+	var shade := sprite_tint * tint
+	if is_dead:
+		shade = shade.darkened(0.55)
+	elif is_dormant:
+		shade = shade.darkened(0.35)
+	_sprite.modulate = Color(shade, _fade)
+	if lying:
+		# 和地上的屍體（CorpseDecor）完全一樣的姿勢：玩家要自己分辨
+		_sprite.show_pose("walk", Vector2.DOWN, false)
+		_sprite.frame = 0
+		_sprite.position = Vector2.ZERO
+		return
+	var moving := velocity.length() > 4.0
+	var anim := "walk" if moving or not _sprite.has_anim("listen") else "listen"
+	_sprite.show_pose(anim, facing, moving, velocity.length() / 45.0)
+
+
 func _set_details_visible(on: bool) -> void:
 	for i in range(1, _body.get_child_count()):
 		_body.get_child(i).visible = on
@@ -687,5 +755,9 @@ func _update_visibility(delta: float) -> void:
 	visible_to_player = _player.can_see_point(global_position)
 	var target_alpha := 1.0 if visible_to_player else 0.0
 	_fade = move_toward(_fade, target_alpha, delta * 6.0)
-	_body.modulate.a = _fade
+	burn_flash = maxf(burn_flash - delta, 0.0)
+	var tint := Color(1.0, 0.55, 0.3) if burn_flash > 0.0 and fmod(burn_flash, 0.16) < 0.08 else Color.WHITE
+	_body.modulate = Color(tint, _fade)
+	if _sprite:
+		_update_sprite(tint)
 	_body.rotation = facing.angle()

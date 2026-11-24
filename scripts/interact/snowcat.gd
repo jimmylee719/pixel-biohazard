@@ -15,7 +15,7 @@ func can_interact(player: Player) -> bool:
 func get_prompt(_player: Player) -> String:
 	if not _ready_to_go():
 		return "Snowcat (not safe yet)"
-	return "Drive to %s" % Areas.get_area(level.snowcat_destination()).title
+	return tr("Drive to %s") % tr(Areas.get_area(level.snowcat_destination()).title)
 
 
 func counts_as_interaction(_player: Player) -> bool:

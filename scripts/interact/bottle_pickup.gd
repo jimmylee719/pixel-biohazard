@@ -21,5 +21,9 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	var tex := Art.tex("props/bottle")
+	if tex:
+		draw_texture(tex, -tex.get_size() * 0.5)
+		return
 	draw_rect(Rect2(-2, -4, 4, 7), Color(0.45, 0.75, 0.55))
 	draw_rect(Rect2(-1, -6, 2, 2), Color(0.6, 0.85, 0.7))

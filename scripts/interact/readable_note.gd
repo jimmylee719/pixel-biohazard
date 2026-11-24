@@ -17,7 +17,7 @@ func interact(_player: Player) -> void:
 	message_shown.emit(level.get_message(item_name))
 	var freq := learn_frequency()
 	if freq != 0:
-		message_shown.emit("Frequency %s noted in the radio memo." % Frequencies.format(freq))
+		message_shown.emit(tr("Frequency %s noted in the radio memo.") % Frequencies.format(freq))
 	WorldState.emit_event("collect", item_name)
 
 

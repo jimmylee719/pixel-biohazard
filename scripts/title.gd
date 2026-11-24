@@ -7,6 +7,7 @@ const GAME_SCENE := "res://scenes/main.tscn"
 @onready var _new_game: Button = $Center/Box/NewGame
 @onready var _continue: Button = $Center/Box/Continue
 @onready var _quit: Button = $Center/Box/Quit
+var _language: Button
 
 
 func _ready() -> void:
@@ -17,7 +18,24 @@ func _ready() -> void:
 	_new_game.pressed.connect(_on_new_game)
 	_continue.pressed.connect(_on_continue)
 	_quit.pressed.connect(func(): get_tree().quit())
+	# 語言切換（中文／English），記在 user://settings.cfg
+	_language = Button.new()
+	_language.add_theme_font_size_override("font_size", 12)
+	_language.pressed.connect(_toggle_language)
+	$Center/Box.add_child(_language)
+	$Center/Box.move_child(_language, _quit.get_index())
+	_refresh_language()
 	(_new_game if _continue.disabled else _continue).grab_focus()
+
+
+func _toggle_language() -> void:
+	WorldState.set_language("en" if WorldState.language() == "zh_TW" else "zh_TW")
+	_refresh_language()
+
+
+func _refresh_language() -> void:
+	_language.text = "Language: 中文" if WorldState.language() == "zh_TW" else "Language: English"
+	$Center/Box/Subtitle.visible = WorldState.language() == "zh_TW"
 
 
 func _on_new_game() -> void:

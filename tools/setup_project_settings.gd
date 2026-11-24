@@ -40,6 +40,13 @@ func _init() -> void:
 
 	# 從標題畫面開始
 	ProjectSettings.set_setting("application/run/main_scene", "res://scenes/title.tscn")
+	# 中文像素字型（俐方體11號，OFL）與翻譯
+	ProjectSettings.set_setting("gui/theme/custom", "res://assets/ui_theme.tres")
+	ProjectSettings.set_setting("internationalization/locale/translations", PackedStringArray(["res://locale/zh_TW.po"]))
+	ProjectSettings.set_setting("internationalization/locale/fallback", "en")
+	# 桌面測試觸控介面：設成 true 就會顯示虛擬搖桿和按鈕（滑鼠模擬觸控）
+	if not ProjectSettings.has_setting("game/force_touch_ui"):
+		ProjectSettings.set_setting("game/force_touch_ui", false)
 
 	# 自動載入
 	ProjectSettings.set_setting("autoload/NoiseBus", "*res://scripts/autoload/noise_bus.gd")

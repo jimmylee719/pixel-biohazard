@@ -9,6 +9,11 @@ const COLORS := {
 	"pistol": Color(0.55, 0.58, 0.62),
 	"shotgun": Color(0.5, 0.4, 0.3),
 	"shells": Color(0.85, 0.3, 0.25),
+	"ethanol": Color(0.75, 0.85, 1.0),
+	"stone": Color(0.55, 0.55, 0.6),
+	"bottle": Color(0.6, 0.9, 0.7),
+	"molotov": Color(1.0, 0.55, 0.2),
+	"heat_pack": Color(1.0, 0.6, 0.25),
 }
 ## 撿到武器時彈匣裡已經有的子彈
 const START_LOADED := {"pistol": 6, "shotgun": 2}
@@ -23,9 +28,9 @@ func can_interact(player: Player) -> bool:
 
 func get_prompt(_player: Player) -> String:
 	if WorldState.inv_space_for(pickup_item) < pickup_count:
-		return "No room (%s)" % Items.display_name(pickup_item)
+		return tr("No room (%s)") % Items.display_name(pickup_item)
 	var name := Items.display_name(pickup_item)
-	return "Take %s" % name if pickup_count == 1 else "Take %s x%d" % [name, pickup_count]
+	return tr("Take %s") % name if pickup_count == 1 else tr("Take %s x%d") % [name, pickup_count]
 
 
 func interact(_player: Player) -> void:
@@ -42,6 +47,10 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	var tex := Art.tex("props/" + pickup_item) if pickup_item in ["med", "antibiotic", "bottle"] else null
+	if tex:
+		draw_texture(tex, -tex.get_size() * 0.5)
+		return
 	var c: Color = COLORS.get(pickup_item, Color.WHITE)
 	match pickup_item:
 		"pistol":
@@ -50,6 +59,11 @@ func _draw() -> void:
 		"shotgun":
 			draw_rect(Rect2(-7, -1, 14, 2), c)
 			draw_rect(Rect2(-7, 0, 4, 3), c)
+		"ethanol", "bottle", "molotov":
+			draw_rect(Rect2(-2, -5, 4, 9), c)
+			draw_rect(Rect2(-1, -7, 2, 2), c.darkened(0.3))
+		"stone":
+			draw_rect(Rect2(-3, -2, 6, 4), c)
 		"ammo", "shells":
 			draw_rect(Rect2(-4, -3, 8, 6), Color(0.3, 0.28, 0.2))
 			draw_rect(Rect2(-3, -2, 6, 2), c)

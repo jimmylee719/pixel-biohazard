@@ -12,6 +12,7 @@ signal changed
 const START_SLOTS := 6
 const MAX_HEALTH := 100.0
 const MAX_INFECTION := 100.0
+const MAX_BODY_TEMP := 100.0
 
 const SAVE_VERSION := 1
 
@@ -21,8 +22,31 @@ var data := {}
 var _checkpoint := {}
 
 
+## 玩家設定（不跟存檔走）：語言
+const SETTINGS_PATH := "user://settings.cfg"
+const LANGUAGES := ["zh_TW", "en"]
+## 預設語言（第一次開遊戲）
+const DEFAULT_LANGUAGE := "zh_TW"
+
+
 func _ready() -> void:
 	new_game()
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	TranslationServer.set_locale(cfg.get_value("game", "language", DEFAULT_LANGUAGE))
+
+
+func language() -> String:
+	return "en" if TranslationServer.get_locale().begins_with("en") else "zh_TW"
+
+
+## 切換語言並記住（下次開遊戲也是這個語言）
+func set_language(code: String) -> void:
+	TranslationServer.set_locale(code)
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value("game", "language", code)
+	cfg.save(SETTINGS_PATH)
 
 
 func new_game() -> void:
@@ -38,6 +62,9 @@ func new_game() -> void:
 		"carrying": "",
 		"storage": {},
 		"flags": {},
+		"ready_throw": "bottle",
+		"extinguisher": 0,
+		"body_temp": MAX_BODY_TEMP,
 	}
 	_checkpoint = data.duplicate(true)
 
@@ -106,6 +133,32 @@ var carrying: String:
 	set(value):
 		data.carrying = value
 		changed.emit()
+
+
+## 準備投擲的東西（物品 id）
+var ready_throw: String:
+	get:
+		return data.ready_throw
+	set(value):
+		data.ready_throw = value
+		changed.emit()
+
+
+## 手上滅火器剩下的噴射次數（carrying == "extinguisher" 時有意義）
+var extinguisher_charge: int:
+	get:
+		return data.extinguisher
+	set(value):
+		data.extinguisher = maxi(value, 0)
+		changed.emit()
+
+
+## 體溫（0～100）。只有會失溫的氣候才會下降，見 Climates。
+var body_temp: float:
+	get:
+		return data.body_temp
+	set(value):
+		data.body_temp = clampf(value, 0.0, MAX_BODY_TEMP)
 
 
 ## 研究站的電力（發電機）
@@ -338,6 +391,9 @@ func _migrate(old: Dictionary) -> Dictionary:
 		"carrying": "",
 		"storage": {},
 		"flags": {},
+		"ready_throw": "bottle",
+		"extinguisher": 0,
+		"body_temp": MAX_BODY_TEMP,
 	}
 	if old.has("pistol_loaded") and not old.has("loaded"):
 		old["loaded"] = {"pistol": old.pistol_loaded, "shotgun": 0}

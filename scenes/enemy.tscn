@@ -10,6 +10,7 @@ collision_layer = 4
 collision_mask = 1
 motion_mode = 1
 script = ExtResource("1_enemy")
+sprite_set = "watcher"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_enemy")

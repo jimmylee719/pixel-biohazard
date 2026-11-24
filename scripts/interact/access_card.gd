@@ -10,7 +10,7 @@ func can_interact(player: Player) -> bool:
 
 
 func get_prompt(_player: Player) -> String:
-	return "Take keycard (Level %d)" % level_granted
+	return tr("Take keycard (Level %d)") % level_granted
 
 
 func interact(_player: Player) -> void:

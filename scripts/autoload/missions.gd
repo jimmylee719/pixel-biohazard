@@ -8,7 +8,8 @@
 ##   collect     撿到某個有名字的物件
 ##   defeat      打倒某個 Boss（target = Boss id）
 ## requires：前置任務，全部完成後這個任務才會出現。
-## reward：完成時給的東西（bottles = 空瓶數、intel = 取得某區域的巡邏情報）。
+## reward：完成時給的東西（bottles = 空瓶數、intel = 取得某區域的巡邏情報、items = {物品: 數量}、
+##         flag = 設定一個旗標，例如讓隱藏的補給出現）。
 ## radio：有這個欄位的支線，要先在安全屋用無線電「聽到」才會出現（內容就是無線電訊息）。
 extends Node
 
@@ -93,6 +94,24 @@ const DATA := [
 		"desc": "Read the manifest in the depot warehouse before you go for the fuel.",
 		"steps": [{"type": "collect", "target": "manifest_depot"}],
 		"reward": {"intel": "fuel_depot"},
+	},
+	{
+		"id": "weather_station", "main": false, "requires": ["find_shelter"],
+		"radio": "KOVAC: \"West of the shore there's the old weather camp. Pieter Lund kept the bunk hut heated - if anyone's alive out there, it's him. Dress for it: the wind out there kills.\"",
+		"title": "The weather camp",
+		"desc": "Cross the snowfield west of the shore. Find the warm bunk hut and find out what happened to Pieter Lund.",
+		"steps": [
+			{"type": "enter_area", "target": "huts_safe"},
+			{"type": "collect", "target": "pieter_note"},
+		],
+		"reward": {"items": {"heat_pack": 2}},
+	},
+	{
+		"id": "signal_fire", "main": false, "requires": ["weather_station"],
+		"title": "Beacon on the ridge",
+		"desc": "Pieter's note: light the beacon drum on the north ridge of the weather camp. The supply drone will drop by the south fence.",
+		"steps": [{"type": "interact", "target": "beacon_drum"}],
+		"reward": {"flag": "reveal:huts_cache"},
 	},
 	{
 		"id": "supply_drop", "main": false,
@@ -198,5 +217,10 @@ func _give_reward(reward: Dictionary) -> void:
 		WorldState.bottles = WorldState.bottles + int(reward.bottles)
 	if reward.has("access"):
 		WorldState.access_level = int(reward.access)
+	if reward.has("items"):
+		for item_id in reward.items:
+			WorldState.inv_add(item_id, int(reward.items[item_id]))
+	if reward.has("flag"):
+		WorldState.set_flag(String(reward.flag))
 	if reward.has("intel"):
 		WorldState.set_flag("intel:" + String(reward.intel))

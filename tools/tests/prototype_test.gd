@@ -23,6 +23,7 @@ func _ready() -> void:
 
 func _run() -> void:
 	WorldState.save_path = "user://test_save.dat"  # 不要動到真正的存檔
+	TranslationServer.set_locale("en")  # 檢查的是英文原文；翻譯另外測
 	WorldState.delete_save()
 	WorldState.new_game()
 	_main = load("res://scenes/main.tscn").instantiate()
@@ -645,10 +646,16 @@ func _test_aim_and_shoot() -> void:
 	_check(_player.combat.target == _watcher, "自動鎖定面前的敵人")
 	_check(_player.combat.aim_focus >= 1.0, "等一下準心完全收束")
 	var before := _player.global_position
-	Input.action_press("move_right")
-	await _frames(10)
-	Input.action_release("move_right")
-	_check(_player.global_position.distance_to(before) < 1.0, "舉槍時不能移動")
+	Input.action_press("move_left")
+	await _frames(20)
+	Input.action_release("move_left")
+	var moved := _player.global_position.distance_to(before)
+	_check(moved > 4.0 and moved < 20.0, "舉槍時可以慢慢後退（%.1f px）" % moved)
+	_check(_player.facing.x > 0.9, "後退時槍口一直對著目標")
+	_check(_player.combat.aim_focus <= 0.6 + 0.001, "邊走邊射時準心收不到最準")
+	_check(_player.gait != Player.Gait.RUN, "舉槍時不能跑")
+	await _seconds(0.7)
+	_check(_player.combat.aim_focus >= 1.0, "站定後準心重新收束")
 	await _press("fire")
 	_check(WorldState.pistol_loaded == 5, "開一槍用掉一發")
 	_check(is_equal_approx(_watcher.health, 80.0 - 55.0), "準心收束時傷害最高（剩 %.0f）" % _watcher.health)
@@ -982,6 +989,35 @@ func _test_title() -> void:
 	await get_tree().process_frame
 	_check(title.get_node("Center/Box/Continue").disabled, "沒有存檔時「繼續」不能按")
 	title.queue_free()
+
+	print("[translation]")
+	TranslationServer.set_locale("zh_TW")
+	_check(tr("Go upstairs") == "上樓" and Items.display_name("stone") == "石頭", "繁體中文翻譯")
+	var texts: Array[String] = []
+	for m in Missions.DATA:
+		texts.append_array([m.title, m.desc])
+		if m.has("radio"):
+			texts.append(m.radio)
+	for id in Items.DATA:
+		texts.append_array([Items.DATA[id].name, Items.DATA[id].desc])
+	for a in Areas.DATA.values():
+		texts.append(a.title)
+		texts.append_array(a.messages.values())
+		if a.has("boss"):
+			texts.append(a.boss)
+	for f in Frequencies.DATA:
+		texts.append(f.label)
+		texts.append_array(f.lines)
+	for e in Endings.DATA.values():
+		texts.append(e.title)
+		texts.append_array(e.lines)
+	for u in UplinkMessages.DATA:
+		texts.append_array([u.label, u.sent, u.reply])
+	texts.append_array(UplinkMessages.INTRO)
+	texts.append_array(UplinkMessages.HOLD_REPLY)
+	var missing := texts.filter(func(t): return t != "" and TranslationServer.translate(t) == t)
+	_check(missing.is_empty(), "所有劇情、任務、物品文字都有中文（缺 %d：%s）" % [missing.size(), str(missing.slice(0, 3))])
+	TranslationServer.set_locale("en")
 
 
 func _test_exit() -> void:
@@ -1582,3 +1618,297 @@ func _test_shaft() -> void:
 	WorldState.new_game()
 	await _main.load_area(WorldState.data.area, WorldState.data.entry, false)
 	_check(WorldState.signal_choice() == "" and not WorldState.power_on, "新遊戲的狀態是乾淨的")
+	await _test_environment()
+
+
+var _noises: Array = []
+
+
+func _listen_noise() -> void:
+	_noises.clear()
+	if not NoiseBus.noise_emitted.is_connected(_on_test_noise):
+		NoiseBus.noise_emitted.connect(_on_test_noise)
+
+
+func _on_test_noise(pos: Vector2, radius: float, source: Node) -> void:
+	_noises.append({"pos": pos, "radius": radius, "source": source})
+
+
+func _loudest() -> float:
+	var r := 0.0
+	for n in _noises:
+		r = maxf(r, n.radius)
+	return r
+
+
+func _test_environment() -> void:
+	print("[light / lighter]")
+	_quiet()
+	_level = _main.level
+	_place_player(_tile(20, 12), true, Vector2.RIGHT)
+	_player.cycle_light()
+	_check(not _player.flashlight_on and _player.lighter_on, "手電筒 → 打火機")
+	_check(_player.can_see_point(_player.global_position + Vector2(-58, 0)), "打火機照得到身邊一圈")
+	_check(not _player.is_in_flashlight(_player.global_position + Vector2(100, 0)), "打火機沒有光束")
+	var lighter_mult := _player.get_detection_range_mult()
+	_player.cycle_light()
+	_check(not _player.flashlight_on and not _player.lighter_on, "打火機 → 全關")
+	_check(_player.get_detection_range_mult() < lighter_mult, "全暗比打火機更不容易被發現")
+	_player.cycle_light()
+	_check(_player.flashlight_on, "全關 → 手電筒")
+
+	print("[throw / stones & firebomb]")
+	_listen_noise()
+	WorldState.inv_add("stone", 3)
+	_check(_player.current_throwable() == "stone", "沒有空瓶時改丟石頭")
+	_check(_player.throw_item(), "丟出石頭")
+	await _seconds(0.6)
+	_check(WorldState.inv_count("stone") == 2, "石頭少一顆")
+	_check(is_equal_approx(_loudest(), 4.0 * Player.TILE), "石頭的聲音比空瓶小（%.0f）" % _loudest())
+	WorldState.inv_add("ethanol", 1)
+	_check(not _player.use_item("ethanol"), "沒有空瓶就做不出汽油彈")
+	WorldState.inv_add("bottle", 1)
+	_check(_player.use_item("ethanol"), "酒精＋空瓶 = 汽油彈")
+	_check(WorldState.inv_count("molotov") == 1 and WorldState.inv_count("bottle") == 0 \
+		and WorldState.ready_throw == "molotov", "做好的汽油彈準備好丟")
+	var victim: Enemy = _main.enemies[0]
+	var landing := _player.global_position + Vector2.RIGHT * (_player.throw_distance - 4.0)
+	_freeze(victim, landing, Vector2.UP)
+	victim.process_mode = Node.PROCESS_MODE_INHERIT
+	var hp := victim.health
+	_check(_player.throw_item(), "丟出汽油彈")
+	await _seconds(0.6)
+	var fires := get_tree().get_nodes_in_group(Fire.GROUP)
+	_check(fires.size() == 1, "汽油彈落地起火")
+	_check(Fire.lit_at(get_tree(), landing), "火光照亮附近")
+	await _seconds(1.2)
+	_check(victim.health < hp, "站在火裡的敵人被燒傷（%.0f → %.0f）" % [hp, victim.health])
+	for f in fires:
+		f.put_out()
+	_quiet()
+
+	print("[extinguisher]")
+	await _main.load_area("station_1f", "cargo", false)
+	_quiet()
+	_level = _main.level
+	var mount := _find_item(ExtinguisherMount, Vector2i(9, 17))
+	_place_player(_tile(10, 17), false, Vector2.LEFT)
+	await _frames(3)
+	_check(_player.focus == mount, "牆上有滅火器")
+	await _press("interact")
+	_check(WorldState.carrying == "extinguisher" and WorldState.extinguisher_charge == 6, "雙手拿起滅火器")
+	Input.action_press("aim")
+	await _frames(5)
+	Input.action_release("aim")
+	_check(not _player.combat.aiming, "拿著滅火器不能舉槍")
+	_place_player(_tile(14, 18), false, Vector2.RIGHT)
+	var fire := Fire.new()
+	_level.add_child(fire)
+	fire.global_position = _player.global_position + Vector2(30, 0)
+	var watcher: Enemy = _main.enemies[0]
+	_freeze(watcher, _player.global_position + Vector2(36, 0), Vector2.LEFT)
+	watcher.process_mode = Node.PROCESS_MODE_INHERIT
+	watcher._set_state(Enemy.State.ALERT)
+	await _press("fire")
+	await _frames(2)
+	_check(get_tree().get_nodes_in_group(Fire.GROUP).is_empty(), "噴滅火器撲滅火")
+	_check(WorldState.extinguisher_charge == 5, "噴一次用掉一格")
+	_check(watcher._stagger > 2.0 and watcher.state == Enemy.State.SEARCH,
+		"噴到的敵人看不見、失去你的位置（stagger %.1f state %s）" % [watcher._stagger, watcher.get_state_name()])
+	_check(SmokeCloud.blocks(get_tree(), _player.global_position, _player.global_position + Vector2(60, 0)), "白霧擋住視線")
+	_quiet()
+	_listen_noise()
+	await _press("throw")
+	await _seconds(0.6)
+	_check(WorldState.carrying == "", "把滅火器丟出去")
+	_check(_loudest() >= 10.0 * Player.TILE, "滅火器落地很大聲（誘餌）")
+
+	print("[breakables / drum / stones / knock]")
+	await _main.load_area("fuel_depot", "depot", false)
+	_quiet()
+	_level = _main.level
+	var crate := _find_item(Breakable, Vector2i(22, 13))
+	_place_player(_tile(23, 13), false, Vector2.LEFT)
+	await _frames(3)
+	_check(_player.focus == crate and "Kick" in crate.get_prompt(_player), "木箱可以踢開")
+	_listen_noise()
+	await _press("fire")
+	_check(crate.enabled, "割一下還沒開")
+	await _seconds(0.55)
+	await _press("fire")
+	await _frames(2)
+	_check(not crate.enabled, "小刀割兩下打開木箱")
+	_check(_loudest() <= 2.0 * Player.TILE + 0.1, "用刀割很安靜")
+	var loot: Interactable = null
+	for item in _level.get_interactables():
+		if item is ItemPickup and item.pickup_item == "ethanol" and item.enabled:
+			loot = item
+	_check(loot != null, "木箱裡掉出酒精")
+	var crate2 := _find_item(Breakable, Vector2i(36, 9))
+	_place_player(_tile(36, 10), false, Vector2.UP)
+	await _frames(3)
+	_listen_noise()
+	await _press("interact")
+	_check(not crate2.enabled and _loudest() >= 7.0 * Player.TILE, "踢開木箱：一下就開，但很大聲")
+	var boards := _find_item(Breakable, Vector2i(27, 15))
+	_check(not Sight.is_clear(_player, _tile(27, 13), _tile(27, 17)), "木板封住倉庫的後門")
+	_place_player(_tile(27, 16), false, Vector2.UP)
+	await _frames(3)
+	_check(_player.focus == boards, "可以拆木板")
+	await _press("interact")
+	await _frames(3)
+	_check(Sight.is_clear(_player, _tile(27, 13), _tile(27, 17)), "拆掉木板 = 一條捷徑")
+	var path := NavigationServer2D.map_get_path(_level.get_navigation_map(), _tile(27, 13), _tile(27, 17), true)
+	var length := 0.0
+	for i in range(1, path.size()):
+		length += path[i - 1].distance_to(path[i])
+	_check(path.size() > 0 and length < 80.0, "敵人也走得過拆掉的通道（路徑 %.0f）" % length)
+	var drum := _find_item(OilDrum, Vector2i(5, 16))
+	_place_player(_tile(6, 16), false, Vector2.LEFT)
+	await _frames(3)
+	_check(_player.focus == drum, "可以點燃油桶")
+	await _press("interact")
+	_check(drum.is_lit() and Fire.lit_at(get_tree(), _tile(5, 16)), "油桶燒起來，照亮附近")
+	var pile := _find_item(StonePile, Vector2i(8, 18))
+	_place_player(_tile(8, 17), false, Vector2.DOWN)
+	await _frames(3)
+	var stones := WorldState.inv_count("stone")
+	await _press("interact")
+	_check(WorldState.inv_count("stone") > stones and WorldState.inv_count("stone") % 5 == 0, "從碎石堆撿石頭")
+	_place_player(_tile(1, 5), false, Vector2.LEFT)
+	await _frames(3)
+	_check(_player.focus == null and _player.knock_point() != null, "面對牆壁可以敲")
+	_listen_noise()
+	await _press("interact")
+	_check(_noises.size() == 1 and is_equal_approx(_noises[0].radius, 4.0 * Player.TILE), "敲牆發出聲音")
+	_check(_noises.size() == 1 and _noises[0].pos.x < _player.global_position.x, "聲音在牆的位置")
+	await _main.load_area("south_shore", "depot", false)
+	await _main.load_area("fuel_depot", "depot", false)
+	_level = _main.level
+	_check(_find_item(OilDrum, Vector2i(5, 16)).is_lit(), "回到燃料庫，油桶還在燒")
+	_check(not _find_item(Breakable, Vector2i(27, 15)).enabled, "拆掉的木板不會復原")
+	for f in get_tree().get_nodes_in_group(Fire.GROUP):
+		f.put_out()
+
+	WorldState.new_game()
+	await _main.load_area(WorldState.data.area, WorldState.data.entry, false)
+	await _test_cold_and_huts()
+
+
+func _test_cold_and_huts() -> void:
+	print("[body temperature]")
+	_quiet()
+	_level = _main.level
+	_check(Climates.has_exposure(_level.climate_id()), "灰鴉島是北極氣候：會失溫")
+	_check(not Climates.has_exposure("temperate"), "溫帶氣候（之後的資料片）不會失溫")
+	WorldState.body_temp = 100.0
+	_place_player(_tile(20, 12), true, Vector2.UP)
+	await _seconds(1.0)
+	_check(WorldState.body_temp < 99.5 and WorldState.body_temp > 97.0, "戶外會慢慢失溫（%.1f）" % WorldState.body_temp)
+	_check("Body:" in _main.get_node("HUD/Condition").text, "會失溫的地方顯示體溫")
+	var fire := Fire.new()
+	fire.harmful = false
+	fire.duration = 0.0
+	_level.add_child(fire)
+	fire.global_position = _player.global_position + Vector2(30, 0)
+	var before := WorldState.body_temp
+	await _seconds(0.5)
+	_check(WorldState.body_temp > before, "火堆旁邊會回暖")
+	fire.put_out()
+	WorldState.body_temp = 30.0
+	await _frames(2)
+	_check(_player.is_shivering() and _player.get_speed_mult() < 1.0, "體溫太低會發抖、走得慢")
+	WorldState.inv_add("heat_pack", 1)
+	_check(_player.use_item("heat_pack") and WorldState.body_temp > 85.0, "暖暖包讓體溫回升")
+	WorldState.body_temp = 0.0
+	WorldState.health = 100.0
+	await _seconds(0.5)
+	_check(WorldState.health < 100.0, "體溫降到 0 生命值開始流失")
+	WorldState.body_temp = 100.0
+	WorldState.health = 100.0
+
+	print("[weather huts]")
+	WorldState.set_flag("mission:enter_station", 1)
+	WorldState.set_flag("mission:find_shelter", 2)
+	var radio_text := " ".join(Missions.receive_radio())
+	_check("weather camp" in radio_text, "無線電接到氣象小屋的委託")
+	_check(Missions.is_active("weather_station"), "支線：氣象小屋")
+	_place_player(_tile(1, 12), false, Vector2.LEFT)
+	await _walk_until_area("move_left", "weather_huts")
+	_check(_main.level.area_id == "weather_huts", "南岸西邊通往氣象小屋群")
+	_quiet()
+	_level = _main.level
+	_check(_level.bounds.size.x >= 64 * Level.TILE, "氣象小屋群是一大片雪原")
+	_check(_level.exposure_at(_tile(15, 12)) < _level.exposure_at(_tile(10, 22)), "小屋裡擋風，失溫比較慢")
+	_place_player(_tile(45, 13), false, Vector2.UP)
+	await _walk_until_area("move_up", "huts_safe")
+	_check(_main.level.area_id == "huts_safe", "進入床鋪小屋（第二間安全屋）")
+	_check(_main.level.safe and _main.level.exposure_at(_tile(5, 4)) < 0.0, "安全屋很暖和")
+	_check(Missions.step_index("weather_station") == 1, "支線進行到 Pieter 的下落")
+	await _main.load_area("weather_huts", "bunk", false)
+	_quiet()
+	_level = _main.level
+	var packs := WorldState.inv_count("heat_pack")
+	_place_player(_tile(33, 25), false, Vector2.UP)
+	await _frames(3)
+	await _press("interact")
+	_check(Missions.is_done("weather_station"), "完成支線：氣象小屋")
+	_check(WorldState.inv_count("heat_pack") == packs + 2, "獎勵：暖暖包")
+	_check(Missions.is_active("signal_fire"), "支線：稜線上的信標")
+	var cache := _find_item(ItemPickup, Vector2i(6, 32))
+	_check(cache != null and not cache.enabled, "補給還沒投下")
+	_place_player(_tile(11, 4), false, Vector2.LEFT)
+	await _frames(3)
+	_check(_player.focus is OilDrum, "信標油桶")
+	await _press("interact")
+	_check(Missions.is_done("signal_fire"), "點燃信標：完成支線")
+	_check(cache.enabled, "補給無人機投下東西")
+	for f in get_tree().get_nodes_in_group(Fire.GROUP):
+		f.put_out()
+
+	WorldState.new_game()
+	await _main.load_area(WorldState.data.area, WorldState.data.entry, false)
+	await _test_touch()
+
+
+func _test_touch() -> void:
+	print("[touch controls]")
+	_check(not TouchControls.should_show(), "桌面版預設不顯示觸控介面")
+	var tc: TouchControls = _main.touch_controls
+	_check(tc != null, "有觸控介面")
+	for action in ["fire", "aim", "interact", "throw", "reload", "run", "sneak", "flashlight", "inventory", "map", "pause", "switch_target"]:
+		var b := tc.button_for(action)
+		if b == null:
+			_check(false, "缺少觸控按鈕：" + action)
+	_check(tc.buttons.size() >= 12, "每個操作都有觸控按鈕")
+	_check(tc.buttons.all(func(b): return Rect2(0, 0, 480, 270).has_point(b.position)), "按鈕都在畫面內")
+	tc.set_enabled(true)
+	var joy := tc.joystick
+	_quiet()
+	_place_player(_tile(20, 12), false, Vector2.UP)
+	var start := _player.global_position
+	joy.touch_down(0, Vector2(60, 200))
+	joy.touch_move(Vector2(100, 200))
+	_check(Input.is_action_pressed("move_right") and not Input.is_action_pressed("move_left"), "搖桿往右 = move_right")
+	_check(is_equal_approx(Input.get_action_strength("move_right"), 1.0), "拉到底是全速")
+	await _seconds(0.4)
+	_check(_player.global_position.x > start.x + 10.0, "用搖桿走路")
+	joy.touch_move(Vector2(70, 200))
+	_check(Input.get_action_strength("move_right") < 0.5 and Input.is_action_pressed("move_right"), "輕推 = 慢慢走")
+	joy.release()
+	_check(not Input.is_action_pressed("move_right"), "放開搖桿就停")
+	joy.touch_down(0, Vector2(60, 200))
+	joy.touch_move(Vector2(62, 201))
+	_check(not Input.is_action_pressed("move_right"), "中心附近有死區")
+	joy.release()
+	_main._toggle_inventory_panel()
+	await _frames(2)
+	var cursor: int = _main._inventory_cursor
+	joy.touch_down(0, Vector2(60, 200))
+	joy.touch_move(Vector2(60, 240))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	joy.release()
+	_check(_main._inventory_cursor == cursor + 1, "物品欄裡用搖桿往下選")
+	_main._toggle_inventory_panel()
+	tc.set_enabled(false)

@@ -25,7 +25,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZUJ"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZUJIowpqru"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -47,6 +47,7 @@ var _start_position := Vector2.ZERO
 var _nav_region: NavigationRegion2D
 var _structure_layer: CanvasLayer
 var _interactables: Array[Interactable] = []
+var _rebake_pending := false
 
 
 func _ready() -> void:
@@ -65,18 +66,30 @@ func _ready() -> void:
 
 ## 地板直接畫在世界圖層，會被燈光照亮、在黑暗中看不見。沒開暖氣的室內地板偏藍（結霜）。
 func _draw() -> void:
+	var concrete := Art.tex("tiles/floor_concrete")
+	var frost := Art.tex("tiles/floor_frost")
+	var lab := Art.tex("tiles/floor_lab")
 	for cell in _floor_cells:
 		var even := (cell.x + cell.y) % 2 == 0
-		var color: Color
+		var rect := Rect2(Vector2(cell) * TILE, Vector2(TILE, TILE))
 		if outdoor and not _is_indoor_cell(cell):
-			color = SNOW_FLOOR_A if even else SNOW_FLOOR_B
-		elif safe:
+			draw_rect(rect, SNOW_FLOOR_A if even else SNOW_FLOOR_B)
+			continue
+		# 室內：地板貼圖（64px 一張 = 4x4 格）。安全屋是無菌室的地板；沒暖氣的地方結霜。
+		var cold := not safe and is_cold(_cell_center(cell))
+		var tex: Texture2D = lab if safe else (frost if cold else concrete)
+		if tex:
+			var src := Rect2(Vector2(posmod(cell.x, 4), posmod(cell.y, 4)) * TILE, Vector2(TILE, TILE))
+			draw_texture_rect_region(tex, rect, src, Color(0.85, 0.85, 0.9) if safe else Color.WHITE)
+			continue
+		var color: Color
+		if safe:
 			color = SAFE_FLOOR_A if even else SAFE_FLOOR_B
 		else:
 			color = INDOOR_FLOOR_A if even else INDOOR_FLOOR_B
-			if is_cold(_cell_center(cell)):
+			if cold:
 				color = color * COLD_TINT
-		draw_rect(Rect2(Vector2(cell) * TILE, Vector2(TILE, TILE)), color)
+		draw_rect(rect, color)
 	for door_id in _data.doors:
 		var cell: Vector2i = _data.doors[door_id].cell
 		draw_rect(Rect2(Vector2(cell) * TILE + Vector2(2, 2), Vector2(TILE - 4, TILE - 4)), DOOR_COLOR)
@@ -96,6 +109,42 @@ func get_navigation_map() -> RID:
 
 func get_interactables() -> Array[Interactable]:
 	return _interactables
+
+
+## 執行中新增的互動物件（例如木箱破掉後掉出來的東西）
+func add_interactable(item: Interactable) -> void:
+	item.level = self
+	add_child(item)
+	item.sync_from_state()
+	_interactables.append(item)
+
+
+## 會擋路的物件（木箱、木板）：碰撞體放在導航區域底下，烘焙時才會被當成障礙物。
+func add_nav_obstacle(pos: Vector2, size: Vector2) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	body.collision_layer = WALL_LAYER
+	body.collision_mask = 0
+	var shape := CollisionShape2D.new()
+	var rect_shape := RectangleShape2D.new()
+	rect_shape.size = size
+	shape.shape = rect_shape
+	body.add_child(shape)
+	body.position = pos
+	_nav_region.add_child(body)
+	return body
+
+
+## 地形改變了（木板被拆掉）：重新烘焙導航網格，敵人才走得過去。
+func rebake_navigation() -> void:
+	_rebake_pending = true
+	_rebake.call_deferred()
+
+
+func _rebake() -> void:
+	if not _rebake_pending:
+		return
+	_rebake_pending = false
+	_nav_region.bake_navigation_polygon(false)
 
 
 func get_message(item_name: String) -> String:
@@ -150,6 +199,23 @@ func camera_mode() -> String:
 
 func boss_name() -> String:
 	return _data.get("boss", "")
+
+
+func climate_id() -> String:
+	return _data.get("climate", Areas.DEFAULT_CLIMATE)
+
+
+## 主角站的地方每秒失去多少體溫（負數 = 正在回暖）。
+## 安全屋、有暖氣的室內、火堆旁邊會回暖；戶外、沒暖氣的室內會失溫（依氣候）。
+func exposure_at(pos: Vector2) -> float:
+	var c := Climates.get_climate(climate_id())
+	if safe:
+		return -c.recover * 2.0
+	if outdoor and not _is_indoor_cell(cell_of(pos)):
+		return c.outdoor_loss
+	if is_cold(pos):
+		return c.cold_loss
+	return -c.recover
 
 
 ## 樓層（樓梯提示用）
@@ -292,17 +358,55 @@ func _build_solids() -> void:
 	add_child(_structure_layer)
 
 	for rect in _merge_rects("#"):
-		_add_solid(rect, WALL_COLOR, WALL_EDGE_COLOR)
+		var wall := _add_solid(rect, WALL_COLOR, WALL_EDGE_COLOR)
+		var wall_tex := Art.tex("tiles/wall_concrete")
+		if wall_tex:
+			wall.texture = wall_tex
+			wall.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+			wall.color = Color(0.55, 0.58, 0.66)  # 牆比地板暗，地形一眼看得出來
 	for rect in _merge_rects("C"):
 		if outdoor:
 			_add_solid(rect, ROCK_COLOR, ROCK_EDGE_COLOR)
 		else:
 			_add_solid(rect, CABINET_COLOR, CABINET_EDGE_COLOR)
+			_add_furniture(rect)
 	for rect in _merge_rects("H"):
 		_add_solid(rect, LOCKER_COLOR, LOCKER_EDGE_COLOR)
+		_add_prop_sprites(rect, Art.tex("props/locker"))
 
 
-func _add_solid(cell_rect: Rect2i, fill: Color, edge: Color) -> void:
+## 室內的 C：寬的是實驗桌，窄的是檔案櫃（像素圖，有的話）
+func _add_furniture(cell_rect: Rect2i) -> void:
+	if cell_rect.size.x >= 2:
+		var bench := Art.tex("props/bench")
+		if bench:
+			var s := Sprite2D.new()
+			s.texture = bench
+			s.centered = false
+			s.position = Vector2(cell_rect.position) * TILE
+			s.scale = Vector2(cell_rect.size) * TILE / bench.get_size()
+			_structure_layer.add_child(s)
+	else:
+		_add_prop_sprites(cell_rect, Art.tex("props/cabinet"))
+
+
+## 每一格放一個直立的道具（置物櫃、檔案櫃），底部對齊格子底部、往上突出一點（俯視 3/4 視角）
+func _add_prop_sprites(cell_rect: Rect2i, tex: Texture2D) -> void:
+	if tex == null:
+		return
+	for y in range(cell_rect.position.y, cell_rect.end.y):
+		for x in range(cell_rect.position.x, cell_rect.end.x):
+			var s := Sprite2D.new()
+			s.texture = tex
+			s.centered = false
+			var size := tex.get_size()
+			var k := minf(TILE / size.x, 26.0 / size.y)
+			s.scale = Vector2(k, k)
+			s.position = Vector2(x * TILE + (TILE - size.x * k) * 0.5, (y + 1) * TILE - size.y * k)
+			_structure_layer.add_child(s)
+
+
+func _add_solid(cell_rect: Rect2i, fill: Color, edge: Color) -> Polygon2D:
 	var rect := Rect2(Vector2(cell_rect.position) * TILE, Vector2(cell_rect.size) * TILE)
 	var points := PackedVector2Array([
 		rect.position,
@@ -339,6 +443,7 @@ func _add_solid(cell_rect: Rect2i, fill: Color, edge: Color) -> void:
 	outline.width = 1.0
 	outline.default_color = edge
 	_structure_layer.add_child(outline)
+	return visual
 
 
 func _spawn_interactables() -> void:
@@ -377,6 +482,17 @@ func _spawn_interactables() -> void:
 					item = Terminal.new()
 				"U":
 					item = Uplink.new()
+				"o":
+					item = OilDrum.new()
+				"w", "p":
+					var breakable := Breakable.new()
+					breakable.kind = "crate" if row[x] == "w" else "barricade"
+					breakable.loot = _data.get("loot", {}).get("%d,%d" % [x, y], [])
+					item = breakable
+				"q":
+					item = ExtinguisherMount.new()
+				"r":
+					item = StonePile.new()
 				"J":
 					item = ShaftLift.new()
 				"x":
@@ -389,7 +505,7 @@ func _spawn_interactables() -> void:
 					item = StorageBox.new()
 				"N":
 					item = ReadableNote.new()
-				"A", "M", "V", "W", "S", "L":
+				"A", "M", "V", "W", "S", "L", "I", "u":
 					var pickup := ItemPickup.new()
 					pickup.pickup_item = Items.MAP_PICKUPS[row[x]][0]
 					pickup.pickup_count = Items.MAP_PICKUPS[row[x]][1]

@@ -11,7 +11,7 @@ const OUTDOOR_DARKNESS := Color(0.2, 0.22, 0.3)
 ## 安全屋：溫暖、比較亮，讓玩家感到安心（出門那一刻的落差也是恐怖的一部分）
 const SAFE_DARKNESS := Color(0.34, 0.28, 0.22)
 const TITLE_SCENE := "res://scenes/title.tscn"
-const KOVAC_INTRO := "KOVAC: \"...is anyone on this channel? This is Dr. Ina Kovac, I left Greycrow two weeks ago. If you're in the clean room, you're safe. Listen carefully.\""
+const KOVAC_INTRO := ("KOVAC: \"...is anyone on this channel? This is Dr. Ina Kovac, I left Greycrow two weeks ago. If you're in the clean room, you're safe. Listen carefully.\"")
 const ENEMY_SCENES := {
 	"patroller": preload("res://scenes/enemy.tscn"),
 	"listener": preload("res://scenes/enemy_listener.tscn"),
@@ -40,9 +40,12 @@ var _signal_cursor := 0
 ## 選了一次的訊息（再選一次才真的發出）；-1 = 還沒選
 var _signal_armed := -1
 var _signal_transcript: Array[String] = []
+var touch_controls: TouchControls
 ## 最後看到的結局（測試用）
 var last_ending := {}
 var _ending_panel: PanelContainer
+## 畫面左下角的主角頭像（依狀態換表情）
+var _portrait: TextureRect
 var _ending_text: Label
 ## 打開介面的那一幀不處理按鍵（同一下 interact 不要直接選到第一個）
 var _signal_opened_frame := -1
@@ -92,12 +95,14 @@ func _ready() -> void:
 	_overlay.setup(_player)
 	_vignette.texture = _make_vignette()
 	_infection_vignette.texture = _make_vignette(Color(0.75, 0.95, 1.0, 0.85))
-	_player.died.connect(func(): _end_attempt("YOU DIED", Color(0.9, 0.2, 0.2)))
+	_player.died.connect(func(): _end_attempt(tr("YOU DIED"), Color(0.9, 0.2, 0.2)))
 	_player.hurt.connect(func(_d): _hurt_flash.color.a = 0.45)
 	_banner.visible = false
 	_hint.text = _build_hint()
 	Missions.mission_completed.connect(func(id: String):
-		show_message("MISSION COMPLETE: %s" % Missions.get_mission(id).title)
+		show_message(tr("MISSION COMPLETE: %s") % tr(Missions.get_mission(id).title))
+		if level:
+			level.sync_from_state()  # 獎勵可能讓隱藏的東西出現
 		if id == FINAL_MISSION:
 			_show_ending())
 	_resume_button.pressed.connect(_toggle_pause)
@@ -112,6 +117,21 @@ func _ready() -> void:
 	signal_style.set_content_margin_all(6)
 	_signal_panel.add_theme_stylebox_override("panel", signal_style)
 	_build_ending_panel()
+	touch_controls = TouchControls.new()
+	add_child(touch_controls)
+	_hint.visible = not touch_controls.visible  # 觸控時不顯示鍵盤說明
+	_portrait = TextureRect.new()
+	_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_portrait.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_portrait.offset_left = 4
+	_portrait.offset_right = 36
+	_portrait.offset_top = -62
+	_portrait.offset_bottom = -30
+	_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+	_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$HUD.add_child(_portrait)
+	$HUD.move_child(_portrait, _condition.get_index())
 	await load_area(WorldState.data.area, WorldState.data.entry, false)
 
 
@@ -157,15 +177,25 @@ func _process(delta: float) -> void:
 			_show_next_message()
 
 	var focus := _player.focus
-	_prompt.text = "[%s] %s" % [_key_name("interact"), focus.get_prompt(_player)] if focus and _player.input_enabled else ""
+	if focus and _player.input_enabled:
+		_prompt.text = "[%s] %s" % [_key_name("interact"), tr(focus.get_prompt(_player))]
+	elif _player.input_enabled and _player.knock_point() != null and _player.velocity.length() < 5.0:
+		_prompt.text = tr("[%s] Knock on the wall") % _key_name("interact")
+	else:
+		_prompt.text = ""
 	_items.text = _build_items_text()
-	_condition.text = "Condition: %s%s" % [_player.get_condition(),
-		"  (infected)" if _player.infection >= WorldState.MAX_INFECTION else ""]
+	var body := ""
+	if level and Climates.has_exposure(level.climate_id()):
+		body = tr("  Body: %s") % tr(_player.get_body_temp_state())
+	_condition.text = tr("Condition: %s%s%s") % [tr(_player.get_condition()),
+		tr("  (infected)") if _player.infection >= WorldState.MAX_INFECTION else "", body]
+	_portrait.texture = Art.tex("portraits/shen_" + _player.get_condition().to_lower())
+	_portrait.modulate = Color(1, 1, 1, 0.9)
 	_condition.add_theme_color_override("font_color", {
 		"Fine": Color(0.6, 1, 0.6), "Caution": Color(1, 0.85, 0.3), "Danger": Color(1, 0.35, 0.3)
 	}[_player.get_condition()])
 	var tracked := Missions.tracked_mission()
-	_objective.text = "> %s" % tracked.title if not tracked.is_empty() else ""
+	_objective.text = "> %s" % tr(tracked.title) if not tracked.is_empty() else ""
 	_update_status()
 	_update_boss_bar()
 
@@ -177,7 +207,7 @@ func _update_boss_bar() -> void:
 			boss = e
 	_boss_bar.visible = boss != null and level.boss_name() != ""
 	if _boss_bar.visible:
-		_boss_name.text = level.boss_name() + boss.boss_suffix()
+		_boss_name.text = tr(level.boss_name()) + tr(boss.boss_suffix())
 		_boss_fill.size.x = 200.0 * clampf(boss.health / boss.max_health, 0.0, 1.0)
 
 
@@ -191,13 +221,13 @@ func _physics_process(_delta: float) -> void:
 	if level.door_needs_power(door) and not WorldState.power_on:
 		if _locked_door_notice != door:
 			_locked_door_notice = door
-			show_message("The door is electric. There's no power.", true)
+			show_message(tr("The door is electric. There's no power."), true)
 		return
 	var need := level.door_access(door)
 	if need > WorldState.access_level:
 		if _locked_door_notice != door:
 			_locked_door_notice = door
-			show_message("Locked. Keycard access level %d required." % need, true)
+			show_message(tr("Locked. Keycard access level %d required.") % need, true)
 		return
 	load_area(level.door_target(door), door)
 
@@ -297,7 +327,7 @@ func _on_terminal_used(item_name: String) -> void:
 func _on_power_restored() -> void:
 	level.sync_from_state()
 	_apply_darkness()
-	show_message("The generator roars to life. Lights flicker on across the station - and the heating with them.", true)
+	show_message(tr("The generator roars to life. Lights flicker on across the station - and the heating with them."), true)
 
 
 func _end_attempt(text: String, color: Color, new_game := false, delay := RESET_DELAY) -> void:
@@ -321,6 +351,8 @@ func _end_attempt(text: String, color: Color, new_game := false, delay := RESET_
 ## 回到最近的檢查點（目前所在區域的入口）。
 func reset_attempt() -> void:
 	WorldState.restore_checkpoint()
+	# 回到檢查點時至少有一半的體溫，避免一進戶外就凍死的死循環
+	WorldState.body_temp = maxf(WorldState.body_temp, 60.0)
 	level.sync_from_state()
 	_player.reset_to(level.get_entry_position(WorldState.checkpoint_entry()))
 	for enemy in enemies:
@@ -338,6 +370,7 @@ func reset_attempt() -> void:
 func show_message(text: String, urgent := false) -> void:
 	if text == "":
 		return
+	text = tr(text)  # 資料裡的整句文字（文件、無線電、任務）在這裡翻譯
 	if urgent:
 		if _message.visible:
 			_message_queue.push_front(_message.text)
@@ -362,11 +395,11 @@ func _on_radio_used() -> void:
 	_radio_transcript.clear()
 	if not WorldState.has_flag("radio:intro"):
 		WorldState.set_flag("radio:intro")
-		_radio_transcript.append(KOVAC_INTRO)
+		_radio_transcript.append(tr(KOVAC_INTRO))
 	for text in Missions.receive_radio():
-		_radio_transcript.append(text)
+		_radio_transcript.append(tr(text))
 	WorldState.save_checkpoint(level.area_id, "radio")
-	_radio_transcript.append("Progress saved." if WorldState.save_to_disk() else "Save failed.")
+	_radio_transcript.append(tr("Progress saved.") if WorldState.save_to_disk() else tr("Save failed."))
 	_radio_panel.visible = true
 	get_tree().paused = true
 	_refresh_radio()
@@ -423,12 +456,12 @@ func listen_radio() -> Dictionary:
 	_radio_transcript.clear()
 	var station := Frequencies.find_exact(_radio_freq)
 	if station.is_empty():
-		_radio_transcript.append("Only static." if Frequencies.signal_strength(_radio_freq) < 0.5 \
-			else "Something is there, buried in the static... fine-tune it.")
+		_radio_transcript.append(tr("Only static.") if Frequencies.signal_strength(_radio_freq) < 0.5 \
+			else tr("Something is there, buried in the static... fine-tune it."))
 		return {}
 	_radio_freq = station.freq
 	for line in station.lines:
-		_radio_transcript.append(line)
+		_radio_transcript.append(tr(line))
 	WorldState.learn_freq(station.freq)
 	WorldState.set_flag("freq_heard:" + station.id)
 	if station.has("reveal") and not WorldState.has_flag(station.reveal):
@@ -443,17 +476,17 @@ func _refresh_radio() -> void:
 	var memo_parts: Array[String] = []
 	for f in WorldState.known_freqs():
 		var mark := "*" if f == _radio_freq else ""
-		memo_parts.append("%s%s %s" % [mark, Frequencies.format(f), Frequencies.by_freq(f).label])
+		memo_parts.append("%s%s %s" % [mark, Frequencies.format(f), tr(Frequencies.by_freq(f).label)])
 	var lines: Array[String] = [
 		"RADIO",
-		"FREQUENCY  %s MHz" % Frequencies.format(_radio_freq),
-		"SIGNAL     [%s%s]" % ["#".repeat(bars), "-".repeat(10 - bars)],
-		"MEMO       %s" % ("  /  ".join(memo_parts) if not memo_parts.is_empty() else "(none)"),
+		tr("FREQUENCY  %s MHz") % Frequencies.format(_radio_freq),
+		tr("SIGNAL     [%s%s]") % ["#".repeat(bars), "-".repeat(10 - bars)],
+		tr("MEMO       %s") % ("  /  ".join(memo_parts) if not memo_parts.is_empty() else tr("(none)")),
 		"",
 	]
 	lines.append_array(_radio_transcript)
 	lines.append("")
-	lines.append("[%s/%s] fine  [%s/%s] coarse  [%s] memo  [%s] listen  [%s] close" % [
+	lines.append(tr("[%s/%s] fine  [%s/%s] coarse  [%s] memo  [%s] listen  [%s] close") % [
 		_key_name("move_left"), _key_name("move_right"), _key_name("move_up"), _key_name("move_down"),
 		_key_name("switch_target"), _key_name("interact"), _key_name("inventory")])
 	_radio_text.text = "\n".join(lines)
@@ -494,20 +527,20 @@ func _process_storage_input() -> void:
 			WorldState.store_slot(row.index)
 		else:
 			if WorldState.retrieve(row.id) == 0:
-				show_message("No room.")
+				show_message(tr("No room."))
 		_storage_cursor = mini(_storage_cursor, _storage_rows().size() - 1)
 	_refresh_storage()
 
 
 func _refresh_storage() -> void:
 	var rows := _storage_rows()
-	var lines: Array[String] = ["STORAGE BOX   (shared by all safe rooms)", "", "-- carried --"]
+	var lines: Array[String] = [tr("STORAGE BOX   (shared by all safe rooms)"), "", tr("-- carried --")]
 	for i in rows.size():
 		var row: Dictionary = rows[i]
 		var cursor := ">" if i == _storage_cursor else " "
 		if row.side == "box" and (i == 0 or rows[i - 1].side == "bag"):
 			lines.append("")
-			lines.append("-- in box --")
+			lines.append(tr("-- in box --"))
 		if row.side == "bag":
 			var slot: Dictionary = WorldState.inventory()[row.index]
 			lines.append("%s [%d] %s" % [cursor, row.index + 1,
@@ -515,7 +548,7 @@ func _refresh_storage() -> void:
 		else:
 			lines.append("%s %s x%d" % [cursor, Items.display_name(row.id), WorldState.storage()[row.id]])
 	lines.append("")
-	lines.append("[%s] move   [%s] close" % [_key_name("interact"), _key_name("inventory")])
+	lines.append(tr("[%s] move   [%s] close") % [_key_name("interact"), _key_name("inventory")])
 	_storage_text.text = "\n".join(lines)
 
 
@@ -590,9 +623,10 @@ func send_signal(choice_id: String) -> void:
 		return
 	WorldState.set_flag("signal", choice_id)
 	_signal_transcript.clear()
-	_signal_transcript.append(option.sent)
-	_signal_transcript.append(option.reply)
-	_signal_transcript.append_array(UplinkMessages.HOLD_REPLY)
+	_signal_transcript.append(tr(option.sent))
+	_signal_transcript.append(tr(option.reply))
+	for line in UplinkMessages.HOLD_REPLY:
+		_signal_transcript.append(tr(line))
 	# 不明訊號的頻率記進無線電備忘錄
 	WorldState.learn_freq(12605)
 	_refresh_signal()
@@ -601,16 +635,17 @@ func send_signal(choice_id: String) -> void:
 func _refresh_signal() -> void:
 	var sent := WorldState.signal_choice() != ""
 	var lines: Array[String] = []
-	lines.append_array(UplinkMessages.INTRO)
+	for line in UplinkMessages.INTRO:
+		lines.append(tr(line))
 	lines.append("")
 	if sent:
 		lines.append_array(_signal_transcript)
 		lines.append("")
-		lines.append("[%s] close" % _key_name("interact"))
+		lines.append(tr("[%s] close") % _key_name("interact"))
 	elif _signal_armed >= 0:
-		lines.append("Send this? There is no second transmission. Select it again to transmit.")
+		lines.append(tr("Send this? There is no second transmission. Select it again to transmit."))
 	else:
-		lines.append("[%s/%s] choose   [%s] select   [%s] step away" % [
+		lines.append(tr("[%s/%s] choose   [%s] select   [%s] step away") % [
 			_key_name("move_up"), _key_name("move_down"), _key_name("interact"), _key_name("inventory")])
 	_signal_text.text = "\n".join(lines)
 	var count := UplinkMessages.DATA.size()
@@ -622,11 +657,11 @@ func _refresh_signal() -> void:
 		elif i < count:
 			button.visible = true
 			var mark := "> " if i == _signal_cursor else "  "
-			var armed := "  [SELECT AGAIN TO SEND]" if i == _signal_armed else ""
-			button.text = mark + UplinkMessages.DATA[i].label + armed
+			var armed := tr("  [SELECT AGAIN TO SEND]") if i == _signal_armed else ""
+			button.text = mark + tr(UplinkMessages.DATA[i].label) + armed
 		else:
 			button.visible = true
-			button.text = "  Step away (decide later)"
+			button.text = tr("  Step away (decide later)")
 
 
 # ── 結局 ──────────────────────────────────────────────
@@ -646,13 +681,13 @@ func _build_ending_panel() -> void:
 	_ending_text = Label.new()
 	_ending_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ending_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_ending_text.add_theme_font_size_override("font_size", 8)
+	_ending_text.add_theme_font_size_override("font_size", 12)
 	_ending_text.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
 	box.add_child(_ending_text)
 	var button := Button.new()
-	button.text = "Return to title"
+	button.text = tr("Return to title")
 	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_font_size_override("font_size", 8)
+	button.add_theme_font_size_override("font_size", 12)
 	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	button.pressed.connect(_quit_to_title)
 	box.add_child(button)
@@ -665,13 +700,13 @@ func _show_ending() -> void:
 	_resetting = true  # 結局畫面期間不會被抓、不會切換區域
 	last_ending = Endings.resolve(WorldState.signal_choice(), _player.infection)
 	await get_tree().create_timer(ENDING_DELAY).timeout
-	var lines: Array[String] = [last_ending.title, ""]
+	var lines: Array[String] = [tr(last_ending.title), ""]
 	for line in last_ending.lines:
-		lines.append(line)
+		lines.append(tr(line))
 		lines.append("")
-	lines.append("THE END")
+	lines.append(tr("THE END"))
 	lines.append("")
-	lines.append("[%s] return to title" % _key_name("interact"))
+	lines.append(tr("[%s] return to title") % _key_name("interact"))
 	_ending_text.text = "\n".join(lines)
 	_ending_panel.visible = true
 	get_tree().paused = true
@@ -700,20 +735,20 @@ func _toggle_mission_panel() -> void:
 
 
 func _build_mission_text() -> String:
-	var lines: Array[String] = ["MAIN OPS"]
+	var lines: Array[String] = [tr("MAIN OPS")]
 	for main in [true, false]:
 		if not main:
 			lines.append("")
-			lines.append("SIDE OPS")
+			lines.append(tr("SIDE OPS"))
 		for m in Missions.list_visible():
 			if m.main != main:
 				continue
 			var done := Missions.is_done(m.id)
-			lines.append("%s %s" % ["[x]" if done else "[ ]", m.title])
+			lines.append("%s %s" % ["[x]" if done else "[ ]", tr(m.title)])
 			if not done:
-				lines.append("    " + m.desc)
+				lines.append("    " + tr(m.desc))
 	lines.append("")
-	lines.append("[%s] close" % _key_name("map"))
+	lines.append(tr("[%s] close") % _key_name("map"))
 	return "\n".join(lines)
 
 
@@ -727,11 +762,17 @@ func _build_items_text() -> String:
 			mag = "reloading"
 		parts.append("%s %s (+%d)" % [Items.display_name(weapon), mag,
 			WorldState.inv_count(combat.stats().ammo)])
-	parts.append("Bottles %d" % _player.bottles)
+	var throwable := _player.current_throwable()
+	if throwable != "":
+		parts.append(tr("Throw: %s x%d") % [Items.display_name(throwable), WorldState.inv_count(throwable)])
+	parts.append(tr("Light: %s") % tr(_player.light_name()))
 	if WorldState.access_level > 0:
-		parts.append("Card Lv%d" % WorldState.access_level)
-	if _player.is_carrying():
-		parts.append("CARRYING FUEL")
+		parts.append(tr("Card Lv%d") % WorldState.access_level)
+	if WorldState.carrying == "fuel":
+		parts.append(tr("CARRYING FUEL"))
+	elif WorldState.carrying == "extinguisher":
+		parts.append(tr("EXTINGUISHER %d  [%s] spray  [%s] throw") % [
+			WorldState.extinguisher_charge, _key_name("fire"), _key_name("throw")])
 	return "  ".join(parts)
 
 
@@ -756,16 +797,27 @@ func _process_inventory_input() -> void:
 	elif Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("interact"):
 		var slot: Dictionary = slots[_inventory_cursor]
 		if not slot.is_empty():
+			var kind: String = Items.get_item(slot.id).kind
+			var made: String = Items.get_item(slot.id).get("recipe", {}).get("makes", "")
 			if _player.use_item(slot.id):
-				var verb := "Equipped" if Items.get_item(slot.id).kind == "weapon" else "Used"
-				show_message("%s %s." % [verb, Items.display_name(slot.id)])
+				match kind:
+					"weapon":
+						show_message(tr("Equipped %s.") % Items.display_name(slot.id))
+					"throwable":
+						show_message(tr("%s ready to throw.") % Items.display_name(slot.id))
+					"warm":
+						show_message(tr("The heat pack spreads warmth through your chest."))
+					"craft":
+						show_message(tr("Made a %s. (Your lighter is always on you.)") % Items.display_name(made))
+					_:
+						show_message(tr("Used %s.") % Items.display_name(slot.id))
 			else:
-				show_message("Can't use that now.")
+				show_message(tr("Can't use that now."))
 	_refresh_inventory()
 
 
 func _refresh_inventory() -> void:
-	var lines: Array[String] = ["ITEMS   Condition: %s" % _player.get_condition(), ""]
+	var lines: Array[String] = [tr("ITEMS   Condition: %s") % tr(_player.get_condition()), ""]
 	var slots := WorldState.inventory()
 	for i in slots.size():
 		var slot: Dictionary = slots[i]
@@ -776,9 +828,9 @@ func _refresh_inventory() -> void:
 			lines.append("%s [%d] %s x%d" % [cursor, i + 1, Items.display_name(slot.id), slot.count])
 	var selected: Dictionary = slots[_inventory_cursor]
 	lines.append("")
-	lines.append(Items.get_item(selected.id).desc if not selected.is_empty() else "")
+	lines.append(tr(Items.get_item(selected.id).desc) if not selected.is_empty() else "")
 	lines.append("")
-	lines.append("[%s] use   [%s] close" % [_key_name("interact"), _key_name("inventory")])
+	lines.append(tr("[%s] use   [%s] close") % [_key_name("interact"), _key_name("inventory")])
 	_inventory_text.text = "\n".join(lines)
 
 
@@ -820,18 +872,20 @@ func _make_vignette(edge := Color(0, 0, 0, 0.92)) -> Texture2D:
 
 ## 操作說明直接從 InputMap 讀，改按鍵時不用改這裡。
 func _build_hint() -> String:
+	var move := "".join(["move_up", "move_left", "move_down", "move_right"].map(_key_name))
 	var parts := [
-		"%s move" % "/".join(["move_up", "move_left", "move_down", "move_right"].map(_key_name)),
-		"%s run" % _key_name("run"),
-		"%s sneak" % _key_name("sneak"),
-		"%s light" % _key_name("flashlight"),
-		"%s use" % _key_name("interact"),
-		"%s aim %s fire/knife" % [_key_name("aim"), _key_name("fire")],
-		"%s items" % _key_name("inventory"),
-		"%s ops" % _key_name("map"),
-		"%s debug" % _key_name("debug_toggle"),
+		"%s %s" % [move, tr("Move")],
+		"%s %s" % [_key_name("run"), tr("Run")],
+		"%s %s" % [_key_name("sneak"), tr("Sneak")],
+		"%s %s" % [_key_name("flashlight"), tr("Light")],
+		"%s %s" % [_key_name("throw"), tr("Throw")],
+		"%s %s" % [_key_name("interact"), tr("Use")],
+		"%s %s" % [_key_name("aim"), tr("Aim")],
+		"%s %s" % [_key_name("fire"), tr("Fire")],
+		"%s %s" % [_key_name("inventory"), tr("Items")],
+		"%s %s" % [_key_name("map"), tr("Ops")],
 	]
-	return "  ".join(parts)
+	return " ".join(parts)
 
 
 func _key_name(action: String) -> String:

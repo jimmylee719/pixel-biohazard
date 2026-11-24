@@ -159,3 +159,16 @@ renderer/rendering_method.mobile="gl_compatibility"
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)
 2d/snap/snap_2d_transforms_to_pixel=true
 2d/snap/snap_2d_vertices_to_pixel=true
+
+[game]
+
+force_touch_ui=false
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://locale/zh_TW.po")
+locale/fallback="en"
+
+[gui]
+
+theme/custom="res://assets/ui_theme.tres"

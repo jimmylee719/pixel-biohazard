@@ -29,8 +29,8 @@ func sync_from_state() -> void:
 
 
 func get_prompt(_player: Player) -> String:
-	var label := level.zone_label(zone_name)
-	return "Heat OFF (%s)" % label if level.is_zone_heated(zone_name) else "Heat ON (%s)" % label
+	var label := tr(level.zone_label(zone_name))
+	return tr("Heat OFF (%s)") % label if level.is_zone_heated(zone_name) else tr("Heat ON (%s)") % label
 
 
 func can_interact(player: Player) -> bool:
@@ -48,6 +48,12 @@ func _refresh() -> void:
 
 
 func _draw() -> void:
+	var tex := Art.tex("props/breaker")
+	if tex:
+		draw_texture(tex, -tex.get_size() * 0.5)
+		var led_c := HEAT_ON_COLOR if level.is_zone_heated(zone_name) else HEAT_OFF_COLOR
+		draw_rect(Rect2(3, -5, 2, 2), led_c)
+		return
 	draw_rect(Rect2(-5, -6, 10, 12), Color(0.35, 0.36, 0.38))
 	draw_rect(Rect2(-5, -6, 10, 12), Color(0.55, 0.56, 0.6), false, 1.0)
 	var led := HEAT_ON_COLOR if level.is_zone_heated(zone_name) else HEAT_OFF_COLOR
