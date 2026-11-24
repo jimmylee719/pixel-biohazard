@@ -35,6 +35,7 @@ func new_game() -> void:
 		"loaded": {"pistol": 0, "shotgun": 0},
 		"equipped": "pistol",
 		"access_level": 0,
+		"carrying": "",
 		"storage": {},
 		"flags": {},
 	}
@@ -96,6 +97,21 @@ var access_level: int:
 	set(value):
 		data.access_level = maxi(data.access_level, value)
 		changed.emit()
+
+
+## 雙手搬運中的東西（例如 "fuel"），空字串 = 沒有
+var carrying: String:
+	get:
+		return data.carrying
+	set(value):
+		data.carrying = value
+		changed.emit()
+
+
+## 研究站的電力（發電機）
+var power_on: bool:
+	get:
+		return has_flag("power_on")
 
 
 var equipped: String:
@@ -311,6 +327,7 @@ func _migrate(old: Dictionary) -> Dictionary:
 		"loaded": {"pistol": 0, "shotgun": 0},
 		"equipped": "pistol",
 		"access_level": 0,
+		"carrying": "",
 		"storage": {},
 		"flags": {},
 	}

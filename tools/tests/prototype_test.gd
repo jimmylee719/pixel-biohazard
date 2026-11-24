@@ -1118,8 +1118,82 @@ func _test_keycard_and_office() -> void:
 	await _press("interact")
 	_check(Missions.is_done("director_records"), "完成主線：站長的紀錄")
 	_check(WorldState.access_level == 2, "權限卡升到等級 2")
+	_check(_player.input_enabled, "讀完紀錄後可以繼續（主線：恢復電力）")
+	_check(Missions.tracked_mission().get("id") == "restore_power", "下一個主線：恢復電力")
+	await _test_power()
+
+
+func _quiet() -> void:
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+
+
+func _test_power() -> void:
+	print("[power / basement door]")
+	await _main.load_area("station_1f", "stairs", false)
+	_quiet()
+	_place_player(_tile(30, 2), false, Vector2.UP)
+	await _walk_until_area("move_up", "station_b1")
+	_check(_main.level.area_id == "station_b1", "權限卡等級 2 可以進地下層")
+	_quiet()
+	_level = _main.level
+	_check(not _main.level.is_lit(), "停電中：地下層沒有燈")
+	_check(_main.level.is_cold(_tile(10, 10)) and _main.level.is_cold(_tile(30, 3)), "停電中：地下層是冷的")
+	var gen := _find_item(Generator, Vector2i(34, 10))
+	_place_player(_tile(35, 10), false, Vector2.LEFT)
+	await _frames(3)
+	_check(_player.focus == gen, "可以檢查發電機")
+	await _press("interact")
+	_check(not WorldState.power_on and Missions.step_index("restore_power") == 0, "沒有燃料時發電機不會啟動")
+
+	print("[power / fuel depot]")
+	await _main.load_area("fuel_depot", "depot", false)
+	_quiet()
+	_level = _main.level
+	_check(_main.level.outdoor, "燃料庫在戶外")
+	var can := _find_item(FuelCan, Vector2i(35, 5))
+	_place_player(_tile(34, 5), false, Vector2.RIGHT)
+	await _frames(3)
+	_check(_player.focus == can, "可以搬燃料桶")
+	await _press("interact")
+	_check(_player.is_carrying() and Missions.step_index("restore_power") == 1, "雙手搬起燃料桶")
+	_place_player(_tile(30, 8), false, Vector2.LEFT)
+	Input.action_press("run")
+	Input.action_press("move_left")
+	await _seconds(0.4)
+	_check(_player.gait != Player.Gait.RUN, "搬著燃料桶不能跑")
+	Input.action_release("move_left")
+	Input.action_release("run")
+	Input.action_press("aim")
+	await _frames(5)
+	_check(not _player.combat.aiming, "搬著燃料桶不能舉槍")
+	Input.action_release("aim")
+	await _press("fire")
+	var swing: Dictionary = _player.combat.last_melee
+	_check(swing.is_empty() or swing.t > 0.1, "搬著燃料桶不能揮刀")
+
+	print("[power / generator]")
+	await _main.load_area("station_b1", "basement", false)
+	_quiet()
+	_level = _main.level
+	_check(_player.is_carrying(), "換區域時燃料桶還在手上")
+	var freezer_sleepers: Array = _main.enemies.filter(func(e): return e.display_name == "Sleeper")
+	gen = _find_item(Generator, Vector2i(34, 10))
+	_place_player(_tile(35, 10), false, Vector2.LEFT)
+	await _frames(3)
+	await _press("interact")
+	_check(WorldState.power_on, "倒入燃料，發電機啟動")
+	_check(not _player.is_carrying(), "燃料桶用掉了")
+	_check(Missions.is_done("restore_power"), "完成主線：恢復電力")
+	_check(_main.level.is_lit(), "地下層的燈亮了")
+	_check(_main.get_node("Darkness").color == _main.POWERED_DARKNESS, "畫面變亮")
+	_check(not _main.level.is_cold(_tile(30, 3)), "地下層恢復暖氣")
+	_check(_main.level.is_cold(_tile(10, 10)), "樣本冷凍庫還是冷的")
+	_check(freezer_sleepers.all(func(e): return e.is_dormant), "冷凍庫裡的凍眠體還在睡")
+	_check(_player.get_detection_range_mult() >= 1.2, "燈亮著的地方比較容易被發現")
 	_check(not _player.input_enabled, "原型在這裡結束")
 	await _seconds(7.5)
 	_check(_main.level.area_id == "south_shore", "原型結束後重新開始（%s）" % _main.level.area_id)
+	_check(not WorldState.power_on, "新遊戲電力還沒恢復")
 
 

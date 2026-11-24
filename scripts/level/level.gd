@@ -25,7 +25,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOx"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFE"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -68,7 +68,7 @@ func _draw() -> void:
 	for cell in _floor_cells:
 		var even := (cell.x + cell.y) % 2 == 0
 		var color: Color
-		if outdoor:
+		if outdoor and not _is_indoor_cell(cell):
 			color = SNOW_FLOOR_A if even else SNOW_FLOOR_B
 		elif safe:
 			color = SAFE_FLOOR_A if even else SAFE_FLOOR_B
@@ -80,6 +80,14 @@ func _draw() -> void:
 	for door_id in _data.doors:
 		var cell: Vector2i = _data.doors[door_id].cell
 		draw_rect(Rect2(Vector2(cell) * TILE + Vector2(2, 2), Vector2(TILE - 4, TILE - 4)), DOOR_COLOR)
+
+
+## 戶外區域裡的室內空間（例如倉庫）：地板畫成室內的樣子
+func _is_indoor_cell(cell: Vector2i) -> bool:
+	for r in _data.get("indoor_rects", []):
+		if (r as Rect2i).has_point(cell):
+			return true
+	return false
 
 
 func get_navigation_map() -> RID:
@@ -152,7 +160,14 @@ func is_cold(pos: Vector2) -> bool:
 func is_zone_heated(zone_name: String) -> bool:
 	if not zones.has(zone_name):
 		return true
+	if zones[zone_name].get("powered", false) and WorldState.power_on:
+		return true  # 恢復電力：暖氣跟著恢復
 	return WorldState.is_zone_heated(area_id, zone_name, zones[zone_name].heated)
+
+
+## 恢復電力後燈亮著的區域
+func is_lit() -> bool:
+	return _data.get("powered_area", false) and WorldState.power_on
 
 
 func set_zone_heated(zone_name: String, heated: bool) -> void:
@@ -320,6 +335,10 @@ func _spawn_interactables() -> void:
 					item = stairs
 				"Q":
 					item = AccessCard.new()
+				"F":
+					item = FuelCan.new()
+				"E":
+					item = Generator.new()
 				"O":
 					item = Terminal.new()
 				"x":

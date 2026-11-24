@@ -144,6 +144,19 @@ func _run() -> void:
 	await _frames(20)
 	await _shot("16_office")
 
+	# 燃料庫（搬著燃料桶）、恢復電力後的地下層
+	await _main.load_area("fuel_depot", "depot", false)
+	WorldState.carrying = "fuel"
+	_put_player(_tile(28, 8), Vector2.LEFT, true)
+	await _frames(30)
+	await _shot("17_depot_carry")
+	WorldState.set_flag("power_on")
+	WorldState.carrying = ""
+	await _main.load_area("station_b1", "basement", false)
+	_put_player(_tile(33, 13), Vector2.UP, true)
+	await _frames(30)
+	await _shot("18_b1_powered")
+
 	# 標題畫面
 	_main.queue_free()
 	var title: Control = load("res://scenes/title.tscn").instantiate()

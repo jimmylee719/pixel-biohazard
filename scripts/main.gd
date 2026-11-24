@@ -17,8 +17,10 @@ const ENEMY_SCENES := {
 	"listener": preload("res://scenes/enemy_listener.tscn"),
 	"sleeper": preload("res://scenes/enemy_sleeper.tscn"),
 }
-## 原型的終點：讀完站長的紀錄
-const PROTOTYPE_END_TERMINAL := "director_terminal"
+## 原型的終點：完成這個主線後顯示 TO BE CONTINUED
+const PROTOTYPE_END_MISSION := "restore_power"
+## 恢復電力後，研究站室內有燈（比較亮）
+const POWERED_DARKNESS := Color(0.17, 0.17, 0.2)
 
 var level: Level
 var enemies: Array[Enemy] = []
@@ -74,7 +76,9 @@ func _ready() -> void:
 	_banner.visible = false
 	_hint.text = _build_hint()
 	Missions.mission_completed.connect(func(id: String):
-		show_message("MISSION COMPLETE: %s" % Missions.get_mission(id).title))
+		show_message("MISSION COMPLETE: %s" % Missions.get_mission(id).title)
+		if id == PROTOTYPE_END_MISSION:
+			_end_attempt("TO BE CONTINUED", Color(0.5, 1, 0.6), true, MESSAGE_TIME))
 	_resume_button.pressed.connect(_toggle_pause)
 	_quit_button.pressed.connect(_quit_to_title)
 	await load_area(WorldState.data.area, WorldState.data.entry, false)
@@ -179,6 +183,8 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.reached.connect(func(target: String): load_area(target, "stairs"))
 		elif item is Terminal:
 			item.used.connect(_on_terminal_used)
+		elif item is Generator:
+			item.powered.connect(_on_power_restored)
 		elif item is TapePickup:
 			item.message_shown.connect(show_message)
 		elif item is ReadableNote:
@@ -188,12 +194,7 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 		elif item is StorageBox:
 			item.opened.connect(_toggle_storage_panel)
 
-	if level.safe:
-		_darkness.color = SAFE_DARKNESS
-	elif level.outdoor:
-		_darkness.color = OUTDOOR_DARKNESS
-	else:
-		_darkness.color = INDOOR_DARKNESS
+	_apply_darkness()
 	_player.level = level
 	_player.reset_to(level.get_entry_position(entry))
 	_camera.setup(_player, level.bounds)
@@ -217,10 +218,26 @@ func _fade_to(alpha: float) -> void:
 
 # ── 被抓到、重來 ──────────────────────────────────────
 
+func _apply_darkness() -> void:
+	if level.safe:
+		_darkness.color = SAFE_DARKNESS
+	elif level.outdoor:
+		_darkness.color = OUTDOOR_DARKNESS
+	elif level.is_lit():
+		_darkness.color = POWERED_DARKNESS
+	else:
+		_darkness.color = INDOOR_DARKNESS
+
+
 func _on_terminal_used(item_name: String) -> void:
 	show_message(level.get_message(item_name))
-	if item_name == PROTOTYPE_END_TERMINAL:
-		_end_attempt("TO BE CONTINUED", Color(0.5, 1, 0.6), true, MESSAGE_TIME)
+
+
+## 發電機啟動：燈亮、暖氣恢復（同一區的凍眠體會醒）
+func _on_power_restored() -> void:
+	level.sync_from_state()
+	_apply_darkness()
+	show_message("The generator roars to life. Lights flicker on across the station - and the heating with them.", true)
 
 
 func _end_attempt(text: String, color: Color, new_game := false, delay := RESET_DELAY) -> void:
@@ -495,6 +512,8 @@ func _build_items_text() -> String:
 	parts.append("Bottles %d" % _player.bottles)
 	if WorldState.access_level > 0:
 		parts.append("Card Lv%d" % WorldState.access_level)
+	if _player.is_carrying():
+		parts.append("CARRYING FUEL")
 	return "  ".join(parts)
 
 

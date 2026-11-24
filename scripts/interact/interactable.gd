@@ -28,8 +28,14 @@ func get_prompt(_player: Player) -> String:
 ## 主角按下 interact 時呼叫：先通知任務系統，再執行互動
 ## （例如「用無線電」這個任務步驟要先完成，無線電才收得到之後的委託）。
 func use(player: Player) -> void:
-	WorldState.emit_event("interact", item_name)
+	if counts_as_interaction(player):
+		WorldState.emit_event("interact", item_name)
 	interact(player)
+
+
+## 這次互動算不算完成任務步驟（例如發電機要有燃料才算）
+func counts_as_interaction(_player: Player) -> bool:
+	return true
 
 
 func interact(_player: Player) -> void:

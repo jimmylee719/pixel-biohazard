@@ -89,7 +89,7 @@ func _physics_process(delta: float) -> void:
 		if not fx.is_empty():
 			fx.t += delta
 
-	if not player.input_enabled or player.is_hiding or player.is_dead:
+	if not player.input_enabled or player.is_hiding or player.is_dead or player.is_carrying():
 		interrupt()
 		return
 

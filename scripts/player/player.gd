@@ -130,7 +130,7 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_just_pressed("flashlight"):
 			flashlight_on = not flashlight_on
 			_apply_flashlight()
-		if Input.is_action_just_pressed("throw"):
+		if Input.is_action_just_pressed("throw") and not is_carrying():
 			throw_bottle()
 
 	# 舉槍時站定，只能轉向（鎖定目標時面向由 Combat 控制）
@@ -139,7 +139,9 @@ func _physics_process(delta: float) -> void:
 			facing = move_input.normalized()
 		move_input = Vector2.ZERO
 
-	var running := input_enabled and Input.is_action_pressed("run") and move_input != Vector2.ZERO
+	# 雙手搬東西時不能跑
+	var running := input_enabled and Input.is_action_pressed("run") and move_input != Vector2.ZERO \
+		and not is_carrying()
 	if running:
 		sneaking = false
 
@@ -216,8 +218,15 @@ func _update_infection(delta: float) -> void:
 			_die()
 
 
+## 雙手搬運中（燃料桶）：不能跑、不能用武器、腳步聲比較大
+func is_carrying() -> bool:
+	return WorldState.carrying != ""
+
+
 func get_speed_mult() -> float:
 	var mult := 1.0
+	if is_carrying():
+		mult *= 0.85
 	if WorldState.health < wounded_threshold:
 		mult *= wounded_speed_mult
 	if WorldState.infection >= WorldState.MAX_INFECTION:
@@ -357,9 +366,11 @@ func is_in_flashlight(point: Vector2) -> bool:
 		global_position, facing, point, deg_to_rad(flashlight_half_angle_deg), flashlight_range)
 
 
-## 敵人的視野距離倍率：開手電筒的人在黑暗中很顯眼。
+## 敵人的視野距離倍率：開手電筒的人在黑暗中很顯眼；燈亮著的區域就藏不住了。
 func get_detection_range_mult() -> float:
 	var mult := 1.4 if flashlight_on else 0.7
+	if level and level.is_lit():
+		mult = maxf(mult, 1.2)
 	if gait == Gait.SNEAK or (gait == Gait.IDLE and sneaking):
 		mult *= 0.85
 	return mult
@@ -385,6 +396,8 @@ func get_gait_name() -> String:
 		return "AIM"
 	if is_hiding:
 		return "HIDDEN"
+	if is_carrying():
+		return "CARRY"
 	return ["IDLE", "SNEAK", "WALK", "RUN"][gait]
 
 
@@ -397,7 +410,7 @@ func _update_noise(delta: float) -> void:
 	var interval := 0.0
 	match gait:
 		Gait.WALK:
-			radius = walk_noise_tiles * TILE
+			radius = (walk_noise_tiles + (1.5 if is_carrying() else 0.0)) * TILE
 			interval = walk_noise_interval
 		Gait.RUN:
 			radius = run_noise_tiles * TILE

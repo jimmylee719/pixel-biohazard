@@ -47,6 +47,23 @@ const DATA := [
 		"reward": {"access": 2},
 	},
 	{
+		"id": "restore_power", "main": true, "requires": ["director_records"],
+		"title": "Restore power",
+		"desc": "The B1 generator ran dry. There's diesel at the fuel depot east of the shore. Your level 2 card opens the basement door in the lab.",
+		"steps": [
+			{"type": "collect", "target": "fuel_can"},
+			{"type": "interact", "target": "generator_b1"},
+		],
+	},
+	{
+		"id": "depot_manifest", "main": false, "requires": ["director_records"],
+		"radio": "KOVAC: \"Going to the depot? Find the manifest first. Mendez said something nests in that warehouse.\"",
+		"title": "Depot manifest",
+		"desc": "Read the manifest in the depot warehouse before you go for the fuel.",
+		"steps": [{"type": "collect", "target": "manifest_depot"}],
+		"reward": {"intel": "fuel_depot"},
+	},
+	{
 		"id": "supply_drop", "main": false,
 		"title": "Supply drop",
 		"desc": "A supply crate fell from the helicopter somewhere on the shore.",

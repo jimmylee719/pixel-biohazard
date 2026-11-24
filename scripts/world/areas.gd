@@ -10,6 +10,7 @@
 ##   R  無線電（存檔、接收支線、調頻）   Y  儲物箱（所有安全屋共用）
 ##   N  筆記／白板（可重複閱讀）   S  散彈槍   L  散彈
 ##   Q  權限卡（提升權限等級，不佔物品欄）   O  終端機   x  屍體（裝飾；和凍眠體很像）
+##   F  燃料桶（雙手搬運）   E  發電機
 ##   1～9、a～i  敵人巡邏點，哪些點屬於哪隻敵人見 enemies
 ##
 ## 每個區域的欄位：
@@ -25,6 +26,9 @@
 ##   entries    其他入口 {id: 格子}（例如無線電旁邊，存檔後從這裡重來）
 ##   stairs     {"x,y": 目標區域}，G 樓梯通往哪裡（到達後站在目標區域的 entries.stairs）
 ##   access     門的欄位：需要的權限等級（WorldState.access_level）
+##   powered_area  恢復電力後這個區域的燈會亮
+##   indoor_rects  戶外區域裡的室內空間（地板畫成室內）
+##   zones 的 powered：恢復電力後這個溫度區域會有暖氣（zone 依字典順序比對，先寫的優先）
 ##   names      {"x,y": 名稱}，給任務系統辨認特定物件用
 ##   hidden     {"x,y": 旗標}，這格的物品要等旗標設定後才會出現（例如聽了某個頻率）
 ##   learn      {名稱: 頻率}，讀到／撿到這個物件時，把頻率記進無線電備忘錄
@@ -55,7 +59,7 @@ const DATA := {
 			"#..........................CC..........#",
 			"#..........................CC..........#",
 			"#.....4.........3......................#",
-			"#.........B......CC....................#",
+			"#.........B......CC....................D",
 			"#................................CC....#",
 			"#..................CCCCC.........CC....#",
 			"#..CC..............CCCCC...............#",
@@ -77,6 +81,7 @@ const DATA := {
 		"doors": {
 			"front": {"cell": Vector2i(6, 7), "to": "station_1f", "spawn_dir": Vector2i(0, 1)},
 			"cargo": {"cell": Vector2i(30, 7), "to": "station_1f", "spawn_dir": Vector2i(0, 1)},
+			"depot": {"cell": Vector2i(39, 15), "to": "fuel_depot", "spawn_dir": Vector2i(-1, 0)},
 		},
 		"names": {
 			"36,21": "supply_crate_shore",
@@ -90,10 +95,11 @@ const DATA := {
 
 	"station_1f": {
 		"title": "Station 1F",
+		"powered_area": true,
 		"outdoor": false,
 		"map": [
 			"############################################",
-			"#......H.........A.#########################",
+			"#......H.........A.###########D#############",
 			"#.G.......1........####........X..N......###",
 			"#...............2..####.W.......a.....B..###",
 			"#...CC......CC.....####..................###",
@@ -131,6 +137,7 @@ const DATA := {
 			"front": {"cell": Vector2i(0, 6), "to": "south_shore", "spawn_dir": Vector2i(1, 0)},
 			"cargo": {"cell": Vector2i(35, 24), "to": "south_shore", "spawn_dir": Vector2i(0, -1)},
 			"safe": {"cell": Vector2i(14, 20), "to": "station_safe", "spawn_dir": Vector2i(0, -1)},
+			"basement": {"cell": Vector2i(30, 1), "to": "station_b1", "spawn_dir": Vector2i(0, 1), "access": 2},
 		},
 		"stairs": {"2,2": "station_2f"},
 		"entries": {"stairs": Vector2i(2, 3)},
@@ -189,6 +196,7 @@ const DATA := {
 
 	"station_2f": {
 		"title": "Station 2F",
+		"powered_area": true,
 		"outdoor": false,
 		"map": [
 			"########################################",
@@ -217,7 +225,7 @@ const DATA := {
 		],
 		# 二樓的暖氣壞了：整層都是冷的，凍眠體才會一直睡著
 		"zones": {
-			"upper": {"rect": Rect2i(0, 0, 40, 16), "heated": false},
+			"upper": {"rect": Rect2i(0, 0, 40, 16), "heated": false, "powered": true},
 		},
 		"breakers": [],
 		"doors": {
@@ -233,6 +241,7 @@ const DATA := {
 
 	"station_2f_office": {
 		"title": "Director's Office",
+		"powered_area": true,
 		"outdoor": false,
 		"map": [
 			"################",
@@ -263,6 +272,100 @@ const DATA := {
 			"note_office": "DESK NOTE (Halvorsen): \"Ark line, 125.70, scheduled windows only. They promised a pickup for the samples. Not for us.\"",
 			"director_terminal": "HALVORSEN'S RECORDS: \"Day 3: Mendez and Lund show the clicking. Kept off the report - the Ark people paid for this season. Day 6: moved the infected to cold storage. Day 9: power cut. God help us.\"",
 		},
+	},
+
+	"fuel_depot": {
+		"title": "Fuel Depot",
+		"outdoor": true,
+		# 倉庫內部（地板畫成室內；沒有暖氣，一樣是冷的）
+		"indoor_rects": [Rect2i(19, 4, 18, 11)],
+		"map": [
+			"########################################",
+			"#......................................#",
+			"#........CC............................#",
+			"#........CC.......####################.#",
+			"#...............H.#.N................#.#",
+			"#.....CC..........#................F.#.#",
+			"#.....CC..........#..CCCC...CCCC.....#.#",
+			"#.................#..................#.#",
+			"#.............2...#.......a......CC..#.#",
+			"#..CC............................CC..#.#",
+			"D.................#..CCCC...CCCC.CC..#.#",
+			"#.................#..............CC..#.#",
+			"#...........CC....#......B.......CC..#.#",
+			"#..1........CC....#.A...........b...H#.#",
+			"#.................#..................#.#",
+			"#..............C..#########.##########.#",
+			"#........3.....C.......................#",
+			"#......................................#",
+			"#......................................#",
+			"########################################",
+			"########################################",
+			"########################################",
+		],
+		"enemies": [
+			{"type": "patroller", "route": "123"},
+			{"type": "listener", "route": "ab"},
+		],
+		"zones": {
+			"outside": {"rect": Rect2i(0, 0, 40, 22), "heated": false},
+		},
+		"breakers": [],
+		"doors": {
+			"depot": {"cell": Vector2i(0, 10), "to": "south_shore", "spawn_dir": Vector2i(1, 0)},
+		},
+		"names": {
+			"35,5": "fuel_can",
+			"20,4": "manifest_depot",
+		},
+		"messages": {
+			"manifest_depot": "MANIFEST: \"Drum 7 - diesel, generator grade. Moved to the back of the warehouse after the storm. The thing in here hunts by sound. Walk soft.\"",
+		},
+	},
+
+	"station_b1": {
+		"title": "Station B1",
+		"outdoor": false,
+		"powered_area": true,
+		"map": [
+			"##D#####################################",
+			"#......................................#",
+			"#.....1.............................2..#",
+			"#......................................#",
+			"#...##############.......#######.#######",
+			"#...##############.......#............H#",
+			"#...##############.......#.............#",
+			"#...######.##########.####.............#",
+			"#................#.......#.............#",
+			"#....a...x.....V.#.......#....CCCC.....#",
+			"#.....CC.....CC..#..CC...#....CCCCE....#",
+			"#.....CC.....CC..#.......#....CCCC.....#",
+			"#........b.......#.......#....CCCC.....#",
+			"#..........x.....#.......#..........3..#",
+			"#.....CC.....CCc.#.....L.#...........M.#",
+			"#H...............#.......#.............#",
+			"########################################",
+			"########################################",
+		],
+		"enemies": [
+			{"type": "patroller", "route": "123"},
+			{"type": "sleeper", "route": "a"},
+			{"type": "sleeper", "route": "b"},
+			{"type": "sleeper", "route": "c"},
+		],
+		# 樣本冷凍庫一直是冷的（電力恢復後冷凍櫃更冷）；其他地方恢復電力後有暖氣
+		"zones": {
+			"freezer": {"rect": Rect2i(4, 8, 13, 8), "heated": false},
+			"b1": {"rect": Rect2i(0, 0, 40, 18), "heated": false, "powered": true},
+		},
+		"breakers": [],
+		"doors": {
+			"basement": {"cell": Vector2i(2, 0), "to": "station_1f", "spawn_dir": Vector2i(0, 1)},
+		},
+		"names": {
+			"34,10": "generator_b1",
+		},
+		"messages": {},
 	},
 }
 
