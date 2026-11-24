@@ -25,7 +25,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRY"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSL"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -92,6 +92,11 @@ func get_interactables() -> Array[Interactable]:
 
 func get_message(item_name: String) -> String:
 	return _data.messages.get(item_name, "")
+
+
+## 讀到／撿到這個物件會學到的頻率（0 = 沒有）
+func get_learned_freq(item_name: String) -> int:
+	return _data.get("learn", {}).get(item_name, 0)
 
 
 # ── 門與入口 ──────────────────────────────────────────
@@ -310,7 +315,9 @@ func _spawn_interactables() -> void:
 					item = RadioConsole.new()
 				"Y":
 					item = StorageBox.new()
-				"A", "M", "V", "W":
+				"N":
+					item = ReadableNote.new()
+				"A", "M", "V", "W", "S", "L":
 					var pickup := ItemPickup.new()
 					pickup.pickup_item = Items.MAP_PICKUPS[row[x]][0]
 					pickup.pickup_count = Items.MAP_PICKUPS[row[x]][1]
@@ -320,6 +327,7 @@ func _spawn_interactables() -> void:
 			var key := "%d,%d" % [x, y]
 			item.item_name = _data.names.get(key, "")
 			item.item_id = "%s:%s" % [area_id, key]
+			item.hidden_flag = _data.get("hidden", {}).get(key, "")
 			item.level = self
 			item.position = _cell_center(Vector2i(x, y))
 			add_child(item)

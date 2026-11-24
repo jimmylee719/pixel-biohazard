@@ -32,7 +32,8 @@ func new_game() -> void:
 		"inventory": _empty_inventory(START_SLOTS),
 		"health": MAX_HEALTH,
 		"infection": 0.0,
-		"pistol_loaded": 0,
+		"loaded": {"pistol": 0, "shotgun": 0},
+		"equipped": "pistol",
 		"storage": {},
 		"flags": {},
 	}
@@ -72,10 +73,50 @@ var infection: float:
 
 var pistol_loaded: int:
 	get:
-		return data.pistol_loaded
+		return get_loaded("pistol")
 	set(value):
-		data.pistol_loaded = value
+		set_loaded("pistol", value)
+
+
+## 每把武器彈匣裡的子彈數
+func get_loaded(weapon: String) -> int:
+	return data.loaded.get(weapon, 0)
+
+
+func set_loaded(weapon: String, value: int) -> void:
+	data.loaded[weapon] = value
+	changed.emit()
+
+
+var equipped: String:
+	get:
+		return data.equipped
+	set(value):
+		data.equipped = value
 		changed.emit()
+
+
+# ── 無線電頻率 ──
+
+func is_freq_known(freq: int) -> bool:
+	return has_flag("freq_known:%d" % freq) or Frequencies.by_freq(freq).get("known", false)
+
+
+func learn_freq(freq: int) -> bool:
+	if is_freq_known(freq):
+		return false
+	set_flag("freq_known:%d" % freq)
+	return true
+
+
+## 備忘錄：知道的頻率，由小到大
+func known_freqs() -> Array[int]:
+	var result: Array[int] = []
+	for f in Frequencies.DATA:
+		if is_freq_known(f.freq):
+			result.append(f.freq)
+	result.sort()
+	return result
 
 ## 空瓶數（相容舊程式：其實是物品欄裡的 bottle 數量）
 var bottles: int:
@@ -245,10 +286,30 @@ func load_from_disk() -> bool:
 	var saved = f.get_var()
 	if not (saved is Dictionary and saved.has("data")):
 		return false
-	data = saved.data
+	data = _migrate(saved.data)
 	_checkpoint = data.duplicate(true)
 	changed.emit()
 	return true
+
+
+## 舊版存檔缺少的欄位補上預設值（之後加新欄位時在這裡處理）
+func _migrate(old: Dictionary) -> Dictionary:
+	var fresh := {
+		"inventory": _empty_inventory(START_SLOTS),
+		"health": MAX_HEALTH,
+		"infection": 0.0,
+		"loaded": {"pistol": 0, "shotgun": 0},
+		"equipped": "pistol",
+		"storage": {},
+		"flags": {},
+	}
+	if old.has("pistol_loaded") and not old.has("loaded"):
+		old["loaded"] = {"pistol": old.pistol_loaded, "shotgun": 0}
+		old.erase("pistol_loaded")
+	for key in fresh:
+		if not old.has(key):
+			old[key] = fresh[key]
+	return old
 
 
 func delete_save() -> void:

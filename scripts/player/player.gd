@@ -250,6 +250,11 @@ func use_item(item_id: String) -> bool:
 			if WorldState.infection <= 0.0:
 				return false
 			WorldState.infection -= item.cure
+		"weapon":
+			# 武器不消耗：使用 = 裝備
+			combat.interrupt()
+			WorldState.equipped = item_id
+			return true
 		_:
 			return false
 	WorldState.inv_remove(item_id, 1)

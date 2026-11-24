@@ -26,6 +26,8 @@ var _message_timer := 0.0
 var _message_queue: Array[String] = []
 var _inventory_cursor := 0
 var _storage_cursor := 0
+var _radio_freq := 12150
+var _radio_transcript: Array[String] = []
 
 @onready var _darkness: CanvasModulate = $Darkness
 @onready var _player: Player = $Player
@@ -50,6 +52,8 @@ var _storage_cursor := 0
 @onready var _inventory_text: Label = $HUD/InventoryPanel/Text
 @onready var _storage_panel: PanelContainer = $HUD/StoragePanel
 @onready var _storage_text: Label = $HUD/StoragePanel/Text
+@onready var _radio_panel: PanelContainer = $HUD/RadioPanel
+@onready var _radio_text: Label = $HUD/RadioPanel/Text
 @onready var _pause_panel: PanelContainer = $HUD/PausePanel
 @onready var _resume_button: Button = $HUD/PausePanel/Box/Resume
 @onready var _quit_button: Button = $HUD/PausePanel/Box/QuitToTitle
@@ -82,6 +86,8 @@ func _process(delta: float) -> void:
 		_process_inventory_input()
 	elif _storage_panel.visible:
 		_process_storage_input()
+	elif _radio_panel.visible:
+		_process_radio_input()
 	elif _mission_panel.visible:
 		if Input.is_action_just_pressed("map") or Input.is_action_just_pressed("pause"):
 			_toggle_mission_panel()
@@ -159,6 +165,8 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 		if item is ExitPoint:
 			item.reached.connect(_on_stairs)
 		elif item is TapePickup:
+			item.message_shown.connect(show_message)
+		elif item is ReadableNote:
 			item.message_shown.connect(show_message)
 		elif item is RadioConsole:
 			item.used.connect(_on_radio_used)
@@ -248,18 +256,106 @@ func _show_next_message() -> void:
 
 # ── 安全屋：無線電、儲物箱 ──────────────────────────────
 
-## 用無線電：接收新的委託、在無線電旁邊存檢查點、存到硬碟。
+## 用無線電：接收新的委託、在無線電旁邊存檢查點、存到硬碟，然後打開調頻介面。
 func _on_radio_used() -> void:
+	_radio_transcript.clear()
 	if not WorldState.has_flag("radio:intro"):
 		WorldState.set_flag("radio:intro")
-		show_message(KOVAC_INTRO)
+		_radio_transcript.append(KOVAC_INTRO)
 	for text in Missions.receive_radio():
-		show_message(text)
+		_radio_transcript.append(text)
 	WorldState.save_checkpoint(level.area_id, "radio")
-	if WorldState.save_to_disk():
-		show_message("Progress saved.")
-	else:
-		show_message("Save failed.")
+	_radio_transcript.append("Progress saved." if WorldState.save_to_disk() else "Save failed.")
+	_radio_panel.visible = true
+	get_tree().paused = true
+	_refresh_radio()
+
+
+# ── 無線電調頻 ────────────────────────────────────────
+
+func _close_radio() -> void:
+	_radio_panel.visible = false
+	get_tree().paused = false
+
+
+func _process_radio_input() -> void:
+	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("inventory") \
+			or Input.is_action_just_pressed("pause"):
+		_close_radio()
+		return
+	var step := 0
+	if Input.is_action_just_pressed("move_right") or Input.is_action_just_pressed("ui_right"):
+		step = Frequencies.FINE_STEP
+	elif Input.is_action_just_pressed("move_left") or Input.is_action_just_pressed("ui_left"):
+		step = -Frequencies.FINE_STEP
+	elif Input.is_action_just_pressed("move_up") or Input.is_action_just_pressed("ui_up"):
+		step = Frequencies.COARSE_STEP
+	elif Input.is_action_just_pressed("move_down") or Input.is_action_just_pressed("ui_down"):
+		step = -Frequencies.COARSE_STEP
+	if step != 0:
+		tune_radio(_radio_freq + step)
+	elif Input.is_action_just_pressed("switch_target"):
+		_next_memo()
+	elif Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept"):
+		listen_radio()
+	_refresh_radio()
+
+
+func tune_radio(freq: int) -> void:
+	_radio_freq = clampi(freq, Frequencies.BAND_MIN, Frequencies.BAND_MAX)
+
+
+## 跳到備忘錄裡的下一個頻率
+func _next_memo() -> void:
+	var memo := WorldState.known_freqs()
+	if memo.is_empty():
+		return
+	for f in memo:
+		if f > _radio_freq:
+			_radio_freq = f
+			return
+	_radio_freq = memo[0]
+
+
+## 收聽目前的頻率：對準某個電台就播放內容，並設定它揭露的旗標（例如隱藏的武器出現）。
+func listen_radio() -> Dictionary:
+	_radio_transcript.clear()
+	var station := Frequencies.find_exact(_radio_freq)
+	if station.is_empty():
+		_radio_transcript.append("Only static." if Frequencies.signal_strength(_radio_freq) < 0.5 \
+			else "Something is there, buried in the static... fine-tune it.")
+		return {}
+	_radio_freq = station.freq
+	for line in station.lines:
+		_radio_transcript.append(line)
+	WorldState.learn_freq(station.freq)
+	WorldState.set_flag("freq_heard:" + station.id)
+	if station.has("reveal") and not WorldState.has_flag(station.reveal):
+		WorldState.set_flag(station.reveal)
+	WorldState.emit_event("radio", station.id)
+	return station
+
+
+func _refresh_radio() -> void:
+	var strength := Frequencies.signal_strength(_radio_freq)
+	var bars := roundi(strength * 10.0)
+	var memo_parts: Array[String] = []
+	for f in WorldState.known_freqs():
+		var mark := "*" if f == _radio_freq else ""
+		memo_parts.append("%s%s %s" % [mark, Frequencies.format(f), Frequencies.by_freq(f).label])
+	var lines: Array[String] = [
+		"RADIO",
+		"FREQUENCY  %s MHz" % Frequencies.format(_radio_freq),
+		"SIGNAL     [%s%s]" % ["#".repeat(bars), "-".repeat(10 - bars)],
+		"MEMO       %s" % ("  /  ".join(memo_parts) if not memo_parts.is_empty() else "(none)"),
+		"",
+	]
+	lines.append_array(_radio_transcript)
+	lines.append("")
+	lines.append("[%s/%s] fine  [%s/%s] coarse  [%s] memo  [%s] listen  [%s] close" % [
+		_key_name("move_left"), _key_name("move_right"), _key_name("move_up"), _key_name("move_down"),
+		_key_name("switch_target"), _key_name("interact"), _key_name("inventory")])
+	_radio_text.text = "\n".join(lines)
 
 
 func _toggle_storage_panel() -> void:
@@ -365,11 +461,13 @@ func _build_mission_text() -> String:
 func _build_items_text() -> String:
 	var parts: Array[String] = []
 	var combat := _player.combat
-	if combat.has_pistol():
-		var mag := "%d/%d" % [WorldState.pistol_loaded, combat.magazine_size]
+	var weapon := combat.current_weapon()
+	if weapon != "":
+		var mag := "%d/%d" % [WorldState.get_loaded(weapon), combat.magazine_size]
 		if combat.reloading:
 			mag = "reloading"
-		parts.append("Pistol %s (+%d)" % [mag, WorldState.inv_count("ammo")])
+		parts.append("%s %s (+%d)" % [Items.display_name(weapon), mag,
+			WorldState.inv_count(combat.stats().ammo)])
 	parts.append("Bottles %d" % _player.bottles)
 	return "  ".join(parts)
 
@@ -396,7 +494,8 @@ func _process_inventory_input() -> void:
 		var slot: Dictionary = slots[_inventory_cursor]
 		if not slot.is_empty():
 			if _player.use_item(slot.id):
-				show_message("Used %s." % Items.display_name(slot.id))
+				var verb := "Equipped" if Items.get_item(slot.id).kind == "weapon" else "Used"
+				show_message("%s %s." % [verb, Items.display_name(slot.id)])
 			else:
 				show_message("Can't use that now.")
 	_refresh_inventory()

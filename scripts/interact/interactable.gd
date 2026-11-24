@@ -11,6 +11,8 @@ var enabled := true
 var item_id := ""
 ## 任務系統用的名稱（Areas 的 names），沒有名字就是空字串
 var item_name := ""
+## 不是空字串時，要等 WorldState 有這個旗標才會出現（例如聽了某個頻率才找得到的藏匿處）
+var hidden_flag := ""
 var level: Level
 
 
@@ -47,5 +49,17 @@ func take() -> void:
 
 
 func _sync_taken() -> void:
-	enabled = not WorldState.is_taken(item_id)
+	enabled = not WorldState.is_taken(item_id) and is_revealed()
 	visible = enabled
+
+
+func is_revealed() -> bool:
+	return hidden_flag == "" or WorldState.has_flag(hidden_flag)
+
+
+## 讀到這個物件時，如果它寫著某個頻率，就記進無線電備忘錄。回傳學到的頻率（0 = 沒有）。
+func learn_frequency() -> int:
+	var freq := level.get_learned_freq(item_name) if level else 0
+	if freq != 0 and WorldState.learn_freq(freq):
+		return freq
+	return 0

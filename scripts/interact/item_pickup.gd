@@ -7,9 +7,11 @@ const COLORS := {
 	"med": Color(0.9, 0.3, 0.3),
 	"antibiotic": Color(0.4, 0.9, 0.95),
 	"pistol": Color(0.55, 0.58, 0.62),
+	"shotgun": Color(0.5, 0.4, 0.3),
+	"shells": Color(0.85, 0.3, 0.25),
 }
-## 撿到手槍時彈匣裡已經有的子彈
-const PISTOL_START_LOADED := 6
+## 撿到武器時彈匣裡已經有的子彈
+const START_LOADED := {"pistol": 6, "shotgun": 2}
 
 var pickup_item := ""
 var pickup_count := 1
@@ -30,8 +32,8 @@ func interact(_player: Player) -> void:
 	if WorldState.inv_space_for(pickup_item) < pickup_count:
 		return
 	WorldState.inv_add(pickup_item, pickup_count)
-	if pickup_item == "pistol":
-		WorldState.pistol_loaded = PISTOL_START_LOADED
+	if START_LOADED.has(pickup_item):
+		WorldState.set_loaded(pickup_item, START_LOADED[pickup_item])
 	take()
 
 
@@ -45,7 +47,10 @@ func _draw() -> void:
 		"pistol":
 			draw_rect(Rect2(-5, -2, 9, 3), c)
 			draw_rect(Rect2(-5, 0, 3, 4), c)
-		"ammo":
+		"shotgun":
+			draw_rect(Rect2(-7, -1, 14, 2), c)
+			draw_rect(Rect2(-7, 0, 4, 3), c)
+		"ammo", "shells":
 			draw_rect(Rect2(-4, -3, 8, 6), Color(0.3, 0.28, 0.2))
 			draw_rect(Rect2(-3, -2, 6, 2), c)
 		_:

@@ -71,11 +71,13 @@ func _run() -> void:
 	await _test_reload()
 	await _test_corpse_persists()
 	await _test_melee()
+	await _test_hidden_cache_and_shotgun()
 	await _test_enemy_attack_and_death()
 	await _test_items_and_infection()
 	await _test_inventory_slots()
 	await _test_exit()
 	await _test_title()
+	await _test_save_migration()
 
 	print("")
 	if _failures == 0:
@@ -260,6 +262,8 @@ func _test_door_back_and_persistence() -> void:
 	_level = _main.level
 	var crate := _find_item(SupplyCrate, Vector2i(36, 21))
 	_check(crate != null and not crate.enabled, "已經打開的補給箱不會重生")
+	var cache := _find_item(ItemPickup, Vector2i(37, 9))
+	_check(cache != null and not cache.enabled and not cache.visible, "還沒聽到作業日誌前，東岸的彈藥藏匿處不存在")
 
 
 func _test_tape_and_intel() -> void:
@@ -274,6 +278,13 @@ func _test_tape_and_intel() -> void:
 	_check(Missions.is_done("lost_tape"), "完成支線：錄音帶")
 	_check(WorldState.has_flag("intel:station_1f"), "取得一樓的巡邏情報")
 	_check(_main.get_node("HUD/Message").visible, "顯示錄音內容")
+	_check(WorldState.is_freq_known(12435), "錄音帶上的頻率記進備忘錄")
+	var note := _find_item(ReadableNote, Vector2i(34, 2))
+	_place_player(_tile(34, 3), false, Vector2.UP)
+	await _frames(3)
+	_check(_player.focus == note, "可以讀白板")
+	await _press("interact")
+	_check(WorldState.is_freq_known(12780), "白板上的作業頻率 127.80 記進備忘錄")
 
 
 # ── 基本（值班者）──
@@ -776,6 +787,101 @@ func _test_inventory_slots() -> void:
 
 # ── 安全屋、存檔、儲物箱、暫停、標題 ──
 
+func _tap(action: String) -> void:
+	Input.action_press(action)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release(action)
+	await get_tree().process_frame
+
+
+func _test_radio_tuning() -> void:
+	print("[radio / tuning]")
+	var panel: Control = _main.get_node("HUD/RadioPanel")
+	_check(panel.visible and get_tree().paused, "用無線電後打開調頻介面並暫停")
+	_check(WorldState.known_freqs() == ([12150] as Array[int]), "一開始只知道航空緊急頻率 121.50")
+	_main.tune_radio(12150)
+	await _tap("interact")
+	_check(WorldState.has_flag("freq_heard:guard"), "收聽 121.50 聽到墜機信標")
+	# 用方向鍵調到 124.35：上 = +1.00、右 = +0.05
+	await _tap("move_up")
+	await _tap("move_up")
+	for i in 17:
+		await _tap("move_right")
+	_check(_main._radio_freq == 12435, "方向鍵調頻（%s）" % Frequencies.format(_main._radio_freq))
+	_check(not WorldState.has_flag("reveal:shotgun_1f"), "還沒收聽前，散彈槍藏匿處不存在")
+	await _tap("interact")
+	_check(WorldState.has_flag("reveal:shotgun_1f"), "收聽 Mendez 的錄音，揭露散彈槍藏匿處")
+	_check(WorldState.is_freq_known(12435), "聽到的頻率記進備忘錄")
+	# 沒有任何線索的頻率：靠訊號強度找
+	_main.tune_radio(12630)
+	_check(Frequencies.signal_strength(12630) > 0.5, "接近隱藏電台時訊號變強")
+	_check(Frequencies.signal_strength(12900) == 0.0, "空白頻段沒有訊號")
+	_main.listen_radio()
+	_check(_main._radio_transcript[0].begins_with("Something"), "訊號強但沒對準：提示再微調")
+	_main.tune_radio(12605)
+	_main.listen_radio()
+	_check(WorldState.has_flag("lore:retrieval"), "找到隱藏的頻率 126.05")
+	_main.tune_radio(12900)
+	_main.listen_radio()
+	_check(_main._radio_transcript == (["Only static."] as Array[String]), "沒有電台只有雜訊")
+	_main.tune_radio(12150)
+	await _tap("switch_target")
+	_check(_main._radio_freq == 12435, "備忘錄可以快速跳到下一個知道的頻率")
+	await _tap("inventory")
+	_check(not panel.visible and not get_tree().paused, "關閉無線電")
+
+
+func _test_hidden_cache_and_shotgun() -> void:
+	print("[radio reward / shotgun]")
+	_only(_watcher)
+	_freeze(_watcher, _tile(3, 10), Vector2.DOWN)
+	var gun := _find_item(ItemPickup, Vector2i(38, 19))
+	var shells := _find_item(ItemPickup, Vector2i(37, 19))
+	_check(gun != null and gun.enabled and gun.visible, "聽過頻率後，走廊東端出現散彈槍")
+	_place_player(_tile(38, 18), false, Vector2.DOWN)
+	await _frames(3)
+	await _press("interact")
+	_place_player(_tile(37, 18), false, Vector2.DOWN)
+	await _frames(3)
+	await _press("interact")
+	_check(WorldState.inv_count("shotgun") == 1 and WorldState.get_loaded("shotgun") == 2, "撿到散彈槍（裡面 2 發）")
+	_check(WorldState.inv_count("shells") == 3, "撿到 3 發散彈")
+	_check(_player.combat.current_weapon() == "pistol", "撿到後還是拿著手槍")
+	_check(_player.use_item("shotgun") and _player.combat.current_weapon() == "shotgun", "在物品欄使用散彈槍 = 裝備")
+	# 近距離 vs 遠距離
+	_freeze(_watcher, _tile(9, 6), Vector2.UP)
+	_place_player(_tile(7, 6), false, Vector2.RIGHT)
+	Input.action_press("aim")
+	await _seconds(0.9)
+	await _press("fire")
+	Input.action_release("aim")
+	_check(_watcher.is_dead, "散彈槍近距離一槍打倒值班者")
+	_revive_watcher()
+	_freeze(_watcher, _tile(11, 6), Vector2.UP)
+	_place_player(_tile(6, 6), false, Vector2.RIGHT)
+	await _seconds(1.0)
+	Input.action_press("aim")
+	await _seconds(0.9)
+	await _press("fire")
+	Input.action_release("aim")
+	_check(not _watcher.is_dead and _watcher.health > 0.0, "距離遠時散彈槍傷害下降（剩 %.0f）" % _watcher.health)
+	await _seconds(1.0)
+	_check(WorldState.get_loaded("shotgun") == 0, "兩發用完")
+	_player.use_item("pistol")
+	_check(_player.combat.current_weapon() == "pistol", "換回手槍")
+	await _reset_world()
+	_revive_watcher()
+
+
+func _test_save_migration() -> void:
+	print("[save / migration]")
+	var old := {"area": "station_safe", "entry": "radio", "pistol_loaded": 5, "flags": {}}
+	var migrated := WorldState._migrate(old)
+	_check(migrated.loaded.pistol == 5, "舊存檔的手槍子彈轉到新格式")
+	_check(migrated.has("inventory") and migrated.has("storage") and migrated.equipped == "pistol", "缺少的欄位補上預設值")
+
+
 func _test_safe_room() -> void:
 	print("[safe room / door]")
 	for e in _main.enemies:
@@ -800,7 +906,8 @@ func _test_safe_room() -> void:
 	_check(Missions.tracked_mission().get("id") == "find_stairs", "下一個主線出現")
 	_check(WorldState.has_save(), "存檔寫進硬碟")
 	_check(WorldState.checkpoint_entry() == "radio", "檢查點改成無線電旁邊")
-	_check(_main.get_node("HUD/Message").visible, "顯示無線電訊息")
+	_check("KOVAC" in _main._radio_transcript[0], "第一次使用時 Kovac 聯絡主角")
+	await _test_radio_tuning()
 
 	print("[safe room / storage]")
 	WorldState.inv_add("med", 1)

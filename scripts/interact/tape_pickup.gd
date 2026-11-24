@@ -16,6 +16,9 @@ func get_prompt(_player: Player) -> String:
 func interact(_player: Player) -> void:
 	take()
 	message_shown.emit(level.get_message(item_name))
+	var freq := learn_frequency()
+	if freq != 0:
+		message_shown.emit("Frequency %s noted in the radio memo." % Frequencies.format(freq))
 
 
 func sync_from_state() -> void:
