@@ -25,7 +25,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFE"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZ"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -138,6 +138,20 @@ func door_access(door_id: String) -> int:
 	return _data.doors[door_id].get("access", 0)
 
 
+## 這扇門是電動門（要先恢復電力）
+func door_needs_power(door_id: String) -> bool:
+	return _data.doors[door_id].get("power", false)
+
+
+## 鏡頭模式："fixed" = 固定看整個區域（Boss 戰）
+func camera_mode() -> String:
+	return _data.get("camera", "follow")
+
+
+func boss_name() -> String:
+	return _data.get("boss", "")
+
+
 func cell_of(pos: Vector2) -> Vector2i:
 	return Vector2i(floori(pos.x / TILE), floori(pos.y / TILE))
 
@@ -160,9 +174,12 @@ func is_cold(pos: Vector2) -> bool:
 func is_zone_heated(zone_name: String) -> bool:
 	if not zones.has(zone_name):
 		return true
+	var key := "heat:%s:%s" % [area_id, zone_name]
+	if WorldState.has_flag(key):
+		return WorldState.get_flag(key)  # 玩家用配電箱切換過
 	if zones[zone_name].get("powered", false) and WorldState.power_on:
 		return true  # 恢復電力：暖氣跟著恢復
-	return WorldState.is_zone_heated(area_id, zone_name, zones[zone_name].heated)
+	return zones[zone_name].heated
 
 
 ## 恢復電力後燈亮著的區域
@@ -339,6 +356,8 @@ func _spawn_interactables() -> void:
 					item = FuelCan.new()
 				"E":
 					item = Generator.new()
+				"Z":
+					item = Snowcat.new()
 				"O":
 					item = Terminal.new()
 				"x":

@@ -16,11 +16,12 @@ const ENEMY_SCENES := {
 	"patroller": preload("res://scenes/enemy.tscn"),
 	"listener": preload("res://scenes/enemy_listener.tscn"),
 	"sleeper": preload("res://scenes/enemy_sleeper.tscn"),
+	"bear": preload("res://scenes/boss_bear.tscn"),
 }
 ## 原型的終點：完成這個主線後顯示 TO BE CONTINUED
-const PROTOTYPE_END_MISSION := "restore_power"
+const PROTOTYPE_END_MISSION := "hangar_snowcat"
 ## 恢復電力後，研究站室內有燈（比較亮）
-const POWERED_DARKNESS := Color(0.17, 0.17, 0.2)
+const POWERED_DARKNESS := Color(0.32, 0.32, 0.36)
 
 var level: Level
 var enemies: Array[Enemy] = []
@@ -62,6 +63,9 @@ var _locked_door_notice := ""
 @onready var _radio_panel: PanelContainer = $HUD/RadioPanel
 @onready var _radio_text: Label = $HUD/RadioPanel/Text
 @onready var _pause_panel: PanelContainer = $HUD/PausePanel
+@onready var _boss_bar: Control = $HUD/BossBar
+@onready var _boss_name: Label = $HUD/BossBar/Name
+@onready var _boss_fill: ColorRect = $HUD/BossBar/Fill
 @onready var _resume_button: Button = $HUD/PausePanel/Box/Resume
 @onready var _quit_button: Button = $HUD/PausePanel/Box/QuitToTitle
 
@@ -131,6 +135,18 @@ func _process(delta: float) -> void:
 	var tracked := Missions.tracked_mission()
 	_objective.text = "> %s" % tracked.title if not tracked.is_empty() else ""
 	_update_status()
+	_update_boss_bar()
+
+
+func _update_boss_bar() -> void:
+	var boss: BossBear = null
+	for e in enemies:
+		if e is BossBear and not e.is_dead:
+			boss = e
+	_boss_bar.visible = boss != null and level.boss_name() != ""
+	if _boss_bar.visible:
+		_boss_name.text = level.boss_name() + ("  (STUNNED)" if boss.is_stunned() else "")
+		_boss_fill.size.x = 200.0 * clampf(boss.health / boss.max_health, 0.0, 1.0)
 
 
 func _physics_process(_delta: float) -> void:
@@ -139,6 +155,11 @@ func _physics_process(_delta: float) -> void:
 	var door := level.door_at(_player.global_position)
 	if door == "":
 		_locked_door_notice = ""
+		return
+	if level.door_needs_power(door) and not WorldState.power_on:
+		if _locked_door_notice != door:
+			_locked_door_notice = door
+			show_message("The door is electric. There's no power.", true)
 		return
 	var need := level.door_access(door)
 	if need > WorldState.access_level:
@@ -197,7 +218,7 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	_apply_darkness()
 	_player.level = level
 	_player.reset_to(level.get_entry_position(entry))
-	_camera.setup(_player, level.bounds)
+	_camera.setup(_player, level.bounds, level.camera_mode())
 	_overlay.bind_area(level, enemies)
 
 	# 先觸發「進入區域」的任務事件，再存檔查點，任務進度才會包含在檢查點裡

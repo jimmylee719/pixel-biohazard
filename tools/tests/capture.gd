@@ -157,6 +157,15 @@ func _run() -> void:
 	await _frames(30)
 	await _shot("18_b1_powered")
 
+	# 機庫 Boss 戰
+	await _main.load_area("hangar", "hangar", false)
+	_put_player(_tile(5, 7), Vector2.RIGHT, true)
+	await _frames(20)
+	var bear: Enemy = _main.enemies[0]
+	NoiseBus.emit_noise(_tile(8, 7), 112.0, null)
+	await _frames(20)
+	await _shot("19_boss_windup")
+
 	# 標題畫面
 	_main.queue_free()
 	var title: Control = load("res://scenes/title.tscn").instantiate()

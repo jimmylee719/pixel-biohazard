@@ -357,7 +357,8 @@ func _find_focus() -> Interactable:
 func can_see_point(point: Vector2) -> bool:
 	var dist := global_position.distance_to(point)
 	var radius := dark_sight_radius * (0.5 if is_hiding else 1.0)  # 從櫃子縫隙看出去
-	var lit := dist <= radius or is_in_flashlight(point)
+	# 燈亮著的區域：只要沒被牆擋住就看得到
+	var lit := dist <= radius or is_in_flashlight(point) or (level != null and level.is_lit() and not is_hiding)
 	return lit and Sight.is_clear(self, global_position, point)
 
 

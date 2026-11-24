@@ -6,6 +6,7 @@
 ##   enter_area  進入某個區域（target = 區域 id）
 ##   interact    和某個有名字的物件互動（target = 物件名稱，見 Areas 的 names）
 ##   collect     撿到某個有名字的物件
+##   defeat      打倒某個 Boss（target = Boss id）
 ## requires：前置任務，全部完成後這個任務才會出現。
 ## reward：完成時給的東西（bottles = 空瓶數、intel = 取得某區域的巡邏情報）。
 ## radio：有這個欄位的支線，要先在安全屋用無線電「聽到」才會出現（內容就是無線電訊息）。
@@ -53,6 +54,16 @@ const DATA := [
 		"steps": [
 			{"type": "collect", "target": "fuel_can"},
 			{"type": "interact", "target": "generator_b1"},
+		],
+	},
+	{
+		"id": "hangar_snowcat", "main": true, "requires": ["restore_power"],
+		"title": "The hangar",
+		"desc": "With power back, the hangar door north of the shore will open. The snowcat inside can reach the antenna. Something big was locked in there.",
+		"steps": [
+			{"type": "enter_area", "target": "hangar"},
+			{"type": "defeat", "target": "tundra_mother"},
+			{"type": "interact", "target": "snowcat"},
 		],
 	},
 	{

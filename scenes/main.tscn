@@ -87,6 +87,39 @@ theme_override_colors/font_color = Color(0.75, 0.9, 0.8, 1)
 theme_override_font_sizes/font_size = 8
 horizontal_alignment = 2
 
+[node name="BossBar" type="Control" parent="HUD"]
+visible = false
+layout_mode = 3
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -100.0
+offset_top = 22.0
+offset_right = 100.0
+offset_bottom = 38.0
+
+[node name="Name" type="Label" parent="HUD/BossBar"]
+layout_mode = 0
+offset_right = 200.0
+offset_bottom = 10.0
+theme_override_colors/font_color = Color(0.95, 0.85, 0.8, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+
+[node name="Back" type="ColorRect" parent="HUD/BossBar"]
+layout_mode = 0
+offset_top = 11.0
+offset_right = 200.0
+offset_bottom = 15.0
+color = Color(0.15, 0.05, 0.05, 0.9)
+
+[node name="Fill" type="ColorRect" parent="HUD/BossBar"]
+layout_mode = 0
+offset_top = 11.0
+offset_right = 200.0
+offset_bottom = 15.0
+color = Color(0.85, 0.2, 0.2, 1)
+
 [node name="Condition" type="Label" parent="HUD"]
 anchors_preset = 2
 anchor_top = 1.0

@@ -11,13 +11,16 @@ extends Camera2D
 
 var _target: Player
 var _bounds := Rect2()
+## true = 固定看整個區域（Boss 戰的特殊鏡頭），不跟隨主角
+var fixed := false
 var _lookahead := Vector2.ZERO
 var _focus := Vector2.ZERO
 
 
-func setup(target: Player, bounds: Rect2) -> void:
+func setup(target: Player, bounds: Rect2, mode := "follow") -> void:
 	_target = target
 	_bounds = bounds
+	fixed = mode == "fixed"
 	limit_left = int(bounds.position.x)
 	limit_top = int(bounds.position.y)
 	limit_right = int(bounds.end.x)
@@ -29,6 +32,10 @@ func setup(target: Player, bounds: Rect2) -> void:
 
 ## 立刻跳到主角位置（重生時使用）。
 func snap_to_target() -> void:
+	if fixed:
+		global_position = _bounds.get_center().round()
+		reset_smoothing()
+		return
 	_lookahead = Vector2.ZERO
 	_focus = _clamp_to_bounds(_target.global_position)
 	global_position = _focus.round()
@@ -36,7 +43,7 @@ func snap_to_target() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _target == null:
+	if _target == null or fixed:
 		return
 	var desired_lookahead := _target.facing * lookahead_distance
 	_lookahead = _lookahead.lerp(desired_lookahead, 1.0 - exp(-lookahead_smoothing * delta))

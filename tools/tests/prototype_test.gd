@@ -1191,6 +1191,121 @@ func _test_power() -> void:
 	_check(_main.level.is_cold(_tile(10, 10)), "樣本冷凍庫還是冷的")
 	_check(freezer_sleepers.all(func(e): return e.is_dormant), "冷凍庫裡的凍眠體還在睡")
 	_check(_player.get_detection_range_mult() >= 1.2, "燈亮著的地方比較容易被發現")
+	_check(_player.input_enabled, "恢復電力後可以繼續（主線：機庫）")
+	_check(Missions.tracked_mission().get("id") == "hangar_snowcat", "下一個主線：機庫")
+	await _test_hangar()
+
+
+func _wait_phase(bear: BossBear, phase: int, max_frames := 240) -> bool:
+	for i in max_frames:
+		if bear.phase == phase:
+			return true
+		await _frames(1)
+	return bear.phase == phase
+
+
+func _test_hangar() -> void:
+	print("[hangar / electric door]")
+	await _main.load_area("south_shore", "hangar", false)
+	_quiet()
+	WorldState.data.flags.erase("power_on")
+	_place_player(_tile(20, 9), false, Vector2.UP)
+	Input.action_press("move_up")
+	await _seconds(0.6)
+	Input.action_release("move_up")
+	await _frames(5)
+	_check(_main.level.area_id == "south_shore", "沒電時機庫的電動門打不開")
+	_check("electric" in _main.get_node("HUD/Message").text, "提示需要電力")
+	WorldState.set_flag("power_on")
+	_place_player(_tile(20, 9), false, Vector2.UP)
+	await _walk_until_area("move_up", "hangar")
+	_check(_main.level.area_id == "hangar", "有電之後可以進機庫")
+	_level = _main.level
+	var cam: FollowCamera = _main.get_node("Camera")
+	_check(cam.fixed and cam.global_position == _level.bounds.get_center().round(), "Boss 戰鏡頭固定看整個機庫")
+	var bear: BossBear = _main.enemies[0]
+	await _frames(2)
+	_check(_main.get_node("HUD/BossBar").visible, "顯示 Boss 血條")
+	_check(Missions.step_index("hangar_snowcat") == 1, "主線進行到打倒 Boss")
+
+	print("[boss / charge & stun]")
+	WorldState.health = 100.0
+	_place_player(_tile(27, 14), false, Vector2.UP)
+	_player.sneaking = true
+	await _frames(5)
+	_check(not bear._has_target, "潛行站著不動時 Boss 不知道你在哪")
+	bear.reset()
+	await _frames(2)
+	NoiseBus.emit_noise(Vector2(100, 120), 112.0, null)  # 瓶子落地的大小
+	await _frames(2)
+	_check(bear.phase == BossBear.Phase.WINDUP, "聽到附近的聲音就準備衝撞")
+	_check(await _wait_phase(bear, BossBear.Phase.CHARGE), "直線衝撞")
+	_check(await _wait_phase(bear, BossBear.Phase.STUNNED), "撞到牆就暈眩")
+	var hp := bear.health
+	bear.take_damage(10.0, _player.global_position, 0.0)
+	_check(is_equal_approx(hp - bear.health, 15.0), "暈眩時受到的傷害 x1.5")
+
+	print("[boss / swipe]")
+	bear.reset()
+	WorldState.health = 100.0
+	_player._invulnerable = 0.0
+	_place_player(bear.global_position + Vector2(-20, 0), false, Vector2.RIGHT)
+	var hits := _hit_count
+	await _seconds(1.2)
+	_check(_hit_count > hits, "太靠近會被揮爪打到")
+	_check(_player.infection > 0.0, "Boss 的攻擊也會感染")
+	await _await_reset()
+
+	print("[boss / hiding]")
+	bear.reset()
+	WorldState.health = 100.0
+	var locker := _find_item(Locker, Vector2i(2, 12))
+	_place_player(_tile(3, 12), false, Vector2.LEFT)
+	_player.enter_hiding(locker)
+	hits = _hit_count
+	await _seconds(3.0)
+	_check(_hit_count == hits, "躲在置物櫃裡不會被打到")
+	_player.exit_hiding()
+
+	print("[boss / cold]")
+	bear.reset()
+	var breaker := _find_item(Breaker, Vector2i(14, 1))
+	_place_player(_tile(14, 2), false, Vector2.UP)
+	await _frames(3)
+	_check(_player.focus == breaker, "機庫裡有配電箱")
+	await _press("interact")
+	await _frames(3)
+	_check(bear.in_cold, "關掉暖氣後 Boss 在冷的環境裡")
+	_check(bear._has_target, "扳開關的聲音引來 Boss")
+	await _await_reset()
+
+	print("[boss / defeat]")
+	bear.reset()
+	WorldState.health = 100.0
+	WorldState.inv_add("pistol", 1)
+	WorldState.inv_add("ammo", 8)
+	WorldState.equipped = "pistol"
+	WorldState.set_loaded("pistol", 8)
+	bear.health = 5.0
+	_place_player(_tile(10, 7), false, Vector2.RIGHT)
+	Input.action_press("aim")
+	await _seconds(0.5)
+	_check(_player.combat.target == bear, "可以鎖定 Boss")
+	await _press("fire")
+	Input.action_release("aim")
+	await _frames(3)
+	_check(bear.is_dead, "打倒苔原之母")
+	_check(WorldState.has_flag("defeated:tundra_mother"), "記錄 Boss 已被打倒")
+	_check(Missions.step_index("hangar_snowcat") == 2, "主線進行到雪地車")
+	_check(not _main.get_node("HUD/BossBar").visible, "Boss 死後血條消失")
+
+	print("[snowcat]")
+	var snowcat := _find_item(Snowcat, Vector2i(14, 12))
+	_place_player(_tile(14, 11), false, Vector2.DOWN)
+	await _frames(3)
+	_check(_player.focus == snowcat, "可以使用雪地車")
+	await _press("interact")
+	_check(Missions.is_done("hangar_snowcat"), "完成主線：機庫")
 	_check(not _player.input_enabled, "原型在這裡結束")
 	await _seconds(7.5)
 	_check(_main.level.area_id == "south_shore", "原型結束後重新開始（%s）" % _main.level.area_id)
