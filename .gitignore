@@ -1,0 +1,21 @@
+# Godot 4+ 專用
+.godot/
+/android/
+
+# 匯出結果
+/build/
+/export/
+*.pck
+*.zip
+
+# 匯出設定可能含有 iOS 簽章、Steam 金鑰等敏感資訊
+export_credentials.cfg
+
+# macOS / 編輯器
+.DS_Store
+*.tmp
+.vscode/
+.idea/
+
+# Claude Code 本機設定
+.claude/settings.local.json
