@@ -19,3 +19,6 @@ export_credentials.cfg
 
 # Claude Code 本機設定
 .claude/settings.local.json
+
+# ComfyUI 生成的原始大圖（挑選處理後的成品放 assets/）
+/art_raw/
