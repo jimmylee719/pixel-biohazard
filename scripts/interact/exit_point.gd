@@ -23,7 +23,8 @@ func can_interact(player: Player) -> bool:
 
 
 func get_prompt(_player: Player) -> String:
-	return "Go upstairs" if target_area.ends_with("2f") else "Go downstairs"
+	var target_floor: int = Areas.get_area(target_area).get("floor", 1)
+	return "Go upstairs" if target_floor > level.floor_number() else "Go downstairs"
 
 
 func interact(_player: Player) -> void:

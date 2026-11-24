@@ -19,7 +19,7 @@ const ENEMY_SCENES := {
 	"bear": preload("res://scenes/boss_bear.tscn"),
 }
 ## 原型的終點：完成這個主線後顯示 TO BE CONTINUED
-const PROTOTYPE_END_MISSION := "hangar_snowcat"
+const PROTOTYPE_END_MISSION := "send_signal"
 ## 恢復電力後，研究站室內有燈（比較亮）
 const POWERED_DARKNESS := Color(0.32, 0.32, 0.36)
 
@@ -34,6 +34,12 @@ var _inventory_cursor := 0
 var _storage_cursor := 0
 var _radio_freq := 12150
 var _radio_transcript: Array[String] = []
+var _signal_cursor := 0
+## 選了一次的訊息（再選一次才真的發出）；-1 = 還沒選
+var _signal_armed := -1
+var _signal_transcript: Array[String] = []
+## 打開介面的那一幀不處理按鍵（同一下 interact 不要直接選到第一個）
+var _signal_opened_frame := -1
 ## 剛剛已經提示過「門鎖著」的門（避免每一幀都跳訊息）
 var _locked_door_notice := ""
 
@@ -63,6 +69,11 @@ var _locked_door_notice := ""
 @onready var _radio_panel: PanelContainer = $HUD/RadioPanel
 @onready var _radio_text: Label = $HUD/RadioPanel/Text
 @onready var _pause_panel: PanelContainer = $HUD/PausePanel
+@onready var _signal_panel: PanelContainer = $HUD/SignalPanel
+@onready var _signal_text: Label = $HUD/SignalPanel/Box/Text
+@onready var _signal_buttons: Array[Button] = [
+	$HUD/SignalPanel/Box/Option0, $HUD/SignalPanel/Box/Option1,
+	$HUD/SignalPanel/Box/Option2, $HUD/SignalPanel/Box/Option3]
 @onready var _boss_bar: Control = $HUD/BossBar
 @onready var _boss_name: Label = $HUD/BossBar/Name
 @onready var _boss_fill: ColorRect = $HUD/BossBar/Fill
@@ -85,6 +96,15 @@ func _ready() -> void:
 			_end_attempt("TO BE CONTINUED", Color(0.5, 1, 0.6), true, MESSAGE_TIME))
 	_resume_button.pressed.connect(_toggle_pause)
 	_quit_button.pressed.connect(_quit_to_title)
+	for i in _signal_buttons.size():
+		_signal_buttons[i].pressed.connect(_on_signal_button.bind(i))
+	# 發訊介面是全螢幕的重要選擇：不透明背景，避免後面的訊息透出來
+	var signal_style := StyleBoxFlat.new()
+	signal_style.bg_color = Color(0.02, 0.05, 0.05, 0.97)
+	signal_style.border_color = Color(0.3, 0.7, 0.45)
+	signal_style.set_border_width_all(1)
+	signal_style.set_content_margin_all(6)
+	_signal_panel.add_theme_stylebox_override("panel", signal_style)
 	await load_area(WorldState.data.area, WorldState.data.entry, false)
 
 
@@ -101,6 +121,8 @@ func _process(delta: float) -> void:
 		_process_storage_input()
 	elif _radio_panel.visible:
 		_process_radio_input()
+	elif _signal_panel.visible:
+		_process_signal_input()
 	elif _mission_panel.visible:
 		if Input.is_action_just_pressed("map") or Input.is_action_just_pressed("pause"):
 			_toggle_mission_panel()
@@ -214,6 +236,11 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.used.connect(_on_radio_used)
 		elif item is StorageBox:
 			item.opened.connect(_toggle_storage_panel)
+		elif item is Snowcat:
+			item.drive.connect(func(target: String): load_area(target, "snowcat"))
+		elif item is Uplink:
+			item.opened.connect(_open_signal_panel)
+			item.message_shown.connect(func(text: String): show_message(text, true))
 
 	_apply_darkness()
 	_player.level = level
@@ -478,6 +505,116 @@ func _refresh_storage() -> void:
 	lines.append("")
 	lines.append("[%s] move   [%s] close" % [_key_name("interact"), _key_name("inventory")])
 	_storage_text.text = "\n".join(lines)
+
+
+# ── 天線塔：發出訊號（結局方向）──────────────────────
+
+func _open_signal_panel() -> void:
+	_signal_panel.visible = true
+	get_tree().paused = true
+	_signal_cursor = 0
+	_signal_armed = -1
+	_signal_transcript.clear()
+	_signal_opened_frame = Engine.get_process_frames()
+	_refresh_signal()
+
+
+## 關掉介面。已經發出訊號的話，這時才算完成任務步驟（回覆都看完了）。
+func _close_signal_panel() -> void:
+	_signal_panel.visible = false
+	get_tree().paused = false
+	if WorldState.signal_choice() != "":
+		WorldState.emit_event("interact", "uplink")
+
+
+func _process_signal_input() -> void:
+	if Engine.get_process_frames() == _signal_opened_frame:
+		return
+	var sent := WorldState.signal_choice() != ""
+	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("inventory") \
+			or Input.is_action_just_pressed("pause"):
+		_close_signal_panel()
+		return
+	var count := UplinkMessages.DATA.size()
+	if sent:
+		if Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept"):
+			_close_signal_panel()
+		return
+	if Input.is_action_just_pressed("ui_down") or Input.is_action_just_pressed("move_down"):
+		_signal_cursor = (_signal_cursor + 1) % count
+		_signal_armed = -1
+	elif Input.is_action_just_pressed("ui_up") or Input.is_action_just_pressed("move_up"):
+		_signal_cursor = (_signal_cursor - 1 + count) % count
+		_signal_armed = -1
+	elif Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept"):
+		select_signal(_signal_cursor)
+		return
+	_refresh_signal()
+
+
+## 觸控／滑鼠：按鈕。發出之前最後一顆是「離開」；發出之後第一顆是「關閉」。
+func _on_signal_button(index: int) -> void:
+	if WorldState.signal_choice() != "" or index >= UplinkMessages.DATA.size():
+		_close_signal_panel()
+	else:
+		select_signal(index)
+
+
+## 選一個訊息：第一次只是選取（提示不能反悔），同一個再選一次才發出。
+func select_signal(index: int) -> void:
+	if WorldState.signal_choice() != "":
+		return
+	if _signal_armed == index:
+		send_signal(UplinkMessages.DATA[index].id)
+		return
+	_signal_cursor = index
+	_signal_armed = index
+	_refresh_signal()
+
+
+func send_signal(choice_id: String) -> void:
+	var option := UplinkMessages.get_option(choice_id)
+	if option.is_empty() or WorldState.signal_choice() != "":
+		return
+	WorldState.set_flag("signal", choice_id)
+	_signal_transcript.clear()
+	_signal_transcript.append(option.sent)
+	_signal_transcript.append(option.reply)
+	_signal_transcript.append_array(UplinkMessages.HOLD_REPLY)
+	# 不明訊號的頻率記進無線電備忘錄
+	WorldState.learn_freq(12605)
+	_refresh_signal()
+
+
+func _refresh_signal() -> void:
+	var sent := WorldState.signal_choice() != ""
+	var lines: Array[String] = []
+	lines.append_array(UplinkMessages.INTRO)
+	lines.append("")
+	if sent:
+		lines.append_array(_signal_transcript)
+		lines.append("")
+		lines.append("[%s] close" % _key_name("interact"))
+	elif _signal_armed >= 0:
+		lines.append("Send this? There is no second transmission. Select it again to transmit.")
+	else:
+		lines.append("[%s/%s] choose   [%s] select   [%s] step away" % [
+			_key_name("move_up"), _key_name("move_down"), _key_name("interact"), _key_name("inventory")])
+	_signal_text.text = "\n".join(lines)
+	var count := UplinkMessages.DATA.size()
+	for i in _signal_buttons.size():
+		var button := _signal_buttons[i]
+		if sent:
+			button.visible = i == 0
+			button.text = "Close"
+		elif i < count:
+			button.visible = true
+			var mark := "> " if i == _signal_cursor else "  "
+			var armed := "  [SELECT AGAIN TO SEND]" if i == _signal_armed else ""
+			button.text = mark + UplinkMessages.DATA[i].label + armed
+		else:
+			button.visible = true
+			button.text = "  Step away (decide later)"
 
 
 # ── 暫停選單 ──────────────────────────────────────────

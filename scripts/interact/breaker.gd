@@ -29,7 +29,8 @@ func sync_from_state() -> void:
 
 
 func get_prompt(_player: Player) -> String:
-	return "Heat OFF (%s)" % zone_name if level.is_zone_heated(zone_name) else "Heat ON (%s)" % zone_name
+	var label := level.zone_label(zone_name)
+	return "Heat OFF (%s)" % label if level.is_zone_heated(zone_name) else "Heat ON (%s)" % label
 
 
 func can_interact(player: Player) -> bool:

@@ -25,7 +25,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZ"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZU"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -152,6 +152,16 @@ func boss_name() -> String:
 	return _data.get("boss", "")
 
 
+## 樓層（樓梯提示用）
+func floor_number() -> int:
+	return _data.get("floor", 1)
+
+
+## 雪地車開往的區域（沒有就是空字串）
+func snowcat_destination() -> String:
+	return _data.get("snowcat_to", "")
+
+
 func cell_of(pos: Vector2) -> Vector2i:
 	return Vector2i(floori(pos.x / TILE), floori(pos.y / TILE))
 
@@ -180,6 +190,11 @@ func is_zone_heated(zone_name: String) -> bool:
 	if zones[zone_name].get("powered", false) and WorldState.power_on:
 		return true  # 恢復電力：暖氣跟著恢復
 	return zones[zone_name].heated
+
+
+## 配電箱提示上顯示的名稱
+func zone_label(zone_name: String) -> String:
+	return zones.get(zone_name, {}).get("label", zone_name)
 
 
 ## 恢復電力後燈亮著的區域
@@ -360,6 +375,8 @@ func _spawn_interactables() -> void:
 					item = Snowcat.new()
 				"O":
 					item = Terminal.new()
+				"U":
+					item = Uplink.new()
 				"x":
 					var corpse := CorpseDecor.new()
 					corpse.position = _cell_center(Vector2i(x, y))

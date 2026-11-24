@@ -114,6 +114,14 @@ var power_on: bool:
 		return has_flag("power_on")
 
 
+## 天線塔發出的訊號（結局方向）："rescue"、"quarantine"、"destroy"，還沒發就是空字串
+const SIGNAL_CHOICES := ["rescue", "quarantine", "destroy"]
+
+
+func signal_choice() -> String:
+	return get_flag("signal", "")
+
+
 var equipped: String:
 	get:
 		return data.equipped

@@ -166,6 +166,30 @@ func _run() -> void:
 	await _frames(20)
 	await _shot("19_boss_windup")
 
+	# 天線塔：庭院、通訊甲板、發訊介面
+	bear.health = 0.0
+	WorldState.set_flag("defeated:tundra_mother")
+	await _main.load_area("tower_yard", "snowcat", false)
+	_put_player(_tile(10, 18), Vector2.RIGHT, true)
+	await _frames(30)
+	await _shot("20_tower_yard")
+	await _main.load_area("tower_top", "stairs", false)
+	_put_player(_tile(12, 8), Vector2.RIGHT, true)
+	await _frames(30)
+	await _shot("21_tower_deck")
+	_main.level.set_zone_heated("dish", true)
+	_put_player(_tile(4, 2), Vector2.LEFT, true)
+	await _frames(20)
+	await _shot("22_uplink")
+	_main._open_signal_panel()
+	_main.select_signal(1)
+	await _frames(3)
+	await _shot("23_signal_choice")
+	_main.select_signal(1)
+	await _frames(3)
+	await _shot("24_signal_reply")
+	_main._close_signal_panel()
+
 	# 標題畫面
 	_main.queue_free()
 	var title: Control = load("res://scenes/title.tscn").instantiate()

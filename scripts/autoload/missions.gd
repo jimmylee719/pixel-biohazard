@@ -67,6 +67,15 @@ const DATA := [
 		],
 	},
 	{
+		"id": "send_signal", "main": true, "requires": ["hangar_snowcat"],
+		"title": "The antenna",
+		"desc": "Climb to the comms deck at the top of the antenna tower and get a message off the island. What you ask for is up to you.",
+		"steps": [
+			{"type": "enter_area", "target": "tower_top"},
+			{"type": "interact", "target": "uplink"},
+		],
+	},
+	{
 		"id": "depot_manifest", "main": false, "requires": ["director_records"],
 		"radio": "KOVAC: \"Going to the depot? Find the manifest first. Mendez said something nests in that warehouse.\"",
 		"title": "Depot manifest",
