@@ -7,6 +7,7 @@
 ##   P  遊戲開始的位置（只有起點區域有）
 ##   B  空瓶   K  補給箱   T  錄音帶   X  配電箱   G  樓梯（原型終點）
 ##   A  彈藥   M  急救包   V  抗菌藥劑   W  手槍（數量見 Items.MAP_PICKUPS）
+##   R  無線電（存檔、接收支線）   Y  儲物箱（所有安全屋共用）
 ##   1～9、a～i  敵人巡邏點，哪些點屬於哪隻敵人見 enemies
 ##
 ## 每個區域的欄位：
@@ -18,6 +19,8 @@
 ##   breakers   配電箱控制的區域，依地圖上 X 出現的順序
 ##   doors      {門的 id: {cell, to（目標區域）, spawn_dir（進入這個區域時往哪個方向站一格）}}
 ##              兩個區域裡 id 相同的門互相連通
+##   safe       安全屋：沒有敵人、燈光溫暖、有無線電（存檔＋接支線）和儲物箱
+##   entries    其他入口 {id: 格子}（例如無線電旁邊，存檔後從這裡重來）
 ##   names      {"x,y": 名稱}，給任務系統辨認特定物件用
 ##   messages   {名稱: 文字}，撿到錄音帶等物件時顯示
 class_name Areas
@@ -99,7 +102,7 @@ const DATA := {
 			"########................C...............####",
 			"########......B.5.....6.C.....A.........####",
 			"########............H...................####",
-			"##################################....######",
+			"##############D###################....######",
 			"##################################.B..######",
 			"##################################....######",
 			"##################################....######",
@@ -117,6 +120,7 @@ const DATA := {
 		"doors": {
 			"front": {"cell": Vector2i(0, 6), "to": "south_shore", "spawn_dir": Vector2i(1, 0)},
 			"cargo": {"cell": Vector2i(35, 24), "to": "south_shore", "spawn_dir": Vector2i(0, -1)},
+			"safe": {"cell": Vector2i(14, 20), "to": "station_safe", "spawn_dir": Vector2i(0, -1)},
 		},
 		"names": {
 			"31,2": "lounge_breaker",
@@ -126,6 +130,37 @@ const DATA := {
 		"messages": {
 			"tape_lab": "TAPE: \"...the clicking started on day four. Kovac says it's in the inner ear. They follow the sound of our boots.\"",
 		},
+	},
+
+	"station_safe": {
+		"title": "Clean Room (Safe)",
+		"outdoor": false,
+		"safe": true,
+		"map": [
+			"#########D##########",
+			"#..................#",
+			"#..R...........Y...#",
+			"#..................#",
+			"#..CC..........CC..#",
+			"#..CC..........CC..#",
+			"#..................#",
+			"#.........M........#",
+			"#..................#",
+			"####################",
+		],
+		"enemies": [],
+		"zones": {},
+		"breakers": [],
+		"doors": {
+			"safe": {"cell": Vector2i(9, 0), "to": "station_1f", "spawn_dir": Vector2i(0, 1)},
+		},
+		"entries": {
+			"radio": Vector2i(3, 3),
+		},
+		"names": {
+			"3,2": "radio_safe",
+		},
+		"messages": {},
 	},
 }
 

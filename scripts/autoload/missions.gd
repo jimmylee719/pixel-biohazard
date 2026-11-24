@@ -8,6 +8,7 @@
 ##   collect     撿到某個有名字的物件
 ## requires：前置任務，全部完成後這個任務才會出現。
 ## reward：完成時給的東西（bottles = 空瓶數、intel = 取得某區域的巡邏情報）。
+## radio：有這個欄位的支線，要先在安全屋用無線電「聽到」才會出現（內容就是無線電訊息）。
 extends Node
 
 signal mission_updated(mission_id: String)
@@ -21,9 +22,18 @@ const DATA := [
 		"steps": [{"type": "enter_area", "target": "station_1f"}],
 	},
 	{
-		"id": "find_stairs", "main": true, "requires": ["enter_station"],
+		"id": "find_shelter", "main": true, "requires": ["enter_station"],
+		"title": "Find somewhere safe",
+		"desc": "There has to be a sealed room somewhere off the corridors. Find it and get on the radio.",
+		"steps": [
+			{"type": "enter_area", "target": "station_safe"},
+			{"type": "interact", "target": "radio_safe"},
+		],
+	},
+	{
+		"id": "find_stairs", "main": true, "requires": ["find_shelter"],
 		"title": "Reach the upper floor",
-		"desc": "The radio mast is on the roof. Find the stairs.",
+		"desc": "Kovac says the antenna controls are upstairs. The stairs are in the lounge.",
 		"steps": [{"type": "interact", "target": "stairs_up"}],
 	},
 	{
@@ -34,14 +44,16 @@ const DATA := [
 		"reward": {"bottles": 1},
 	},
 	{
-		"id": "lost_tape", "main": false, "requires": ["enter_station"],
+		"id": "lost_tape", "main": false, "requires": ["find_shelter"],
+		"radio": "KOVAC: \"Mendez kept a recorder in the lab. If it's still there, it'll tell you how they hunt.\"",
 		"title": "The researcher's tape",
-		"desc": "Someone recorded the first days of the outbreak. Find the tape in the lab.",
+		"desc": "Mendez's recorder should still be in the lab. It may reveal the patrol patterns.",
 		"steps": [{"type": "collect", "target": "tape_lab"}],
 		"reward": {"intel": "station_1f"},
 	},
 	{
-		"id": "cold_lounge", "main": false, "requires": ["enter_station"],
+		"id": "cold_lounge", "main": false, "requires": ["find_shelter"],
+		"radio": "KOVAC: \"They go sluggish in the cold. The lab breaker controls the lounge heating. Use it.\"",
 		"title": "Cut the heat",
 		"desc": "The infected slow down in the cold. Shut off the lounge heating from the lab breaker.",
 		"steps": [{"type": "interact", "target": "lounge_breaker"}],
@@ -69,10 +81,28 @@ func is_done(mission_id: String) -> bool:
 
 
 func is_available(mission_id: String) -> bool:
-	for req in get_mission(mission_id).get("requires", []):
+	var m := get_mission(mission_id)
+	if not _requirements_met(m):
+		return false
+	return not m.has("radio") or WorldState.has_flag("radio:" + mission_id)
+
+
+func _requirements_met(m: Dictionary) -> bool:
+	for req in m.get("requires", []):
 		if not is_done(req):
 			return false
 	return true
+
+
+## 在安全屋用無線電：收到所有「條件已經滿足、還沒聽過」的委託，回傳訊息文字。
+func receive_radio() -> Array[String]:
+	var messages: Array[String] = []
+	for m in DATA:
+		if m.has("radio") and _requirements_met(m) and not WorldState.has_flag("radio:" + m.id):
+			WorldState.set_flag("radio:" + m.id)
+			messages.append(m.radio)
+			mission_updated.emit(m.id)
+	return messages
 
 
 func is_active(mission_id: String) -> bool:

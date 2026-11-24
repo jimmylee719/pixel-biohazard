@@ -8,6 +8,10 @@ const MESSAGE_TIME := 6.0
 ## 室內一片漆黑；戶外有雪地反光，稍微亮一點
 const INDOOR_DARKNESS := Color(0.05, 0.05, 0.08)
 const OUTDOOR_DARKNESS := Color(0.2, 0.22, 0.3)
+## 安全屋：溫暖、比較亮，讓玩家感到安心（出門那一刻的落差也是恐怖的一部分）
+const SAFE_DARKNESS := Color(0.34, 0.28, 0.22)
+const TITLE_SCENE := "res://scenes/title.tscn"
+const KOVAC_INTRO := "KOVAC: \"...is anyone on this channel? This is Dr. Ina Kovac, I left Greycrow two weeks ago. If you're in the clean room, you're safe. Listen carefully.\""
 const ENEMY_SCENES := {
 	"patroller": preload("res://scenes/enemy.tscn"),
 	"listener": preload("res://scenes/enemy_listener.tscn"),
@@ -19,7 +23,9 @@ var enemies: Array[Enemy] = []
 var _resetting := false
 var _transitioning := false
 var _message_timer := 0.0
+var _message_queue: Array[String] = []
 var _inventory_cursor := 0
+var _storage_cursor := 0
 
 @onready var _darkness: CanvasModulate = $Darkness
 @onready var _player: Player = $Player
@@ -42,6 +48,11 @@ var _inventory_cursor := 0
 @onready var _hurt_flash: ColorRect = $HUD/HurtFlash
 @onready var _inventory_panel: PanelContainer = $HUD/InventoryPanel
 @onready var _inventory_text: Label = $HUD/InventoryPanel/Text
+@onready var _storage_panel: PanelContainer = $HUD/StoragePanel
+@onready var _storage_text: Label = $HUD/StoragePanel/Text
+@onready var _pause_panel: PanelContainer = $HUD/PausePanel
+@onready var _resume_button: Button = $HUD/PausePanel/Box/Resume
+@onready var _quit_button: Button = $HUD/PausePanel/Box/QuitToTitle
 
 
 func _ready() -> void:
@@ -55,19 +66,32 @@ func _ready() -> void:
 	_hint.text = _build_hint()
 	Missions.mission_completed.connect(func(id: String):
 		show_message("MISSION COMPLETE: %s" % Missions.get_mission(id).title))
+	_resume_button.pressed.connect(_toggle_pause)
+	_quit_button.pressed.connect(_quit_to_title)
 	await load_area(WorldState.data.area, WorldState.data.entry, false)
 
 
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("debug_toggle"):
 		_overlay.debug_enabled = not _overlay.debug_enabled
-	if _inventory_panel.visible:
+	var busy := _resetting or _transitioning or _player.is_dead
+	if _pause_panel.visible:
+		if Input.is_action_just_pressed("pause"):
+			_toggle_pause()
+	elif _inventory_panel.visible:
 		_process_inventory_input()
-	elif Input.is_action_just_pressed("map") and not _resetting and not _transitioning:
-		_toggle_mission_panel()
-	elif Input.is_action_just_pressed("inventory") and not _mission_panel.visible \
-			and not _resetting and not _transitioning and not _player.is_dead:
-		_toggle_inventory_panel()
+	elif _storage_panel.visible:
+		_process_storage_input()
+	elif _mission_panel.visible:
+		if Input.is_action_just_pressed("map") or Input.is_action_just_pressed("pause"):
+			_toggle_mission_panel()
+	elif not busy:
+		if Input.is_action_just_pressed("pause"):
+			_toggle_pause()
+		elif Input.is_action_just_pressed("map"):
+			_toggle_mission_panel()
+		elif Input.is_action_just_pressed("inventory"):
+			_toggle_inventory_panel()
 
 	_hurt_flash.color.a = move_toward(_hurt_flash.color.a, 0.0, delta * 1.5)
 	# 感染值越高，畫面四周越白（症狀）
@@ -76,7 +100,10 @@ func _process(delta: float) -> void:
 
 	_message_timer -= delta
 	if _message_timer <= 0.0:
-		_message.visible = false
+		if _message_queue.is_empty():
+			_message.visible = false
+		else:
+			_show_next_message()
 
 	var focus := _player.focus
 	_prompt.text = "[%s] %s" % [_key_name("interact"), focus.get_prompt(_player)] if focus and _player.input_enabled else ""
@@ -133,8 +160,17 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.reached.connect(_on_stairs)
 		elif item is TapePickup:
 			item.message_shown.connect(show_message)
+		elif item is RadioConsole:
+			item.used.connect(_on_radio_used)
+		elif item is StorageBox:
+			item.opened.connect(_toggle_storage_panel)
 
-	_darkness.color = OUTDOOR_DARKNESS if level.outdoor else INDOOR_DARKNESS
+	if level.safe:
+		_darkness.color = SAFE_DARKNESS
+	elif level.outdoor:
+		_darkness.color = OUTDOOR_DARKNESS
+	else:
+		_darkness.color = INDOOR_DARKNESS
 	_player.level = level
 	_player.reset_to(level.get_entry_position(entry))
 	_camera.setup(_player, level.bounds)
@@ -195,12 +231,110 @@ func reset_attempt() -> void:
 
 # ── HUD ───────────────────────────────────────────────
 
+## 畫面下方的訊息（錄音內容、無線電、任務完成）。同時有好幾則就依序顯示。
 func show_message(text: String) -> void:
 	if text == "":
 		return
-	_message.text = text
+	_message_queue.append(text)
+	if not _message.visible:
+		_show_next_message()
+
+
+func _show_next_message() -> void:
+	_message.text = _message_queue.pop_front()
 	_message.visible = true
 	_message_timer = MESSAGE_TIME
+
+
+# ── 安全屋：無線電、儲物箱 ──────────────────────────────
+
+## 用無線電：接收新的委託、在無線電旁邊存檢查點、存到硬碟。
+func _on_radio_used() -> void:
+	if not WorldState.has_flag("radio:intro"):
+		WorldState.set_flag("radio:intro")
+		show_message(KOVAC_INTRO)
+	for text in Missions.receive_radio():
+		show_message(text)
+	WorldState.save_checkpoint(level.area_id, "radio")
+	if WorldState.save_to_disk():
+		show_message("Progress saved.")
+	else:
+		show_message("Save failed.")
+
+
+func _toggle_storage_panel() -> void:
+	_storage_panel.visible = not _storage_panel.visible
+	get_tree().paused = _storage_panel.visible
+	_storage_cursor = 0
+	_refresh_storage()
+
+
+## 上面 6 行是物品欄，下面是儲物箱；選一行按確認就搬到另一邊。
+func _storage_rows() -> Array:
+	var rows := []
+	for i in WorldState.inventory().size():
+		rows.append({"side": "bag", "index": i})
+	var ids := WorldState.storage().keys()
+	ids.sort()
+	for id in ids:
+		rows.append({"side": "box", "id": id})
+	return rows
+
+
+func _process_storage_input() -> void:
+	var rows := _storage_rows()
+	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("inventory") \
+			or Input.is_action_just_pressed("pause"):
+		_toggle_storage_panel()
+		return
+	if Input.is_action_just_pressed("ui_down") or Input.is_action_just_pressed("move_down"):
+		_storage_cursor = (_storage_cursor + 1) % rows.size()
+	elif Input.is_action_just_pressed("ui_up") or Input.is_action_just_pressed("move_up"):
+		_storage_cursor = (_storage_cursor - 1 + rows.size()) % rows.size()
+	elif Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("interact"):
+		var row: Dictionary = rows[_storage_cursor]
+		if row.side == "bag":
+			WorldState.store_slot(row.index)
+		else:
+			if WorldState.retrieve(row.id) == 0:
+				show_message("No room.")
+		_storage_cursor = mini(_storage_cursor, _storage_rows().size() - 1)
+	_refresh_storage()
+
+
+func _refresh_storage() -> void:
+	var rows := _storage_rows()
+	var lines: Array[String] = ["STORAGE BOX   (shared by all safe rooms)", "", "-- carried --"]
+	for i in rows.size():
+		var row: Dictionary = rows[i]
+		var cursor := ">" if i == _storage_cursor else " "
+		if row.side == "box" and (i == 0 or rows[i - 1].side == "bag"):
+			lines.append("")
+			lines.append("-- in box --")
+		if row.side == "bag":
+			var slot: Dictionary = WorldState.inventory()[row.index]
+			lines.append("%s [%d] %s" % [cursor, row.index + 1,
+				"---" if slot.is_empty() else "%s x%d" % [Items.display_name(slot.id), slot.count]])
+		else:
+			lines.append("%s %s x%d" % [cursor, Items.display_name(row.id), WorldState.storage()[row.id]])
+	lines.append("")
+	lines.append("[%s] move   [%s] close" % [_key_name("interact"), _key_name("inventory")])
+	_storage_text.text = "\n".join(lines)
+
+
+# ── 暫停選單 ──────────────────────────────────────────
+
+func _toggle_pause() -> void:
+	_pause_panel.visible = not _pause_panel.visible
+	get_tree().paused = _pause_panel.visible
+	if _pause_panel.visible:
+		_resume_button.grab_focus()
+
+
+func _quit_to_title() -> void:
+	get_tree().paused = false
+	# 回標題：沒在無線電存過的進度會遺失
+	get_tree().change_scene_to_file(TITLE_SCENE)
 
 
 func _toggle_mission_panel() -> void:

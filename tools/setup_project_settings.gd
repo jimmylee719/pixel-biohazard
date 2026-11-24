@@ -35,6 +35,12 @@ func _init() -> void:
 	ProjectSettings.set_setting("rendering/2d/snap/snap_2d_transforms_to_pixel", true)
 	ProjectSettings.set_setting("rendering/2d/snap/snap_2d_vertices_to_pixel", true)
 
+	# 地圖外面（房間比畫面小時）是黑色，不是預設的灰色
+	ProjectSettings.set_setting("rendering/environment/defaults/default_clear_color", Color(0, 0, 0))
+
+	# 從標題畫面開始
+	ProjectSettings.set_setting("application/run/main_scene", "res://scenes/title.tscn")
+
 	# 自動載入
 	ProjectSettings.set_setting("autoload/NoiseBus", "*res://scripts/autoload/noise_bus.gd")
 	ProjectSettings.set_setting("autoload/WorldState", "*res://scripts/autoload/world_state.gd")

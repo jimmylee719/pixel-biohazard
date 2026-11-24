@@ -22,6 +22,8 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	WorldState.save_path = "user://test_save.dat"  # 不要動到真正的存檔
+	WorldState.delete_save()
 	WorldState.new_game()
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
@@ -37,6 +39,8 @@ func _run() -> void:
 
 	# 以下測試都在研究站一樓進行（從貨運入口進入）
 	await _main.load_area("station_1f", "cargo", false)
+	_bind_area()
+	await _test_safe_room()
 	_bind_area()
 	WorldState.bottles = 0
 	WorldState.save_checkpoint("station_1f", "cargo")
@@ -71,6 +75,7 @@ func _run() -> void:
 	await _test_items_and_infection()
 	await _test_inventory_slots()
 	await _test_exit()
+	await _test_title()
 
 	print("")
 	if _failures == 0:
@@ -239,8 +244,8 @@ func _test_door_into_station() -> void:
 	_check(_main.level.area_id == "station_1f", "走進門會切換到研究站一樓（%s）" % _main.level.area_id)
 	_check(_player.global_position.distance_to(_main.level.get_entry_position("front")) < 20.0, "站在對應的門口")
 	_check(Missions.is_done("enter_station"), "完成主線：進入研究站")
-	_check(Missions.tracked_mission().get("id") == "find_stairs", "下一個主線出現")
-	_check(Missions.is_available("lost_tape"), "站內支線出現")
+	_check(Missions.tracked_mission().get("id") == "find_shelter", "下一個主線出現：找安全的地方")
+	_check(not Missions.is_available("lost_tape"), "站內支線要用無線電才會出現")
 	_check(WorldState.checkpoint_area() == "station_1f", "進入區域時存檢查點")
 
 
@@ -767,6 +772,109 @@ func _test_inventory_slots() -> void:
 	await get_tree().process_frame
 	_check(not panel.visible and not get_tree().paused, "再按一次關閉")
 	WorldState.data.inventory = saved
+
+
+# ── 安全屋、存檔、儲物箱、暫停、標題 ──
+
+func _test_safe_room() -> void:
+	print("[safe room / door]")
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	_place_player(_tile(14, 18), false, Vector2.DOWN)
+	await _walk_until_area("move_down", "station_safe")
+	_check(_main.level.area_id == "station_safe", "走廊的門通往無菌隔離室（%s）" % _main.level.area_id)
+	_check(_main.level.safe, "這是安全屋")
+	_check(_main.enemies.is_empty(), "安全屋裡沒有敵人")
+	_check(Missions.step_index("find_shelter") == 1, "主線「找安全的地方」進行到用無線電")
+	_check(not Missions.is_available("lost_tape"), "還沒用無線電前，支線還沒出現")
+
+	print("[safe room / radio & save]")
+	_level = _main.level
+	var radio := _find_item(RadioConsole, Vector2i(3, 2))
+	_place_player(_tile(3, 3), false, Vector2.UP)
+	await _frames(3)
+	_check(_player.focus == radio, "可以使用無線電")
+	await _press("interact")
+	_check(Missions.is_done("find_shelter"), "完成主線：用無線電")
+	_check(Missions.is_available("lost_tape") and Missions.is_available("cold_lounge"), "無線電收到兩個支線委託")
+	_check(Missions.tracked_mission().get("id") == "find_stairs", "下一個主線出現")
+	_check(WorldState.has_save(), "存檔寫進硬碟")
+	_check(WorldState.checkpoint_entry() == "radio", "檢查點改成無線電旁邊")
+	_check(_main.get_node("HUD/Message").visible, "顯示無線電訊息")
+
+	print("[safe room / storage]")
+	WorldState.inv_add("med", 1)
+	var box := _find_item(StorageBox, Vector2i(15, 2))
+	_place_player(_tile(15, 3), false, Vector2.UP)
+	await _frames(3)
+	_check(_player.focus == box, "可以打開儲物箱")
+	await _press("interact")
+	var panel: Control = _main.get_node("HUD/StoragePanel")
+	_check(panel.visible and get_tree().paused, "儲物箱介面打開並暫停")
+	var first: Dictionary = WorldState.inventory()[0].duplicate()
+	Input.action_press("ui_accept")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release("ui_accept")
+	await get_tree().process_frame
+	_check(WorldState.inventory()[0].is_empty() and WorldState.storage().get(first.id, 0) >= first.count,
+		"確認鍵把第一格整格放進儲物箱（%s）" % first.get("id"))
+	_check(WorldState.retrieve(first.id) == first.count, "可以再拿出來")
+	Input.action_press("inventory")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release("inventory")
+	await get_tree().process_frame
+	_check(not panel.visible and not get_tree().paused, "關閉儲物箱")
+
+	print("[save / load]")
+	WorldState.store_slot(0)
+	_player._invulnerable = 0.0
+	WorldState.save_checkpoint("station_safe", "radio")
+	WorldState.save_to_disk()
+	var stored := WorldState.storage().duplicate()
+	WorldState.health = 10.0
+	WorldState.data.storage = {}
+	_check(WorldState.load_from_disk(), "讀取存檔")
+	_check(WorldState.health == 100.0, "生命值回到存檔時的狀態")
+	_check(WorldState.storage() == stored, "儲物箱內容也有存")
+	_check(Missions.is_done("find_shelter"), "任務進度也有存")
+
+	print("[pause]")
+	var pause: Control = _main.get_node("HUD/PausePanel")
+	Input.action_press("pause")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release("pause")
+	await get_tree().process_frame
+	_check(pause.visible and get_tree().paused, "按 pause 打開暫停選單")
+	Input.action_press("pause")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release("pause")
+	await get_tree().process_frame
+	_check(not pause.visible and not get_tree().paused, "再按一次繼續")
+
+	print("[safe room / back]")
+	_place_player(_tile(9, 2), false, Vector2.UP)
+	await _walk_until_area("move_up", "station_1f")
+	_check(_main.level.area_id == "station_1f", "從安全屋回到走廊")
+	_check(_player.global_position.distance_to(_main.level.get_entry_position("safe")) < 20.0, "站在安全屋門口")
+
+
+func _test_title() -> void:
+	print("[title]")
+	var title: Control = load("res://scenes/title.tscn").instantiate()
+	add_child(title)
+	await get_tree().process_frame
+	_check(not title.get_node("Center/Box/Continue").disabled, "有存檔時可以「繼續」")
+	title.queue_free()
+	WorldState.delete_save()
+	title = load("res://scenes/title.tscn").instantiate()
+	add_child(title)
+	await get_tree().process_frame
+	_check(title.get_node("Center/Box/Continue").disabled, "沒有存檔時「繼續」不能按")
+	title.queue_free()
 
 
 func _test_exit() -> void:

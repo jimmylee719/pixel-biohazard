@@ -23,10 +23,11 @@ func get_prompt(_player: Player) -> String:
 	return ""
 
 
-## 主角按下 interact 時呼叫：執行互動，並通知任務系統。
+## 主角按下 interact 時呼叫：先通知任務系統，再執行互動
+## （例如「用無線電」這個任務步驟要先完成，無線電才收得到之後的委託）。
 func use(player: Player) -> void:
-	interact(player)
 	WorldState.emit_event("interact", item_name)
+	interact(player)
 
 
 func interact(_player: Player) -> void:

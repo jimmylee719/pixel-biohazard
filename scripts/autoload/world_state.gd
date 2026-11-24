@@ -13,6 +13,10 @@ const START_SLOTS := 6
 const MAX_HEALTH := 100.0
 const MAX_INFECTION := 100.0
 
+const SAVE_VERSION := 1
+
+## 存檔位置（測試時可以改成別的檔名）
+var save_path := "user://save.dat"
 var data := {}
 var _checkpoint := {}
 
@@ -29,6 +33,7 @@ func new_game() -> void:
 		"health": MAX_HEALTH,
 		"infection": 0.0,
 		"pistol_loaded": 0,
+		"storage": {},
 		"flags": {},
 	}
 	_checkpoint = data.duplicate(true)
@@ -184,6 +189,71 @@ func set_zone_heated(area_id: String, zone: String, heated: bool) -> void:
 func emit_event(kind: String, id: String) -> void:
 	if id != "":
 		game_event.emit(kind, id)
+
+
+# ── 儲物箱（所有安全屋共用，不限格數）──
+
+func storage() -> Dictionary:
+	return data.storage
+
+
+## 把物品欄某一格整格放進儲物箱
+func store_slot(index: int) -> bool:
+	var slot: Dictionary = data.inventory[index]
+	if slot.is_empty():
+		return false
+	data.storage[slot.id] = data.storage.get(slot.id, 0) + slot.count
+	data.inventory[index] = {}
+	changed.emit()
+	return true
+
+
+## 從儲物箱拿出某種物品，能放多少拿多少，回傳拿了幾個
+func retrieve(item_id: String) -> int:
+	var have: int = data.storage.get(item_id, 0)
+	var got := inv_add(item_id, mini(have, inv_space_for(item_id)))
+	if got > 0:
+		data.storage[item_id] = have - got
+		if data.storage[item_id] <= 0:
+			data.storage.erase(item_id)
+		changed.emit()
+	return got
+
+
+# ── 存檔 ──
+
+func has_save() -> bool:
+	return FileAccess.file_exists(save_path)
+
+
+## 存到硬碟（Vector2 等 Godot 型別用 store_var 保存）
+func save_to_disk() -> bool:
+	var f := FileAccess.open(save_path, FileAccess.WRITE)
+	if f == null:
+		push_error("存檔失敗：%s" % error_string(FileAccess.get_open_error()))
+		return false
+	f.store_var({"version": SAVE_VERSION, "data": data})
+	return true
+
+
+func load_from_disk() -> bool:
+	if not has_save():
+		return false
+	var f := FileAccess.open(save_path, FileAccess.READ)
+	if f == null:
+		return false
+	var saved = f.get_var()
+	if not (saved is Dictionary and saved.has("data")):
+		return false
+	data = saved.data
+	_checkpoint = data.duplicate(true)
+	changed.emit()
+	return true
+
+
+func delete_save() -> void:
+	if has_save():
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
 
 
 # ── 檢查點 ──

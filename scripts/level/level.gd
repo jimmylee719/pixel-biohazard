@@ -13,6 +13,8 @@ const INDOOR_FLOOR_A := Color(0.42, 0.44, 0.48)
 const INDOOR_FLOOR_B := Color(0.38, 0.40, 0.44)
 const SNOW_FLOOR_A := Color(0.70, 0.74, 0.80)
 const SNOW_FLOOR_B := Color(0.66, 0.70, 0.77)
+const SAFE_FLOOR_A := Color(0.55, 0.50, 0.42)
+const SAFE_FLOOR_B := Color(0.51, 0.46, 0.39)
 const DOOR_COLOR := Color(0.55, 0.45, 0.25)
 const COLD_TINT := Color(0.55, 0.75, 1.0)
 const WALL_COLOR := Color(0.20, 0.22, 0.26)
@@ -23,13 +25,15 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVW"
+const FLOOR_CHARS := ".PDBKTXGAMVWRY"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
 
 var title := ""
 var outdoor := false
+## 安全屋：沒有敵人、燈光溫暖
+var safe := false
 var zones := {}
 ## [{"type": String, "points": Array[Vector2]}]
 var enemy_defs: Array[Dictionary] = []
@@ -50,6 +54,7 @@ func _ready() -> void:
 	_map = _data.map
 	title = _data.title
 	outdoor = _data.outdoor
+	safe = _data.get("safe", false)
 	zones = _data.zones
 	_parse_map()
 	_build_solids()
@@ -65,6 +70,8 @@ func _draw() -> void:
 		var color: Color
 		if outdoor:
 			color = SNOW_FLOOR_A if even else SNOW_FLOOR_B
+		elif safe:
+			color = SAFE_FLOOR_A if even else SAFE_FLOOR_B
 		else:
 			color = INDOOR_FLOOR_A if even else INDOOR_FLOOR_B
 			if is_cold(_cell_center(cell)):
@@ -91,6 +98,9 @@ func get_message(item_name: String) -> String:
 
 ## 進入這個區域時站的位置。entry = "start"（遊戲開始點）或門的 id。
 func get_entry_position(entry: String) -> Vector2:
+	var entries: Dictionary = _data.get("entries", {})
+	if entries.has(entry):
+		return _cell_center(entries[entry])
 	if entry == Areas.START_ENTRY or not _data.doors.has(entry):
 		return _start_position
 	var door: Dictionary = _data.doors[entry]
@@ -296,6 +306,10 @@ func _spawn_interactables() -> void:
 					item = breaker
 				"G":
 					item = ExitPoint.new()
+				"R":
+					item = RadioConsole.new()
+				"Y":
+					item = StorageBox.new()
 				"A", "M", "V", "W":
 					var pickup := ItemPickup.new()
 					pickup.pickup_item = Items.MAP_PICKUPS[row[x]][0]

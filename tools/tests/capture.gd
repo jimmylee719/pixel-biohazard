@@ -14,6 +14,7 @@ func _ready() -> void:
 func _run() -> void:
 	if OS.get_cmdline_user_args().size() > 0:
 		_out = OS.get_cmdline_user_args()[0]
+	WorldState.save_path = "user://capture_save.dat"
 	WorldState.new_game()
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
@@ -100,6 +101,30 @@ func _run() -> void:
 	WorldState.infection = 95.0
 	await _frames(10)
 	await _shot("9_infected")
+
+	# 安全屋
+	WorldState.health = 100.0
+	WorldState.infection = 0.0
+	await _main.load_area("station_safe", "safe", false)
+	_put_player(_tile(4, 3), Vector2.LEFT, true)
+	_main._on_radio_used()
+	await _frames(20)
+	await _shot("10_safe_radio")
+	_main._toggle_storage_panel()
+	await _frames(3)
+	await _shot("11_storage")
+	_main._toggle_storage_panel()
+	_main._toggle_pause()
+	await _frames(3)
+	await _shot("12_pause")
+	_main._toggle_pause()
+
+	# 標題畫面
+	_main.queue_free()
+	var title: Control = load("res://scenes/title.tscn").instantiate()
+	add_child(title)
+	await _frames(5)
+	await _shot("13_title")
 	get_tree().quit()
 
 
