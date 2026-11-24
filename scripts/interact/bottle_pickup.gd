@@ -4,15 +4,15 @@ extends Interactable
 
 
 func can_interact(player: Player) -> bool:
-	return enabled and not player.is_hiding and player.bottles < player.max_bottles
+	return enabled and not player.is_hiding and WorldState.inv_space_for("bottle") > 0
 
 
 func get_prompt(_player: Player) -> String:
 	return "Take bottle"
 
 
-func interact(player: Player) -> void:
-	player.bottles += 1
+func interact(_player: Player) -> void:
+	WorldState.inv_add("bottle", 1)
 	take()
 
 

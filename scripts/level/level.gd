@@ -23,7 +23,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXG"
+const FLOOR_CHARS := ".PDBKTXGAMVW"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -296,6 +296,11 @@ func _spawn_interactables() -> void:
 					item = breaker
 				"G":
 					item = ExitPoint.new()
+				"A", "M", "V", "W":
+					var pickup := ItemPickup.new()
+					pickup.pickup_item = Items.MAP_PICKUPS[row[x]][0]
+					pickup.pickup_count = Items.MAP_PICKUPS[row[x]][1]
+					item = pickup
 			if item == null:
 				continue
 			var key := "%d,%d" % [x, y]

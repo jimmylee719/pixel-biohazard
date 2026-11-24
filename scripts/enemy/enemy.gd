@@ -11,8 +11,8 @@
 class_name Enemy
 extends CharacterBody2D
 
-signal caught_player
 signal state_changed(new_state: State)
+signal died
 
 enum State { UNAWARE, SUSPICIOUS, ALERT, SEARCH }
 
@@ -64,6 +64,18 @@ const TILE := 16.0
 @export var search_radius := 48.0
 @export var catch_distance := 11.0
 
+@export_group("生命與攻擊")
+@export var max_health := 80.0
+@export var attack_damage := 22.0
+@export var attack_infection := 15.0
+## 距離多近開始出手（出手前有預備動作，給玩家反應時間）
+@export var attack_range := 15.0
+@export var attack_reach := 20.0
+@export var attack_windup := 0.45
+@export var attack_cooldown := 1.0
+## 從背後被偷襲時，主角要在牠背後多大的角度內（度）
+@export var takedown_back_angle_deg := 110.0
+
 @export_group("溫度（沒開暖氣的區域）")
 @export var cold_speed_mult := 0.55
 @export var cold_awareness_mult := 0.6
@@ -78,6 +90,12 @@ var patrol_points: Array[Vector2] = []
 var in_cold := false
 ## 距離上一次喀喀聲過了幾秒（除錯顯示和聲音提示用）
 var click_age := 99.0
+var health := 80.0
+var is_dead := false
+## 正在出手的預備動作（畫面提示用）
+var winding_up := false
+## 用來記錄「這隻已經死了」的 id（區域:編號），由 main 設定
+var enemy_key := ""
 
 var _player: Player
 var _level: Level
@@ -96,6 +114,10 @@ var _path_refresh := 0.0
 var _spawn := Vector2.ZERO
 var _fade := 0.0
 var _click_timer := 0.0
+var _stagger := 0.0
+var _windup := 0.0
+var _attack_cd := 0.0
+var _body_color := Color.WHITE
 
 @onready var _agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _body: Node2D = $Body
@@ -103,6 +125,9 @@ var _click_timer := 0.0
 
 func _ready() -> void:
 	add_to_group("enemies")
+	var square := _body.get_child(0) as Polygon2D
+	if square:
+		_body_color = square.color
 	NoiseBus.noise_emitted.connect(_on_noise)
 	_click_timer = randf() * maxf(click_interval, 0.1)
 
@@ -118,6 +143,15 @@ func setup(points: Array[Vector2], player: Player, level: Level) -> void:
 
 func reset() -> void:
 	global_position = _spawn
+	_stagger = 0.0
+	_windup = 0.0
+	winding_up = false
+	_attack_cd = 0.0
+	if enemy_key != "" and WorldState.is_enemy_dead(enemy_key):
+		global_position = WorldState.enemy_death_position(enemy_key, _spawn)
+		_apply_dead_state()
+		return
+	_revive()
 	velocity = Vector2.ZERO
 	awareness = 0.0
 	_patrol_index = 1 if patrol_points.size() > 1 else 0
@@ -159,6 +193,16 @@ func is_watching_player() -> bool:
 func _physics_process(delta: float) -> void:
 	if _player == null:
 		return
+	if is_dead:
+		_update_visibility(delta)
+		return
+	_attack_cd = maxf(_attack_cd - delta, 0.0)
+	if _stagger > 0.0:
+		_stagger -= delta
+		velocity = velocity.move_toward(Vector2.ZERO, 400.0 * delta)
+		move_and_slide()
+		_update_visibility(delta)
+		return
 	in_cold = _level != null and _level.is_cold(global_position)
 	_state_time += delta
 	_vigilance_timer = maxf(_vigilance_timer - delta, 0.0)
@@ -170,7 +214,9 @@ func _physics_process(delta: float) -> void:
 	_check_flashlight_hit()
 	_update_clicks(delta)
 
-	if _check_catch():
+	if _process_attack(delta):
+		move_and_slide()
+		_update_visibility(delta)
 		return
 
 	match state:
@@ -244,7 +290,7 @@ func _check_flashlight_hit() -> void:
 
 
 func _on_noise(pos: Vector2, radius: float, source: Node) -> void:
-	if _player == null or source == self:
+	if _player == null or source == self or is_dead:
 		return
 	var effective := radius * hearing_mult
 	if not Sight.is_clear(self, global_position, pos):
@@ -287,24 +333,101 @@ func _update_clicks(delta: float) -> void:
 		click_age = 0.0
 
 
-# ── 抓到主角 ──────────────────────────────────────────
+# ── 攻擊、受傷、死亡 ──────────────────────────────────
 
-func _check_catch() -> bool:
-	if state == State.UNAWARE:
+## 回傳 true = 這一幀在出手（預備動作中），不做一般的狀態行為。
+func _process_attack(delta: float) -> bool:
+	if _windup > 0.0:
+		_windup -= delta
+		velocity = Vector2.ZERO
+		_turn_toward((_player.global_position - global_position).normalized(), delta * 2.0)
+		if _windup <= 0.0:
+			winding_up = false
+			_attack_cd = attack_cooldown
+			if _can_hit_player(attack_reach):
+				_player.take_hit(attack_damage, attack_infection, global_position)
+		return true
+	if _attack_cd <= 0.0 and not _player.is_dead and _can_hit_player(attack_range):
+		_windup = attack_windup
+		winding_up = true
+		velocity = Vector2.ZERO
+		return true
+	return false
+
+
+func _can_hit_player(reach: float) -> bool:
+	if _player.is_dead:
 		return false
 	var dist := global_position.distance_to(_player.global_position)
-	# 置物櫃本身擋路，站在櫃門前就算抓得到
-	var reach := catch_distance + (10.0 if _player.is_hiding else 0.0)
-	if dist > reach:
+	if _player.is_hiding:
+		# 躲在櫃子裡：只有被看到躲進去才會被拖出來；櫃子本身擋路，站在櫃門前就算搆得到
+		return _player.hide_spotted and state != State.UNAWARE and dist <= reach + 10.0
+	return state == State.ALERT and dist <= reach
+
+
+## 被攻擊。stagger = 硬直秒數（會打斷出手）。
+func take_damage(amount: float, from_pos: Vector2, stagger: float) -> void:
+	if is_dead:
+		return
+	health -= amount
+	if health <= 0.0:
+		_die()
+		return
+	_stagger = stagger
+	_windup = 0.0
+	winding_up = false
+	velocity = (global_position - from_pos).normalized() * 60.0
+	# 被打就知道你在哪了
+	awareness = 1.0
+	_make_contact(from_pos)
+	if state != State.ALERT:
+		_set_state(State.ALERT)
+
+
+## 能不能從背後偷襲：沒察覺主角、而且主角在牠背後。
+func can_be_taken_down_by(player: Player) -> bool:
+	if is_dead or state != State.UNAWARE or sees_player:
 		return false
-	# 躲在櫃子裡：只有被看到躲進去才會被拖出來
-	if _player.is_hiding and not _player.hide_spotted:
-		return false
-	if not _player.is_hiding and state != State.ALERT:
-		return false
+	if not has_sight:
+		return true  # 看不到的敵人只要沒察覺就可以
+	var to_player := player.global_position - global_position
+	return absf(facing.angle_to(to_player)) >= deg_to_rad(takedown_back_angle_deg)
+
+
+func _die() -> void:
+	if enemy_key != "":
+		WorldState.mark_enemy_dead(enemy_key, global_position)
+	_apply_dead_state()
+	died.emit()
+
+
+func _apply_dead_state() -> void:
+	is_dead = true
+	health = 0.0
 	velocity = Vector2.ZERO
-	caught_player.emit()
-	return true
+	winding_up = false
+	awareness = 0.0
+	state = State.UNAWARE
+	remove_from_group("enemies")
+	collision_layer = 0
+	_set_body_color(_body_color.darkened(0.6))
+	_body.scale = Vector2(1.2, 0.6)
+
+
+func _revive() -> void:
+	is_dead = false
+	health = max_health
+	if not is_in_group("enemies"):
+		add_to_group("enemies")
+	collision_layer = 4
+	_set_body_color(_body_color)
+	_body.scale = Vector2.ONE
+
+
+func _set_body_color(c: Color) -> void:
+	var square := _body.get_child(0) as Polygon2D
+	if square:
+		square.color = c
 
 
 # ── 狀態 ──────────────────────────────────────────────

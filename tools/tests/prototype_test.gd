@@ -11,7 +11,7 @@ var _player: Player
 var _watcher: Enemy
 var _chimer: Enemy
 var _level: Level
-var _caught_count := 0
+var _hit_count := 0
 
 
 func _ready() -> void:
@@ -26,6 +26,7 @@ func _run() -> void:
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	_player = _main.get_node("Player")
+	_player.hurt.connect(func(_d): _hit_count += 1)
 	await _frames(10)
 
 	await _test_world_start()
@@ -61,6 +62,14 @@ func _run() -> void:
 	await _test_bottle()
 	await _test_breaker()
 	await _test_tape_and_intel()
+	await _test_pickups()
+	await _test_aim_and_shoot()
+	await _test_reload()
+	await _test_corpse_persists()
+	await _test_melee()
+	await _test_enemy_attack_and_death()
+	await _test_items_and_infection()
+	await _test_inventory_slots()
 	await _test_exit()
 
 	print("")
@@ -77,8 +86,6 @@ func _bind_area() -> void:
 	_level = _main.level
 	_watcher = _main.enemies[0]
 	_chimer = _main.enemies[1] if _main.enemies.size() > 1 else null
-	for e in _main.enemies:
-		e.caught_player.connect(func(): _caught_count += 1)
 
 
 ## 按住方向鍵直到切換到指定區域（最多 2 秒），切換後立刻放開。
@@ -159,7 +166,7 @@ func _reset_world() -> void:
 		e.patrol_points = _level.enemy_defs[i].points
 		e._spawn = e.patrol_points[0]
 		e.reset()
-	_caught_count = 0
+	_hit_count = 0
 
 
 func _find_item(type: Variant, cell: Vector2i) -> Interactable:
@@ -395,11 +402,9 @@ func _test_caught_reset() -> void:
 	_only(_watcher)
 	_freeze(_watcher, _tile(3, 6), Vector2.RIGHT)
 	_place_player(_tile(4, 6), true)
-	await _seconds(0.5)
-	_check(not _player.input_enabled, "被抓到時停止操作")
-	await _seconds(2.0)
-	_check(_player.global_position.distance_to(_spawn_pos()) < 2.0, "被抓到後主角回到出生點")
-	_check(_player.input_enabled, "重生後恢復操作")
+	await _seconds(1.0)
+	_check(_hit_count > 0, "貼在敵人面前會被攻擊")
+	await _reset_world()
 
 
 func _test_enemy_hidden_behind_wall() -> void:
@@ -502,7 +507,7 @@ func _test_hide_unseen() -> void:
 	_watcher.facing = (locker.global_position - _watcher.global_position).normalized()  # 轉過來看櫃子
 	await _seconds(1.5)
 	_check(not _watcher.sees_player, "敵人看不到躲在櫃子裡的主角")
-	_check(_caught_count == 0, "沒被抓")
+	_check(_hit_count == 0, "沒被攻擊")
 	await _press("interact")
 	_check(not _player.is_hiding, "再按一次離開櫃子")
 	_check(_player.global_position.distance_to(_tile(7, 2)) < 2.0, "回到櫃子前面")
@@ -523,8 +528,8 @@ func _test_hide_spotted() -> void:
 	_player.enter_hiding(locker)
 	_check(_player.hide_spotted, "在敵人面前躲進櫃子會被看到")
 	await _seconds(5.0)
-	_check(_caught_count > 0, "被看到躲進去的話，敵人會把主角拖出來")
-	await _seconds(2.0)
+	_check(_hit_count > 0, "被看到躲進去的話，敵人會把主角拖出來打")
+	_check(not _player.is_hiding, "主角被拖出櫃子")
 	await _reset_world()
 
 
@@ -587,6 +592,181 @@ func _test_breaker() -> void:
 	_check(cold_dist < warm_dist * 0.7, "冷的時候比較慢（冷 %.0f px / 暖 %.0f px）" % [cold_dist, warm_dist])
 	await _reset_world()
 	_check(_level.is_zone_heated("lounge"), "重來後暖氣恢復")
+
+
+# ── 戰鬥與資源 ──
+
+func _revive_watcher() -> void:
+	WorldState.data.flags.erase("dead:station_1f:0")
+	_watcher.reset()
+
+
+func _test_pickups() -> void:
+	print("[combat / pickups]")
+	_only(_watcher)
+	_freeze(_watcher, _tile(3, 10), Vector2.DOWN)
+	var pistol := _find_item(ItemPickup, Vector2i(24, 3))
+	_place_player(_tile(25, 3), false, Vector2.LEFT)
+	await _frames(3)
+	_check(_player.focus == pistol, "可以撿手槍")
+	await _press("interact")
+	_check(_player.combat.has_pistol(), "取得手槍")
+	_check(WorldState.pistol_loaded == 6, "手槍裡有 6 發")
+	_place_player(_tile(17, 2), false, Vector2.UP)
+	await _frames(3)
+	await _press("interact")
+	_check(WorldState.inv_count("ammo") == 6, "撿到 6 發子彈")
+
+
+func _test_aim_and_shoot() -> void:
+	print("[combat / aim & shoot]")
+	_only(_watcher)
+	_freeze(_watcher, _tile(10, 6), Vector2.UP)
+	_place_player(_tile(4, 6), false, Vector2.RIGHT)
+	Input.action_press("aim")
+	await _seconds(0.9)
+	_check(_player.combat.aiming, "按住 aim 舉槍")
+	_check(_player.combat.target == _watcher, "自動鎖定面前的敵人")
+	_check(_player.combat.aim_focus >= 1.0, "等一下準心完全收束")
+	var before := _player.global_position
+	Input.action_press("move_right")
+	await _frames(10)
+	Input.action_release("move_right")
+	_check(_player.global_position.distance_to(before) < 1.0, "舉槍時不能移動")
+	await _press("fire")
+	_check(WorldState.pistol_loaded == 5, "開一槍用掉一發")
+	_check(is_equal_approx(_watcher.health, 80.0 - 55.0), "準心收束時傷害最高（剩 %.0f）" % _watcher.health)
+	_check(_watcher.state == Enemy.State.ALERT, "被打的敵人立刻警戒")
+	await _seconds(0.4)
+	await _press("fire")
+	_check(_watcher.is_dead, "第二槍打倒值班者")
+	_check(WorldState.is_enemy_dead("station_1f:0"), "死亡記錄在世界狀態")
+	Input.action_release("aim")
+	await _frames(5)
+	_check(not _player.combat.aiming, "放開 aim 收槍")
+
+
+func _test_reload() -> void:
+	print("[combat / reload]")
+	var loaded := WorldState.pistol_loaded
+	var ammo := WorldState.inv_count("ammo")
+	await _press("reload")
+	_check(_player.combat.reloading, "按 reload 開始裝填")
+	await _seconds(1.5)
+	var moved := mini(8 - loaded, ammo)
+	_check(WorldState.pistol_loaded == loaded + moved, "彈匣裝滿（%d）" % WorldState.pistol_loaded)
+	_check(WorldState.inv_count("ammo") == ammo - moved, "子彈從物品欄扣掉")
+
+
+func _test_corpse_persists() -> void:
+	print("[combat / corpse persists]")
+	var death_pos := _watcher.global_position
+	WorldState.save_checkpoint("station_1f", "cargo")
+	await _main.load_area("station_1f", "cargo", false)
+	_bind_area()
+	await _frames(5)
+	_check(_watcher.is_dead, "重新進入區域，打倒的敵人還是死的")
+	_check(_watcher.global_position.distance_to(death_pos) < 1.0, "屍體留在倒下的位置")
+	_check(not _watcher.is_in_group("enemies"), "屍體不會被鎖定")
+	_revive_watcher()
+
+
+func _test_melee() -> void:
+	print("[combat / melee & takedown]")
+	_only(_watcher)
+	_freeze(_watcher, _tile(8, 6), Vector2.RIGHT)  # 背對主角
+	_place_player(_tile(7, 6), false, Vector2.RIGHT)
+	_player.sneaking = true
+	await _frames(3)
+	_check(_watcher.can_be_taken_down_by(_player), "從背後靠近沒察覺的敵人可以偷襲")
+	await _press("fire")
+	_check(_watcher.is_dead, "背後偷襲一刀解決")
+	_revive_watcher()
+	_freeze(_watcher, _tile(8, 6), Vector2.LEFT)  # 正面
+	_place_player(_tile(7, 6), false, Vector2.RIGHT)
+	await _seconds(0.6)  # 等近戰冷卻
+	_watcher.facing = Vector2.LEFT  # 面對主角（張望會轉頭，出手前再轉回來）
+	await _press("fire")
+	_check(not _watcher.is_dead and is_equal_approx(_watcher.health, 60.0), "正面近戰只造成小傷害（剩 %.0f）" % _watcher.health)
+	_check(_watcher.state == Enemy.State.ALERT, "被砍的敵人立刻警戒")
+	await _reset_world()
+	_revive_watcher()
+
+
+func _test_enemy_attack_and_death() -> void:
+	print("[combat / enemy attack & death]")
+	_only(_watcher)
+	_freeze(_watcher, _tile(3, 6), Vector2.RIGHT)
+	_place_player(_tile(5, 6), true)
+	for i in 180:
+		if _hit_count > 0:
+			break
+		await _frames(1)
+	_check(_hit_count > 0, "警戒的敵人靠近會出手")
+	_check(_player.health < 100.0, "被打到扣生命值（%.0f）" % _player.health)
+	_check(_player.infection > 0.0, "被打到增加感染值（%.0f）" % _player.infection)
+	WorldState.health = 5.0
+	for i in 180:
+		if _player.is_dead:
+			break
+		await _frames(1)
+	_check(_player.is_dead, "生命值歸零就死亡")
+	_check(not _player.input_enabled, "死亡時停止操作")
+	await _seconds(2.0)
+	_check(_player.global_position.distance_to(_spawn_pos()) < 2.0, "死亡後回到檢查點")
+	_check(_player.health == 100.0 and _player.infection == 0.0, "生命值、感染值回到檢查點的狀態")
+	_check(_player.input_enabled and not _player.is_dead, "重生後恢復操作")
+
+
+func _test_items_and_infection() -> void:
+	print("[resources / items & infection]")
+	_only(_watcher)
+	_freeze(_watcher, _tile(3, 10), Vector2.DOWN)
+	_place_player(_tile(16, 10), false)
+	WorldState.inv_add("med", 1)
+	WorldState.inv_add("antibiotic", 1)
+	WorldState.health = 40.0
+	WorldState.infection = 80.0
+	_check(_player.get_condition() == "Caution", "生命值用狀態文字表示")
+	_check(_player.use_item("med"), "使用急救包")
+	_check(is_equal_approx(_player.health, 85.0), "回復生命值（%.0f）" % _player.health)
+	_check(_player.use_item("antibiotic"), "使用抗菌藥劑")
+	_check(is_equal_approx(_player.infection, 20.0), "降低感染值（%.0f）" % _player.infection)
+	_check(not _player.use_item("antibiotic"), "沒有藥劑時不能使用")
+	WorldState.infection = 100.0
+	WorldState.health = 50.0
+	await _seconds(1.0)
+	_check(_player.health < 50.0, "感染值滿了生命值會流失（%.1f）" % _player.health)
+	_check(_player.get_speed_mult() < 1.0, "感染發作時走路變慢")
+	await _reset_world()
+
+
+func _test_inventory_slots() -> void:
+	print("[resources / inventory]")
+	_only(_watcher)
+	var saved: Array = WorldState.data.inventory.duplicate(true)
+	WorldState.data.inventory = WorldState._empty_inventory(6)
+	_check(WorldState.inv_add("ammo", 30) == 30, "彈藥可以分成兩格疊放")
+	_check(WorldState.inventory()[0].count == 24 and WorldState.inventory()[1].count == 6, "一格最多 24 發")
+	for id in ["med", "antibiotic", "pistol", "bottle"]:
+		WorldState.inv_add(id, 1)
+	_check(WorldState.inv_space_for("med") == 1, "急救包那格還能再放 1 個")
+	WorldState.inv_add("med", 1)
+	_check(WorldState.inv_space_for("med") == 0, "滿了就放不下")
+	var panel: Control = _main.get_node("HUD/InventoryPanel")
+	Input.action_press("inventory")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release("inventory")
+	await get_tree().process_frame
+	_check(panel.visible and get_tree().paused, "按 inventory 打開物品欄並暫停")
+	Input.action_press("inventory")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release("inventory")
+	await get_tree().process_frame
+	_check(not panel.visible and not get_tree().paused, "再按一次關閉")
+	WorldState.data.inventory = saved
 
 
 func _test_exit() -> void:

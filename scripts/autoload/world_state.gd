@@ -1,5 +1,5 @@
 ## 世界狀態：所有需要跨區域、跨重來保存的東西都放這裡。
-## 撿過的物品、暖氣開關、任務進度、主角攜帶的物品、取得的情報……
+## 撿過的物品、暖氣開關、任務進度、物品欄、生命值與感染值、死掉的敵人、取得的情報……
 ## 之後的存檔功能也只要把 data 存起來。
 ##
 ## 檢查點：每次進入一個區域時記錄一次。被抓到時回到最近的檢查點（區域入口）。
@@ -8,6 +8,10 @@ extends Node
 ## 遊戲事件（任務系統監聽）：kind = "enter_area" / "interact" / "collect"，id = 物件或區域名稱
 signal game_event(kind: String, id: String)
 signal changed
+
+const START_SLOTS := 6
+const MAX_HEALTH := 100.0
+const MAX_INFECTION := 100.0
 
 var data := {}
 var _checkpoint := {}
@@ -21,7 +25,10 @@ func new_game() -> void:
 	data = {
 		"area": Areas.START_AREA,
 		"entry": Areas.START_ENTRY,
-		"bottles": 0,
+		"inventory": _empty_inventory(START_SLOTS),
+		"health": MAX_HEALTH,
+		"infection": 0.0,
+		"pistol_loaded": 0,
 		"flags": {},
 	}
 	_checkpoint = data.duplicate(true)
@@ -44,12 +51,118 @@ func set_flag(key: String, value: Variant = true) -> void:
 
 # ── 常用的包裝 ──
 
+var health: float:
+	get:
+		return data.health
+	set(value):
+		data.health = clampf(value, 0.0, MAX_HEALTH)
+		changed.emit()
+
+var infection: float:
+	get:
+		return data.infection
+	set(value):
+		data.infection = clampf(value, 0.0, MAX_INFECTION)
+		changed.emit()
+
+var pistol_loaded: int:
+	get:
+		return data.pistol_loaded
+	set(value):
+		data.pistol_loaded = value
+		changed.emit()
+
+## 空瓶數（相容舊程式：其實是物品欄裡的 bottle 數量）
 var bottles: int:
 	get:
-		return data.bottles
+		return inv_count("bottle")
 	set(value):
-		data.bottles = value
-		changed.emit()
+		var diff := value - inv_count("bottle")
+		if diff > 0:
+			inv_add("bottle", diff)
+		elif diff < 0:
+			inv_remove("bottle", -diff)
+
+
+func is_enemy_dead(enemy_key: String) -> bool:
+	return has_flag("dead:" + enemy_key)
+
+
+## 記住死掉的位置，屍體會留在那裡
+func mark_enemy_dead(enemy_key: String, position: Vector2) -> void:
+	set_flag("dead:" + enemy_key, position)
+
+
+func enemy_death_position(enemy_key: String, fallback: Vector2) -> Vector2:
+	var p = get_flag("dead:" + enemy_key)
+	return p if p is Vector2 else fallback
+
+
+# ── 物品欄 ──
+# 格子是陣列，每格是 {} （空）或 {"id": 物品, "count": 數量}。同種物品可以疊到 stack 上限。
+
+static func _empty_inventory(slots: int) -> Array:
+	var inv := []
+	for i in slots:
+		inv.append({})
+	return inv
+
+
+func inventory() -> Array:
+	return data.inventory
+
+
+func inv_count(item_id: String) -> int:
+	var total := 0
+	for slot in data.inventory:
+		if slot.get("id") == item_id:
+			total += slot.count
+	return total
+
+
+## 還能再放幾個這種物品
+func inv_space_for(item_id: String) -> int:
+	var stack: int = Items.get_item(item_id).stack
+	var space := 0
+	for slot in data.inventory:
+		if slot.is_empty():
+			space += stack
+		elif slot.id == item_id:
+			space += stack - slot.count
+	return space
+
+
+## 放進物品欄，回傳實際放進去幾個
+func inv_add(item_id: String, count: int) -> int:
+	var stack: int = Items.get_item(item_id).stack
+	var left := count
+	for slot in data.inventory:  # 先疊到已有的格子
+		if left > 0 and slot.get("id") == item_id and slot.count < stack:
+			var n := mini(left, stack - slot.count)
+			slot.count += n
+			left -= n
+	for i in data.inventory.size():  # 再放進空格
+		if left > 0 and data.inventory[i].is_empty():
+			var n := mini(left, stack)
+			data.inventory[i] = {"id": item_id, "count": n}
+			left -= n
+	changed.emit()
+	return count - left
+
+
+## 從物品欄拿掉，回傳實際拿掉幾個
+func inv_remove(item_id: String, count: int) -> int:
+	var left := count
+	for i in range(data.inventory.size() - 1, -1, -1):
+		var slot: Dictionary = data.inventory[i]
+		if left > 0 and slot.get("id") == item_id:
+			var n := mini(left, slot.count)
+			slot.count -= n
+			left -= n
+			if slot.count <= 0:
+				data.inventory[i] = {}
+	changed.emit()
+	return count - left
 
 
 func is_taken(item_id: String) -> bool:

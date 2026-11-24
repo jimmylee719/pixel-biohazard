@@ -1,5 +1,6 @@
 ## 畫在黑暗之上的資訊（放在 follow_viewport 的 CanvasLayer 裡，用世界座標繪製、不受黑暗影響）：
 ## - 遊戲提示：敵人頭上的 ? / !（看得到敵人時）、鳴骨者的喀喀聲波紋（聽得到就顯示，「聲音先於影像」）
+## - 戰鬥：鎖定框與準心收束、彈道、近戰揮擊、敵人出手前的預備動作
 ## - 除錯（F3）：視野扇形、震動感應範圍、聲音半徑、巡邏路線、察覺值、溫度區域
 class_name DebugOverlay
 extends Node2D
@@ -51,7 +52,12 @@ func _draw() -> void:
 	if debug_enabled:
 		_draw_zones()
 		_draw_noises()
+	_draw_combat()
 	for enemy in _enemies:
+		if enemy.is_dead:
+			continue
+		if enemy.winding_up and (enemy.visible_to_player or debug_enabled):
+			_draw_windup(enemy)
 		if debug_enabled:
 			if enemy.has_sight:
 				_draw_vision_cone(enemy)
@@ -64,6 +70,45 @@ func _draw() -> void:
 			_draw_state_icon(enemy)
 		if debug_enabled:
 			_draw_awareness_bar(enemy)
+
+
+func _draw_combat() -> void:
+	var combat := _player.combat
+	# 鎖定框：四個角，準心收束時框會縮小、變亮
+	if combat.aiming and combat.target and not combat.target.is_dead:
+		var c := combat.target.global_position
+		var size := lerpf(14.0, 7.0, combat.aim_focus)
+		var color := Color(1.0, 0.9, 0.3).lerp(Color(1.0, 0.3, 0.2), combat.aim_focus)
+		for sx in [-1, 1]:
+			for sy in [-1, 1]:
+				var corner := c + Vector2(sx, sy) * size
+				draw_line(corner, corner - Vector2(sx * 3, 0), color, 1.0)
+				draw_line(corner, corner - Vector2(0, sy * 3), color, 1.0)
+	elif combat.aiming:
+		var tip := _player.global_position + _player.facing * 24.0
+		draw_line(_player.global_position + _player.facing * 8.0, tip, Color(1, 0.9, 0.3, 0.5), 1.0)
+	# 彈道
+	var shot := combat.last_shot
+	if not shot.is_empty() and shot.t < 0.12:
+		draw_line(shot.from, shot.to, Color(1.0, 0.95, 0.6, 1.0 - shot.t / 0.12), 1.0)
+		draw_circle(shot.from + (shot.to - shot.from).normalized() * 7.0, 2.0, Color(1, 0.9, 0.5, 0.8))
+	# 近戰揮擊
+	var swing := combat.last_melee
+	if not swing.is_empty() and swing.t < 0.15:
+		var base: float = swing.dir.angle()
+		var color := Color(1, 0.3, 0.3) if swing.takedown else Color(0.9, 0.95, 1.0)
+		draw_arc(swing.pos, combat.melee_range, base - 0.9, base + 0.9, 8, Color(color, 1.0 - swing.t / 0.15), 1.0)
+	# 裝填進度
+	if combat.reloading:
+		var p := _player.global_position + Vector2(-6, 9)
+		draw_rect(Rect2(p, Vector2(12, 2)), Color(0, 0, 0, 0.6))
+		draw_rect(Rect2(p, Vector2(12 * combat.reload_progress(), 2)), Color(0.9, 0.85, 0.5))
+
+
+## 敵人出手前：身上閃紅光，提示玩家快閃開。
+func _draw_windup(enemy: Enemy) -> void:
+	var blink := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.03)
+	draw_arc(enemy.global_position, 9.0, 0.0, TAU, 12, Color(1, 0.2, 0.15, 0.5 + 0.5 * blink), 1.0)
 
 
 func _on_noise(pos: Vector2, radius: float, _source: Node) -> void:

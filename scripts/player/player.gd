@@ -1,9 +1,12 @@
-## 主角：8 方向移動（潛行／走路／奔跑）、手電筒、發出聲音、躲藏、撿取與投擲。
+## 主角：8 方向移動（潛行／走路／奔跑）、手電筒、發出聲音、躲藏、撿取與投擲、生命值與感染值。
+## 戰鬥（近戰、手槍）在子節點 Combat（player_combat.gd）。
 ## 所有輸入只透過 InputMap 動作名稱讀取，之後加觸控和手把不用改這裡。
 class_name Player
 extends CharacterBody2D
 
 signal hiding_changed(is_hidden: bool)
+signal hurt(damage: float)
+signal died
 
 enum Gait { IDLE, SNEAK, WALK, RUN }
 
@@ -31,6 +34,18 @@ const WALL_MASK := 1
 @export var run_noise_interval := 0.3
 @export var locker_noise_tiles := 2.0
 
+@export_group("生命與感染")
+## 受傷後的無敵時間
+@export var hurt_invulnerability := 0.9
+@export var knockback_speed := 160.0
+## 生命值低於這個比例時走路變慢、扶牆
+@export var wounded_threshold := 35.0
+@export var wounded_speed_mult := 0.8
+## 感染值滿了以後，生命值每秒下降多少
+@export var infection_drain := 1.5
+@export var infected_speed_mult := 0.85
+@export var reload_speed_mult := 0.6
+
 @export_group("物品")
 @export var max_bottles := 3
 @export var throw_distance := 96.0
@@ -46,7 +61,15 @@ var bottles: int:
 	get:
 		return WorldState.bottles
 	set(value):
-		WorldState.bottles = clampi(value, 0, max_bottles)
+		WorldState.bottles = maxi(value, 0)
+
+var health: float:
+	get:
+		return WorldState.health
+var infection: float:
+	get:
+		return WorldState.infection
+var is_dead := false
 
 ## 躲藏狀態
 var is_hiding := false
@@ -63,11 +86,13 @@ var _noise_timer := 0.0
 var _hide_return := Vector2.ZERO
 var _flashlight_before_hide := true
 var _ambient_energy := 1.0
+var _invulnerable := 0.0
 
 @onready var _flashlight: PointLight2D = $Flashlight
 @onready var _ambient: PointLight2D = $AmbientLight
 @onready var _facing_marker: Node2D = $FacingMarker
 @onready var _body: Node2D = $Body
+@onready var combat: PlayerCombat = $Combat
 
 
 func _ready() -> void:
@@ -80,6 +105,13 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_invulnerable = maxf(_invulnerable - delta, 0.0)
+	_body.modulate.a = 0.4 if _invulnerable > 0.0 and fmod(_invulnerable, 0.2) < 0.1 else 1.0
+	if is_dead:
+		velocity = velocity.move_toward(Vector2.ZERO, acceleration * delta)
+		move_and_slide()
+		return
+	_update_infection(delta)
 	focus = _find_focus()
 	if input_enabled and Input.is_action_just_pressed("interact") and focus:
 		focus.use(self)
@@ -101,6 +133,12 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_just_pressed("throw"):
 			throw_bottle()
 
+	# 舉槍時站定，只能轉向（鎖定目標時面向由 Combat 控制）
+	if combat.aiming:
+		if move_input.length() > 0.1 and combat.target == null:
+			facing = move_input.normalized()
+		move_input = Vector2.ZERO
+
 	var running := input_enabled and Input.is_action_pressed("run") and move_input != Vector2.ZERO
 	if running:
 		sneaking = false
@@ -110,6 +148,7 @@ func _physics_process(delta: float) -> void:
 		speed = run_speed
 	elif sneaking:
 		speed = sneak_speed
+	speed *= get_speed_mult()
 	velocity = velocity.move_toward(move_input * speed, acceleration * delta)
 	move_and_slide()
 
@@ -133,12 +172,88 @@ func _physics_process(delta: float) -> void:
 func reset_to(spawn: Vector2) -> void:
 	if is_hiding:
 		_leave_locker_state()
+	is_dead = false
+	_invulnerable = 0.0
+	combat.interrupt()
 	global_position = spawn
 	velocity = Vector2.ZERO
 	facing = Vector2.UP
 	sneaking = false
 	_noise_timer = 0.0
 	focus = null
+
+
+# ── 生命、感染、受傷 ────────────────────────────────────
+
+## 被敵人打到。躲在櫃子裡被打到 = 被拖出來。
+func take_hit(damage: float, infection_amount: float, from_pos: Vector2) -> void:
+	if _invulnerable > 0.0 or is_dead:
+		return
+	if is_hiding:
+		exit_hiding()
+	WorldState.health -= damage
+	WorldState.infection += infection_amount
+	_invulnerable = hurt_invulnerability
+	var away := (global_position - from_pos).normalized()
+	velocity = (away if away != Vector2.ZERO else -facing) * knockback_speed
+	combat.interrupt()
+	hurt.emit(damage)
+	if WorldState.health <= 0.0:
+		_die()
+
+
+func _die() -> void:
+	is_dead = true
+	input_enabled = false
+	died.emit()
+
+
+## 感染值滿了以後，生命值會慢慢流失。
+func _update_infection(delta: float) -> void:
+	if WorldState.infection >= WorldState.MAX_INFECTION:
+		WorldState.health -= infection_drain * delta
+		if WorldState.health <= 0.0:
+			_die()
+
+
+func get_speed_mult() -> float:
+	var mult := 1.0
+	if WorldState.health < wounded_threshold:
+		mult *= wounded_speed_mult
+	if WorldState.infection >= WorldState.MAX_INFECTION:
+		mult *= infected_speed_mult
+	if combat.reloading:
+		mult *= reload_speed_mult
+	return mult
+
+
+## 狀態文字（不顯示數字，GDD：用狀態呈現）
+func get_condition() -> String:
+	if WorldState.health >= 65.0:
+		return "Fine"
+	if WorldState.health >= wounded_threshold:
+		return "Caution"
+	return "Danger"
+
+
+## 使用物品欄裡的消耗品。成功回傳 true。
+func use_item(item_id: String) -> bool:
+	if WorldState.inv_count(item_id) <= 0 or is_dead:
+		return false
+	var item := Items.get_item(item_id)
+	match item.kind:
+		"heal":
+			if WorldState.health >= WorldState.MAX_HEALTH:
+				return false
+			WorldState.health += item.heal
+		"cure":
+			if WorldState.infection <= 0.0:
+				return false
+			WorldState.infection -= item.cure
+		_:
+			return false
+	WorldState.inv_remove(item_id, 1)
+	return true
 
 
 # ── 躲藏 ──────────────────────────────────────────────
@@ -259,6 +374,10 @@ func get_detection_rate_mult() -> float:
 
 
 func get_gait_name() -> String:
+	if is_dead:
+		return "DEAD"
+	if combat.aiming:
+		return "AIM"
 	if is_hiding:
 		return "HIDDEN"
 	return ["IDLE", "SNEAK", "WALK", "RUN"][gait]

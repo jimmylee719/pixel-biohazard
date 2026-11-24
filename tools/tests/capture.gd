@@ -68,6 +68,38 @@ func _run() -> void:
 	_player.enter_hiding(locker)
 	await _frames(20)
 	await _shot("6_hiding")
+	_player.exit_hiding()
+
+	# 戰鬥：舉槍鎖定值班者
+	var watcher: Enemy = _main.enemies[0]
+	watcher.patrol_points = [_tile(11, 6)] as Array[Vector2]
+	watcher._spawn = watcher.patrol_points[0]
+	watcher.reset()
+	watcher.facing = Vector2.UP
+	WorldState.inv_add("pistol", 1)
+	WorldState.inv_add("ammo", 10)
+	WorldState.inv_add("med", 1)
+	WorldState.inv_add("antibiotic", 1)
+	WorldState.pistol_loaded = 6
+	level.set_zone_heated("lounge", true)
+	_put_player(_tile(5, 6), Vector2.RIGHT, true)
+	Input.action_press("aim")
+	await _frames(50)
+	await _shot("7_aim_lock")
+	Input.action_release("aim")
+	await _frames(2)
+
+	# 物品欄
+	_main._toggle_inventory_panel()
+	await _frames(3)
+	await _shot("8_inventory")
+	_main._toggle_inventory_panel()
+
+	# 感染症狀
+	WorldState.health = 30.0
+	WorldState.infection = 95.0
+	await _frames(10)
+	await _shot("9_infected")
 	get_tree().quit()
 
 

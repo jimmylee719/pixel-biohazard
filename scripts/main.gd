@@ -19,6 +19,7 @@ var enemies: Array[Enemy] = []
 var _resetting := false
 var _transitioning := false
 var _message_timer := 0.0
+var _inventory_cursor := 0
 
 @onready var _darkness: CanvasModulate = $Darkness
 @onready var _player: Player = $Player
@@ -36,12 +37,20 @@ var _message_timer := 0.0
 @onready var _mission_panel: PanelContainer = $HUD/MissionPanel
 @onready var _mission_text: Label = $HUD/MissionPanel/Text
 @onready var _fade: ColorRect = $HUD/Fade
+@onready var _condition: Label = $HUD/Condition
+@onready var _infection_vignette: TextureRect = $HUD/InfectionVignette
+@onready var _hurt_flash: ColorRect = $HUD/HurtFlash
+@onready var _inventory_panel: PanelContainer = $HUD/InventoryPanel
+@onready var _inventory_text: Label = $HUD/InventoryPanel/Text
 
 
 func _ready() -> void:
 	_player.hiding_changed.connect(func(is_hidden: bool): _vignette.visible = is_hidden)
 	_overlay.setup(_player)
 	_vignette.texture = _make_vignette()
+	_infection_vignette.texture = _make_vignette(Color(0.75, 0.95, 1.0, 0.85))
+	_player.died.connect(func(): _end_attempt("YOU DIED", Color(0.9, 0.2, 0.2)))
+	_player.hurt.connect(func(_d): _hurt_flash.color.a = 0.45)
 	_banner.visible = false
 	_hint.text = _build_hint()
 	Missions.mission_completed.connect(func(id: String):
@@ -52,8 +61,18 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("debug_toggle"):
 		_overlay.debug_enabled = not _overlay.debug_enabled
-	if Input.is_action_just_pressed("map") and not _resetting and not _transitioning:
+	if _inventory_panel.visible:
+		_process_inventory_input()
+	elif Input.is_action_just_pressed("map") and not _resetting and not _transitioning:
 		_toggle_mission_panel()
+	elif Input.is_action_just_pressed("inventory") and not _mission_panel.visible \
+			and not _resetting and not _transitioning and not _player.is_dead:
+		_toggle_inventory_panel()
+
+	_hurt_flash.color.a = move_toward(_hurt_flash.color.a, 0.0, delta * 1.5)
+	# 感染值越高，畫面四周越白（症狀）
+	var infection_k := clampf((_player.infection - 30.0) / 70.0, 0.0, 1.0)
+	_infection_vignette.modulate.a = infection_k * (0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.004))
 
 	_message_timer -= delta
 	if _message_timer <= 0.0:
@@ -61,7 +80,12 @@ func _process(delta: float) -> void:
 
 	var focus := _player.focus
 	_prompt.text = "[%s] %s" % [_key_name("interact"), focus.get_prompt(_player)] if focus and _player.input_enabled else ""
-	_items.text = "Bottles %d/%d  [%s] throw" % [_player.bottles, _player.max_bottles, _key_name("throw")]
+	_items.text = _build_items_text()
+	_condition.text = "Condition: %s%s" % [_player.get_condition(),
+		"  (infected)" if _player.infection >= WorldState.MAX_INFECTION else ""]
+	_condition.add_theme_color_override("font_color", {
+		"Fine": Color(0.6, 1, 0.6), "Caution": Color(1, 0.85, 0.3), "Danger": Color(1, 0.35, 0.3)
+	}[_player.get_condition()])
 	var tracked := Missions.tracked_mission()
 	_objective.text = "> %s" % tracked.title if not tracked.is_empty() else ""
 	_update_status()
@@ -96,11 +120,12 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	add_child(level)
 	move_child(level, _darkness.get_index() + 1)
 
-	for def in level.enemy_defs:
+	for i in level.enemy_defs.size():
+		var def: Dictionary = level.enemy_defs[i]
 		var enemy: Enemy = ENEMY_SCENES[def.type].instantiate()
+		enemy.enemy_key = "%s:%d" % [area_id, i]
 		_enemy_root.add_child(enemy)
 		enemy.setup(def.points, _player, level)
-		enemy.caught_player.connect(_on_caught)
 		enemies.append(enemy)
 
 	for item in level.get_interactables():
@@ -132,10 +157,6 @@ func _fade_to(alpha: float) -> void:
 
 
 # ── 被抓到、重來 ──────────────────────────────────────
-
-func _on_caught() -> void:
-	_end_attempt("CAUGHT", Color(1, 0.3, 0.25))
-
 
 func _on_stairs() -> void:
 	_end_attempt("TO BE CONTINUED", Color(0.5, 1, 0.6), true)
@@ -207,30 +228,90 @@ func _build_mission_text() -> String:
 	return "\n".join(lines)
 
 
+func _build_items_text() -> String:
+	var parts: Array[String] = []
+	var combat := _player.combat
+	if combat.has_pistol():
+		var mag := "%d/%d" % [WorldState.pistol_loaded, combat.magazine_size]
+		if combat.reloading:
+			mag = "reloading"
+		parts.append("Pistol %s (+%d)" % [mag, WorldState.inv_count("ammo")])
+	parts.append("Bottles %d" % _player.bottles)
+	return "  ".join(parts)
+
+
+# ── 物品欄 ────────────────────────────────────────────
+
+func _toggle_inventory_panel() -> void:
+	_inventory_panel.visible = not _inventory_panel.visible
+	get_tree().paused = _inventory_panel.visible
+	_inventory_cursor = 0
+	_refresh_inventory()
+
+
+func _process_inventory_input() -> void:
+	var slots := WorldState.inventory()
+	if Input.is_action_just_pressed("inventory") or Input.is_action_just_pressed("ui_cancel"):
+		_toggle_inventory_panel()
+		return
+	if Input.is_action_just_pressed("ui_down") or Input.is_action_just_pressed("move_down"):
+		_inventory_cursor = (_inventory_cursor + 1) % slots.size()
+	elif Input.is_action_just_pressed("ui_up") or Input.is_action_just_pressed("move_up"):
+		_inventory_cursor = (_inventory_cursor - 1 + slots.size()) % slots.size()
+	elif Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("interact"):
+		var slot: Dictionary = slots[_inventory_cursor]
+		if not slot.is_empty():
+			if _player.use_item(slot.id):
+				show_message("Used %s." % Items.display_name(slot.id))
+			else:
+				show_message("Can't use that now.")
+	_refresh_inventory()
+
+
+func _refresh_inventory() -> void:
+	var lines: Array[String] = ["ITEMS   Condition: %s" % _player.get_condition(), ""]
+	var slots := WorldState.inventory()
+	for i in slots.size():
+		var slot: Dictionary = slots[i]
+		var cursor := ">" if i == _inventory_cursor else " "
+		if slot.is_empty():
+			lines.append("%s [%d] ---" % [cursor, i + 1])
+		else:
+			lines.append("%s [%d] %s x%d" % [cursor, i + 1, Items.display_name(slot.id), slot.count])
+	var selected: Dictionary = slots[_inventory_cursor]
+	lines.append("")
+	lines.append(Items.get_item(selected.id).desc if not selected.is_empty() else "")
+	lines.append("")
+	lines.append("[%s] use   [%s] close" % [_key_name("interact"), _key_name("inventory")])
+	_inventory_text.text = "\n".join(lines)
+
+
 func _update_status() -> void:
 	_status.visible = _overlay.debug_enabled
 	if not _status.visible or level == null:
 		return
-	var lines := ["%s  %s  light:%s  zone:%s%s" % [
+	var lines := ["%s  %s  HP:%d INF:%d  light:%s  zone:%s%s" % [
 		level.title,
 		_player.get_gait_name(),
+		roundi(_player.health), roundi(_player.infection),
 		"ON" if _player.flashlight_on else "OFF",
 		level.zone_at(_player.global_position),
 		" (cold)" if level.is_cold(_player.global_position) else "",
 	]]
 	for enemy in enemies:
-		lines.append("%s: %s %d%%%s" % [
-			enemy.display_name, enemy.get_state_name(), roundi(enemy.awareness * 100.0),
+		lines.append("%s: %s %d%% hp:%d%s" % [
+			enemy.display_name, "DEAD" if enemy.is_dead else enemy.get_state_name(),
+			roundi(enemy.awareness * 100.0), roundi(enemy.health),
 			" cold" if enemy.in_cold else ""])
 	_status.text = "\n".join(lines)
 
 
-## 躲在櫃子裡時，畫面四周變暗，只留中間一小圈。
-func _make_vignette() -> Texture2D:
+## 畫面四周的暗角（躲藏時黑色；感染症狀時偏白）。
+func _make_vignette(edge := Color(0, 0, 0, 0.92)) -> Texture2D:
 	var g := Gradient.new()
-	g.set_color(0, Color(0, 0, 0, 0))
-	g.set_color(1, Color(0, 0, 0, 0.92))
-	g.add_point(0.35, Color(0, 0, 0, 0))
+	g.set_color(0, Color(edge, 0))
+	g.set_color(1, edge)
+	g.add_point(0.35, Color(edge, 0))
 	var t := GradientTexture2D.new()
 	t.gradient = g
 	t.fill = GradientTexture2D.FILL_RADIAL
@@ -249,6 +330,8 @@ func _build_hint() -> String:
 		"%s sneak" % _key_name("sneak"),
 		"%s light" % _key_name("flashlight"),
 		"%s use" % _key_name("interact"),
+		"%s aim %s fire/knife" % [_key_name("aim"), _key_name("fire")],
+		"%s items" % _key_name("inventory"),
 		"%s ops" % _key_name("map"),
 		"%s debug" % _key_name("debug_toggle"),
 	]
