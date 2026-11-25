@@ -150,6 +150,9 @@ func _draw_shot(shot: Dictionary, weapon: String) -> void:
 			draw_texture(hit_tex, (shot.to - hit_tex.get_size() * 0.5).floor())
 		var spark := Art.tex("fx/impact_%d" % f)
 		if spark:
+			# 穿過薄牆的地方：牆上濺出火花
+			for h: Vector2 in shot.get("holes", []):
+				draw_texture(spark, (h - spark.get_size() * 0.5).floor())
 			for end: Vector2 in ends:
 				if not shot.hit or end != shot.to:
 					draw_texture_rect(spark, Rect2(end - spark.get_size() * 0.25, spark.get_size() * 0.5), false,

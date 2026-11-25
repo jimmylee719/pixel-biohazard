@@ -1,6 +1,10 @@
-# pixel-biohazard（暫定代號，正式遊戲名稱未定）
+# pixel-biohazard（資料夾代號；遊戲名稱 AFTERSIGNAL《迴頻》）
 
-像素風、俯視跟隨鏡頭的生存恐怖遊戲。
+像素風、俯視跟隨鏡頭的生存恐怖潛行遊戲。世界觀（v0.3）：1962 年北極監聽站收到來自 2099 年的訊號（126.05 MHz），
+聽久了會被「覆寫」成回聲體（看不見、靠聲音）。過去 1962／現在 2026（主線）／未來 2099，帶一點 80 年代霓虹和賽博龐克。
+**不要再用細菌、病毒、孢子、感染這類生物學說法寫新文字**（變數名稱 infection、spores 等為了存檔相容保留）。
+設定以 `docs/SERIES_BIBLE.md` 第 1～4 節為準；投資人評估、市場研究、IP 企劃在 `docs/IP_REVIEW.md`。
+專案名稱 `config/name` 不要改：改了 user:// 資料夾會變，玩家的存檔和設定會不見（視窗標題由 title.gd 設定）。
 
 ## 引擎與語言
 - Godot 4.7.2（/Applications/Godot.app），渲染器：Compatibility（gl_compatibility）
@@ -113,3 +117,21 @@
 - 地圖（惡靈古堡式）：`WorldState.data.explored`（去過的格子）、旗標 `map:<主地圖>`（撿到地圖 l）、主線方向 `main.objective_target()`／
   `objective_doors()`、藍色星號 = 區域資料 hidden 的旗標已解鎖但還沒拿（保險箱 s，區域資料 safes）。
 - 室內主題：區域資料 `theme`（lab、office、dorm、industrial、military、hut、cave）→ `Level.THEME_*` 家具、地板痕跡、`WallFaces.WALL_DECOR`。
+- 無縫地圖（暗黑破壞神式）：`Areas.ROOMS` 把相鄰的區域合成一張地圖，整張一次載入，`RoomFog` 讓沒走進去的房間看不到。
+  目前三大片：南岸＋研究站一樓（正門、貨物門兩扇共用門 `also`）＋安全屋＋燃料庫；二樓＋站長室＋東翼；
+  北港＋冰洞＋守門一號（廣場、基地、安全屋）。換地圖（有讀取）只剩：樓梯／不同樓層、機庫（Boss 戰）、雪地車、氣象小屋邊界。
+  - 房間可以在主地圖任何方向（左／上時主地圖整張往右下移）、可以巢狀、可以有敵人（巡邏點換成 `cells`）。
+  - 座標：區域自己的格子 + `Areas.area_offset(id)` = 合併後的格子。測試用 `_enter()`／`_use()`／`_tile()` 自動換算。
+  - 每個區域記成一個範圍（`regions`＋逐格的 `region_cells`）：標題、安全屋、主題、氣候、音樂、電燈、室內／戶外、
+    敵人編號起點（過場 `pan_enemy` 從該區域自己的第一隻算）。`Level.region_data()`、`theme_at()`、`climate_at()`、`is_indoor_at()`。
+  - 存檔相容：物品 `item_keys`、敵人 `key`、溫度區域旗標都用「原本的區域 id:原本的座標／編號」。
+  - 走過共用的門進入另一個區域 = 存檢查點（`region_doors`、main 的 `_checkpoint_at_region_door`）。
+- 時代與記憶：區域資料 `era`（"1962" 泛黃老底片、"2099" 霓虹幻象）由 `main.set_era()` 設定後製 `film.gdshader` 的 era；
+  過場步驟 `{"era": ...}` 可以暫時換時代。盤式錄音機 `&`（`scripts/interact/memory_reel.gd`，區域資料 `reels`）= 走進／走出一段記憶，
+  目前有 B1 → `lantern_1962`（1962 年的燈籠監聽站，`lit: true` 一直有燈）→ 回 B1，旗標 `memory:lantern`、支線 `lantern_1962`。
+- 霓虹燈：區域資料 `neon`（`scripts/fx/neon_sign.gd`：sign、arrow、arcade 大型電玩、holo 全息投影），畫在 Structure 圖層（不受黑暗影響）＋地上一盞同色燈；
+  招牌文字是遊戲世界裡的東西，維持英文不翻譯。
+- 選項：`WorldState.options`（settings.cfg 的 options 區段）：音樂、音效、聲音提示 `scripts/ui/sound_cues.gd`、輔助模式 `assist_mult()`、
+  觸控透明度、左手模式（`TouchControls.apply_layout`）、省電模式（30 FPS）。介面 `scripts/ui/options_panel.gd`（標題、暫停選單）。
+  標題畫面背景 `scripts/ui/neon_backdrop.gd`（合成波）。
+- 子彈穿牆：`PlayerCombat.PIERCE`（手槍穿 1 格、獵槍 2 格，每穿一道傷害打折）、`trace_shot()`；沒鎖定時直線開槍會打到路上的敵人。

@@ -132,8 +132,20 @@ const DATA := [
 		"id": "cold_lounge", "main": false, "requires": ["find_shelter"],
 		"radio": "KOVAC: \"They go sluggish in the cold. The lab breaker controls the lounge heating. Use it.\"",
 		"title": "Cut the heat",
-		"desc": "The infected slow down in the cold. Shut off the lounge heating from the lab breaker.",
+		"desc": "The echoes slow down in the cold. Shut off the lounge heating from the lab breaker.",
 		"steps": [{"type": "interact", "target": "lounge_breaker"}],
+	},
+	{
+		# 1962 年的記憶（燈籠站）：B1 的盤式錄音機 → 走到 1962 年錄音室的最後一捲帶子
+		"id": "lantern_1962", "main": false, "requires": ["restore_power"],
+		"radio": "KOVAC: \"The basement was a Cold War listening post before it was a station. LANTERN. If any of their reels survived, play one. I need to know what they heard in 1962.\"",
+		"title": "LANTERN, 1962",
+		"desc": "A reel-to-reel recorder sits in the B1 maintenance office. Play it, and find the last reel in the 1962 recording room.",
+		"steps": [
+			{"type": "interact", "target": "reel_b1"},
+			{"type": "interact", "target": "reel_1962"},
+		],
+		"reward": {"items": {"antibiotic": 1}},
 	},
 ]
 

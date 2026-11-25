@@ -79,7 +79,7 @@ func _draw() -> void:
 		draw_rect(Rect2(p + Vector2(0, t - 3), Vector2(t, 3)), lo.darkened(0.45))
 		# 牆上的細節（依區域主題，固定亂數）：螢幕、海報、生物危害標誌、管線、通風口、警報燈、壁燈……
 		var h := absi(hash(c * 3 + Vector2i(7, level.area_id.length())))
-		var pool: Array = WALL_DECOR.get(level.theme(), [])
+		var pool: Array = WALL_DECOR.get(level.theme_at(c), [])
 		if not pool.is_empty() and h % 4 == 0:
 			var tex := Art.tex("decor/" + pool[(h / 4) % pool.size()])
 			if tex:

@@ -329,7 +329,7 @@ func reset_to(spawn: Vector2) -> void:
 	focus = null
 
 
-# ── 生命、感染、受傷 ────────────────────────────────────
+# ── 生命、雜訊值（infection：被迴頻訊號覆寫的程度，變數名稱沿用）、受傷 ────────────────────────────────────
 
 ## 被敵人打到。躲在櫃子裡被打到 = 被拖出來。
 func take_hit(damage: float, infection_amount: float, from_pos: Vector2) -> void:
@@ -337,8 +337,8 @@ func take_hit(damage: float, infection_amount: float, from_pos: Vector2) -> void
 		return
 	if is_hiding:
 		exit_hiding()
-	WorldState.health -= damage * Gear.stat("armor")
-	WorldState.infection += infection_amount * clampf(Gear.stat("armor") * 1.3, 0.0, 1.0)
+	WorldState.health -= damage * Gear.stat("armor") * WorldState.assist_mult()
+	WorldState.infection += infection_amount * clampf(Gear.stat("armor") * 1.3, 0.0, 1.0) * WorldState.assist_mult()
 	_invulnerable = hurt_invulnerability
 	var away := (global_position - from_pos).normalized()
 	velocity = (away if away != Vector2.ZERO else -facing) * knockback_speed * (0.3 if Gear.full_set() == "eod" else 1.0)
@@ -393,7 +393,7 @@ var in_spores := false
 func _update_hazard(delta: float) -> void:
 	in_spores = level != null and level.hazard_at(global_position) == "spores"
 	if in_spores and not is_hiding:
-		WorldState.infection += spore_infection_rate * Gear.stat("hazard") * delta
+		WorldState.infection += spore_infection_rate * Gear.stat("hazard") * delta * WorldState.assist_mult()
 
 
 ## 外型跟著裝備換（紙娃娃）

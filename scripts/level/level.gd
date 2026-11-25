@@ -163,7 +163,11 @@ func _is_indoor_cell(cell: Vector2i) -> bool:
 	for r in _data.get("indoor_rects", []):
 		if (r as Rect2i).has_point(cell):
 			return true
-	return false
+	# 合併進來的區域（Areas._compose）：建築是室內、相鄰的戶外區域是戶外
+	var region := region_data(cell)
+	if not region.is_empty():
+		return not region.get("outdoor", false)
+	return not outdoor
 
 
 func get_navigation_map() -> RID:
@@ -268,10 +272,28 @@ func climate_id() -> String:
 	return _data.get("climate", Areas.DEFAULT_CLIMATE)
 
 
+## 這個位置的氣候：合併進來的區域可以有自己的氣候（例如港口的暴風雪）
+func climate_at(pos: Vector2) -> String:
+	var r := region_data(cell_of(pos))
+	return r.climate if r.get("climate", "") != "" else climate_id()
+
+
+## 這格屬於哪個合併進來的範圍（Areas._compose 的 regions，最裡面的那個）；不在任何範圍 = {}
+func region_data(cell: Vector2i) -> Dictionary:
+	var i: int = _data.get("region_cells", {}).get(cell, -1)
+	return _data.regions[i] if i >= 0 else {}
+
+
+## 這格的室內主題：合併進來的房間用自己的主題
+func theme_at(cell: Vector2i) -> String:
+	var r := region_data(cell)
+	return r.theme if r.get("theme", "") != "" else theme()
+
+
 ## 主角站的地方每秒失去多少體溫（負數 = 正在回暖）。
 ## 安全屋、有暖氣的室內、火堆旁邊會回暖；戶外、沒暖氣的室內會失溫（依氣候）。
 func exposure_at(pos: Vector2) -> float:
-	var c := Climates.get_climate(climate_id())
+	var c := Climates.get_climate(climate_at(pos))
 	if is_safe_cell(cell_of(pos)):
 		return -c.recover * 2.0
 	if outdoor and not _is_indoor_cell(cell_of(pos)):
@@ -292,7 +314,10 @@ func hazard_at(pos: Vector2) -> String:
 
 
 func step_surface(pos: Vector2) -> String:
-	if _data.has("step"):
+	var r := region_data(cell_of(pos))
+	if r.get("step", "") != "":
+		return r.step
+	if r.is_empty() and _data.has("step"):
 		return _data.step
 	if outdoor and not _is_indoor_cell(cell_of(pos)):
 		return "snow"
@@ -301,6 +326,9 @@ func step_surface(pos: Vector2) -> String:
 
 ## 區域的音樂（區域資料 music 可以指定）：安全屋、Boss 戰、戶外、室內
 func music_id(pos := Vector2(-1, -1)) -> String:
+	var r := region_data(cell_of(pos)) if pos.x >= 0 else {}
+	if r.get("music", "") != "":
+		return r.music
 	if _data.has("music"):
 		return _data.music
 	if safe or (pos.x >= 0 and is_safe_cell(cell_of(pos))):
@@ -310,17 +338,25 @@ func music_id(pos := Vector2(-1, -1)) -> String:
 			return "boss_bear"
 		"THE DEEP WELL":
 			return "boss_well"
+	if pos.x >= 0:
+		return "explore_station" if is_indoor_at(pos) else "explore_outdoor"
 	return "explore_outdoor" if outdoor else "explore_station"
 
 
 ## 區域的環境音（區域資料 ambience 可以指定）
-func ambience_id(powered: bool) -> String:
-	if _data.has("ambience"):
+func ambience_id(powered: bool, pos := Vector2(-1, -1)) -> String:
+	var r := region_data(cell_of(pos)) if pos.x >= 0 else {}
+	if r.get("ambience", "") != "":
+		return r.ambience
+	if r.is_empty() and _data.has("ambience"):
 		return _data.ambience
-	if outdoor and Climates.has_exposure(climate_id()):
+	var out := not is_indoor_at(pos) if pos.x >= 0 else outdoor
+	if out and Climates.has_exposure(climate_at(pos) if pos.x >= 0 else climate_id()):
 		return "amb_blizzard"
-	if outdoor:
+	if out:
 		return ""
+	if pos.x >= 0:
+		powered = powered and (is_lit_at(pos) or not outdoor)
 	return "amb_station_hum" if powered else "amb_station_dark"
 
 
@@ -328,11 +364,19 @@ func ambience_id(powered: bool) -> String:
 
 ## 這個位置屬於哪個區域 id：合併進來的房間（例如 station_safe）或主區域本身
 func region_at(pos: Vector2) -> String:
-	var cell := cell_of(pos)
-	for r in _data.get("regions", []):
-		if (r.rect as Rect2i).has_point(cell):
-			return r.id
-	return area_id
+	return region_data(cell_of(pos)).get("id", area_id)
+
+
+## 這個位置是不是「室內」：室內區域，或戶外地圖裡的建築（indoor_rects，包含合併進來的整棟建築）
+func is_indoor_at(pos: Vector2) -> bool:
+	return not outdoor or _is_indoor_cell(cell_of(pos))
+
+
+## 這個位置的燈有沒有亮：整個區域恢復電力，或所在的房間（合併進來的建築）自己有電
+func is_lit_at(pos: Vector2) -> bool:
+	if is_lit():
+		return true
+	return region_data(cell_of(pos)).get("powered", false) and WorldState.power_on
 
 
 func region_title(region_id: String) -> String:
@@ -345,10 +389,7 @@ func region_title(region_id: String) -> String:
 func is_safe_cell(cell: Vector2i) -> bool:
 	if safe:
 		return true
-	for r in _data.get("regions", []):
-		if r.safe and (r.rect as Rect2i).has_point(cell):
-			return true
-	return false
+	return region_data(cell).get("safe", false)
 
 
 func is_safe_at(pos: Vector2) -> bool:
@@ -479,7 +520,8 @@ func is_cold(pos: Vector2) -> bool:
 func is_zone_heated(zone_name: String) -> bool:
 	if not zones.has(zone_name):
 		return true
-	var key := "heat:%s:%s" % [area_id, zone_name]
+	# 合併進來的區域：旗標用原本的區域 id、名稱（Areas._tag_zones）
+	var key := "heat:%s:%s" % [zones[zone_name].get("area", area_id), zones[zone_name].get("name", zone_name)]
 	if WorldState.has_flag(key):
 		return WorldState.get_flag(key)  # 玩家用配電箱切換過
 	if zones[zone_name].get("powered", false) and WorldState.power_on:
@@ -494,13 +536,14 @@ func zone_label(zone_name: String) -> String:
 
 ## 恢復電力後燈亮著的區域
 func is_lit() -> bool:
-	return _data.get("powered_area", false) and WorldState.power_on
+	# lit = 一直有燈（例如 1962 年的記憶：那時候研究站還有電）
+	return _data.get("lit", false) or (_data.get("powered_area", false) and WorldState.power_on)
 
 
 func set_zone_heated(zone_name: String, heated: bool) -> void:
 	if is_zone_heated(zone_name) == heated:
 		return
-	WorldState.set_zone_heated(area_id, zone_name, heated)
+	WorldState.set_zone_heated(zones[zone_name].get("area", area_id), zones[zone_name].get("name", zone_name), heated)
 	queue_redraw()
 	zone_heat_changed.emit(zone_name, heated)
 
@@ -538,10 +581,13 @@ func _parse_map() -> void:
 
 	for def in _data.enemies:
 		var points: Array[Vector2] = []
-		for ch in String(def.route):
+		# 合併進來的房間（Areas._compose）：巡邏點已經換成格子座標
+		for c in def.get("cells", []):
+			points.append(_cell_center(c))
+		for ch in String(def.get("route", "")):
 			assert(_waypoints.has(ch), "%s 缺少巡邏點 %s" % [area_id, ch])
 			points.append(_waypoints[ch])
-		enemy_defs.append({"type": def.type, "points": points})
+		enemy_defs.append({"type": def.type, "points": points, "key": def.get("key", "%s:%d" % [area_id, enemy_defs.size()])})
 
 
 ## 把同種類的相鄰格子合併成長方形，減少碰撞體和遮光體的數量。
@@ -594,7 +640,7 @@ func _build_solids() -> void:
 			wall.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 			wall.color = Color(0.45, 0.47, 0.54)  # 牆頂比地板亮一點，地形一眼看得出來
 	for rect in _merge_rects("C"):
-		if outdoor and not _is_indoor_cell(rect.position) and theme() != "military":
+		if outdoor and not _is_indoor_cell(rect.position) and theme_at(rect.position) != "military":
 			var base := _add_solid(rect, ROCK_COLOR.darkened(0.3), ROCK_COLOR.darkened(0.5))
 			_add_rocks(rect, base)
 		else:
@@ -606,6 +652,12 @@ func _build_solids() -> void:
 	faces.name = "WallFaces"
 	_structure_layer.add_child(faces)
 	faces.setup(self)
+	# 霓虹燈招牌（區域資料 neon）：畫在牆面上、不受黑暗影響
+	for key in _data.get("neon", {}):
+		var xy: PackedStringArray = String(key).split(",")
+		var sign := NeonSign.create(self, Vector2i(int(xy[0]), int(xy[1])), _data.neon[key])
+		sign.name = "Neon_%s_%s" % [xy[0], xy[1]]
+		_structure_layer.add_child(sign)
 	var front := CanvasLayer.new()
 	front.name = "OverWall"
 	front.layer = 1
@@ -648,7 +700,7 @@ func theme() -> String:
 
 ## 室內的 C：依主題放家具。寬的（兩格以上）是一整排（實驗桌、辦公桌、上下鋪、木箱），窄的每格挑一種（固定亂數）
 func _add_furniture(cell_rect: Rect2i) -> void:
-	var t := theme()
+	var t := theme_at(cell_rect.position)
 	if t == "cave":
 		for y in range(cell_rect.position.y, cell_rect.end.y):
 			for x in range(cell_rect.position.x, cell_rect.end.x):
@@ -680,11 +732,11 @@ func _add_furniture(cell_rect: Rect2i) -> void:
 
 ## 地板的痕跡（紙張、血跡、電線、鐵格板、油漬……依主題），畫在地板上、受光影響
 func _draw_floor_decals() -> void:
-	var pool: Array = THEME_DECALS.get(theme(), [])
-	if pool.is_empty():
-		return
 	for cell in _floor_cells:
 		if char_at(cell) != "." or (outdoor and not _is_indoor_cell(cell)) or is_safe_cell(cell):
+			continue
+		var pool: Array = THEME_DECALS.get(theme_at(cell), [])
+		if pool.is_empty():
 			continue
 		var h := absi(hash(cell * 7 + Vector2i(area_id.length() * 13, 3)))
 		if h % 100 >= 10:
@@ -825,7 +877,11 @@ func _spawn_interactables() -> void:
 					item = TapePickup.new()
 				"X":
 					var breaker := Breaker.new()
-					breaker.zone_name = _data.breakers[breaker_index]
+					var bkey := "%d,%d" % [x, y]
+					if _data.get("breaker_cells", {}).has(bkey):
+						breaker.zone_name = _data.breaker_cells[bkey]
+					else:
+						breaker.zone_name = _data.breakers[breaker_index]
 					breaker_index += 1
 					item = breaker
 				"G":
@@ -844,6 +900,17 @@ func _spawn_interactables() -> void:
 					item = Terminal.new()
 				"U":
 					item = Uplink.new()
+				"&":
+					var reel := MemoryReel.new()
+					var rinfo: Dictionary = _data.get("reels", {}).get("%d,%d" % [x, y], {})
+					reel.target_area = rinfo.get("to", "")
+					reel.target_entry = rinfo.get("entry", "start")
+					reel.scene = rinfo.get("scene", "")
+					reel.flag = rinfo.get("flag", "")
+					reel.needs = rinfo.get("needs", "")
+					reel.locked_text = rinfo.get("text", "")
+					reel.prompt_text = rinfo.get("prompt", "Play the reel")
+					item = reel
 				"o":
 					item = OilDrum.new()
 				"w", "p":

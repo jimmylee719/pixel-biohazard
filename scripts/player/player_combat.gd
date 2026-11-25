@@ -58,6 +58,12 @@ const WEAPONS := {
 	"flare_gun": {"ammo": "flares", "mag": 1, "reload": 1.5, "cooldown": 0.8, "range": 150.0,
 		"damage_min": 15.0, "damage_max": 25.0, "stagger": 0.6, "noise_tiles": 7.0, "falloff": false, "fire": true},
 }
+## 子彈穿牆：薄牆（連續牆格數 ≤ 第一個數字）打得穿，每穿一道牆傷害乘上第二個數字。
+## 牆、櫃子、置物櫃、關著的門都算；厚的外牆、岩壁打不穿。散彈、釘槍、信號彈不會穿。
+const PIERCE := {"pistol": [1, 0.55], "rifle": [2, 0.8]}
+## 子彈打到敵人的判定寬度（像素）
+const SHOT_HIT_WIDTH := 7.0
+
 ## 近戰武器：有的話第一下（揮砍）換成它（傷害倍率、可以一下劈開木箱木板）
 const MELEE_WEAPONS := {"fire_axe": {"mult": 1.9, "noise": 3.0}}
 
@@ -256,9 +262,36 @@ func shoot() -> bool:
 		Sfx.play("bullet_hit_flesh", target.global_position)
 		end = target.global_position
 		hit = true
-	else:
-		end = Sight.cast(player, origin, origin + player.facing * s.range)
-	last_shot = {"from": origin, "to": end, "t": 0.0, "hit": hit}
+	var holes: Array[Vector2] = []
+	if not hit:
+		# 沒鎖定：子彈直直飛出去，路上的敵人會被打到；薄牆打得穿（穿過去的傷害變小）
+		var trace := trace_shot(origin, player.facing, s.range, PIERCE.get(weapon, [0, 1.0]))
+		end = trace.end
+		holes = trace.holes
+		var victim: Enemy = null
+		var best := INF
+		for node in get_tree().get_nodes_in_group("enemies"):
+			var enemy := node as Enemy
+			if enemy == null or enemy.is_dead:
+				continue
+			var along := (enemy.global_position - origin).dot(player.facing)
+			if along <= 0.0 or along > origin.distance_to(end) or along >= best:
+				continue
+			if absf(player.facing.cross(enemy.global_position - origin)) <= SHOT_HIT_WIDTH:
+				victim = enemy
+				best = along
+		if victim:
+			var walls := 0
+			for h in holes:
+				if origin.distance_to(h) < best:
+					walls += 1
+			var dmg: float = s.damage_min * pow(PIERCE.get(weapon, [0, 1.0])[1], walls)
+			victim.take_damage(dmg, origin, s.stagger * (0.5 if walls > 0 else 1.0))
+			Sfx.play("bullet_hit_flesh", victim.global_position)
+			end = victim.global_position
+			hit = true
+			holes = holes.filter(func(h): return origin.distance_to(h) < best)
+	last_shot = {"from": origin, "to": end, "t": 0.0, "hit": hit, "holes": holes}
 	if weapon == "shotgun":
 		# 散彈的彈丸（畫面表現）：往前扇形散開，各自打到牆或飛到射程
 		var base_dir := (end - origin).normalized()
@@ -277,6 +310,48 @@ func shoot() -> bool:
 		fire.global_position = end - (end - origin).normalized() * 4.0
 	aim_focus = minf(aim_focus, 0.3)  # 後座力：準心重新收束
 	return true
+
+
+## 沿著直線追子彈：碰到牆時，如果牆夠薄（連續牆格 ≤ pierce[0]）就穿過去繼續飛。
+## 回傳 {end: 子彈停下的位置, holes: 子彈穿過的牆（入口的位置，畫彈孔火花用）}
+func trace_shot(origin: Vector2, dir: Vector2, reach: float, pierce: Array) -> Dictionary:
+	var level: Level = player.level
+	var holes: Array[Vector2] = []
+	if level == null:
+		return {"end": Sight.cast(player, origin, origin + dir * reach), "holes": holes}
+	var max_walls: int = pierce[0]
+	const STEP := 2.0
+	var d := 0.0
+	var in_wall := 0
+	var last_cell := level.cell_of(origin)
+	var entry := origin
+	while d < reach:
+		d += STEP
+		var p := origin + dir * d
+		var cell := level.cell_of(p)
+		if cell == last_cell:
+			continue
+		last_cell = cell
+		if _blocks_shot(level, cell):
+			if in_wall == 0:
+				entry = p
+			in_wall += 1
+			if in_wall > max_walls:
+				return {"end": entry, "holes": holes}
+		elif in_wall > 0:
+			holes.append(entry)
+			in_wall = 0
+	return {"end": entry if in_wall > 0 else origin + dir * reach, "holes": holes}
+
+
+func _blocks_shot(level: Level, cell: Vector2i) -> bool:
+	var ch := level.char_at(cell)
+	if ch == "+":
+		for door in level.get_inner_doors():
+			if door.cell == cell:
+				return not door.is_open
+		return false
+	return ch == "#" or ch == "C" or ch == "H" or ch == ""
 
 
 func start_reload() -> bool:

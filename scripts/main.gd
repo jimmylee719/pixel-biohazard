@@ -45,6 +45,11 @@ var gear_cursor := 0
 var map_view := ""
 var _explore_timer := 0.0
 var _spore_warned := false
+## 畫面後製的材質（era：0 現在、1 = 1962、2 = 2099）
+var _film_mat: ShaderMaterial
+var options_panel: OptionsPanel
+## 畫面邊緣的聲音提示（畫面外的腳步聲）
+var sound_cues: SoundCues
 ## 過場（用遊戲畫面演出）
 var cutscene: CutscenePlayer
 ## 快捷選單（道具鍵、武器鍵：按一下用／換，按住＋方向選）
@@ -151,6 +156,22 @@ func _ready() -> void:
 			_show_ending())
 	_resume_button.pressed.connect(_toggle_pause)
 	_quit_button.pressed.connect(_quit_to_title)
+	# 選項（音量、觸控、聲音提示、輔助模式、省電）：暫停選單裡的按鈕
+	var opt_button := Button.new()
+	opt_button.name = "Options"
+	opt_button.text = tr("Options")
+	opt_button.add_theme_font_size_override("font_size", 12)
+	_quit_button.get_parent().add_child(opt_button)
+	_quit_button.get_parent().move_child(opt_button, _quit_button.get_index())
+	options_panel = OptionsPanel.new()
+	options_panel.name = "OptionsPanel"
+	$HUD.add_child(options_panel)
+	opt_button.pressed.connect(func():
+		_pause_panel.visible = false
+		options_panel.open())
+	options_panel.closed.connect(func():
+		_pause_panel.visible = true
+		opt_button.grab_focus())
 	for i in _signal_buttons.size():
 		_signal_buttons[i].pressed.connect(_on_signal_button.bind(i))
 	# 發訊介面是全螢幕的重要選擇：不透明背景，避免後面的訊息透出來
@@ -172,6 +193,7 @@ func _ready() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://assets/shaders/film.gdshader")
 	film.material = mat
+	_film_mat = mat
 	film_layer.add_child(film)
 	first_person = FirstPersonView.new()
 	$HUD.add_child(first_person)
@@ -187,6 +209,11 @@ func _ready() -> void:
 	_alert_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	_alert_label.add_theme_constant_override("outline_size", 3)
 	$HUD.add_child(_alert_label)
+	sound_cues = SoundCues.new()
+	sound_cues.name = "SoundCues"
+	sound_cues.main = self
+	$HUD.add_child(sound_cues)
+	$HUD.move_child(sound_cues, 0)
 	touch_controls = TouchControls.new()
 	add_child(touch_controls)
 	_hint.visible = false  # 操作說明在手機「操作」App
@@ -223,6 +250,8 @@ func _process(delta: float) -> void:
 	if _ending_panel.visible:
 		if Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept"):
 			_quit_to_title()
+	elif options_panel and options_panel.visible:
+		pass  # 選項畫面自己處理按鍵（返回 = 回到暫停選單）
 	elif _pause_panel.visible:
 		if Input.is_action_just_pressed("pause"):
 			_toggle_pause()
@@ -276,7 +305,7 @@ func _process(delta: float) -> void:
 	if level and Climates.has_exposure(level.climate_id()):
 		body = tr("  Body: %s") % tr(_player.get_body_temp_state())
 	_condition.text = tr("Condition: %s%s%s") % [tr(_player.get_condition()),
-		tr("  (infected)") if _player.infection >= WorldState.MAX_INFECTION else "", body]
+		tr("  (overwritten)") if _player.infection >= WorldState.MAX_INFECTION else "", body]
 	_portrait.texture = Art.tex("portraits/shen_" + _player.get_condition().to_lower())
 	_portrait.modulate = Color(1, 1, 1, 0.9)
 	_condition.add_theme_color_override("font_color", {
@@ -308,7 +337,7 @@ func _process(delta: float) -> void:
 		_mark_explored(delta)
 		if _player.in_spores and not _spore_warned and Gear.stat("hazard") > 0.0:
 			_spore_warned = true
-			show_message(tr("Spores hang in the air here. Without a sealed suit, you're breathing them in."), true)
+			show_message(tr("The air here is crawling with static. Without a shielded suit, the signal is getting into you."), true)
 		elif not _player.in_spores:
 			_spore_warned = false
 	# 第一人稱時不顯示鍵盤說明和互動提示（畫面要乾淨）
@@ -457,7 +486,7 @@ func _update_music(delta: float) -> void:
 		Sfx.play_music("chase", 0.4)
 	else:
 		Sfx.play_music(base, 2.0)
-	Sfx.play_ambience(level.ambience_id(WorldState.power_on))
+	Sfx.play_ambience(level.ambience_id(WorldState.power_on, _player.global_position))
 
 
 func _update_boss_bar() -> void:
@@ -529,7 +558,7 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	for i in (level.enemy_defs.size() if WorldState.mode == "story" else 0):
 		var def: Dictionary = level.enemy_defs[i]
 		var enemy: Enemy = ENEMY_SCENES[def.type].instantiate()
-		enemy.enemy_key = "%s:%d" % [root, i]
+		enemy.enemy_key = def.get("key", "%s:%d" % [root, i])
 		_enemy_root.add_child(enemy)
 		enemy.setup(def.points, _player, level)
 		enemies.append(enemy)
@@ -557,6 +586,9 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.message_shown.connect(func(text: String): show_message(text, true))
 		elif item is WindowPane:
 			item.look.connect(_on_window_look)
+		elif item is MemoryReel:
+			item.play_reel.connect(_on_play_reel)
+			item.message_shown.connect(func(text: String): show_message(text, true))
 		elif item is Uplink:
 			item.opened.connect(_open_signal_panel)
 			item.message_shown.connect(func(text: String): show_message(text, true))
@@ -571,6 +603,7 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	_any_alert = false
 	_any_suspicious = false
 	_player.level = level
+	set_era(Areas.get_area(root).get("era", ""))
 	_player.reset_to(level.get_entry_position(entry_key(area_id, entry)))
 	_region = current_area_id()
 	if level.fog:
@@ -898,11 +931,17 @@ func _equip_weapon(id: String) -> void:
 func _check_cutscene(area_id: String) -> void:
 	var id: String = Areas.DATA.get(area_id, {}).get("cutscene", "")
 	if id != "":
-		await play_cutscene(id)
+		# 合併進來的區域：過場裡的「第幾隻敵人」從那個區域自己的第一隻開始算
+		var base := 0
+		if level:
+			for r in level._data.get("regions", []):
+				if r.id == area_id:
+					base = r.get("enemy_start", 0)
+		await play_cutscene(id, base)
 
 
 ## 播放一段過場：遊戲暫停（敵人定格）、上下黑邊、鏡頭移動、對白。看過就不再播。
-func play_cutscene(id: String) -> void:
+func play_cutscene(id: String, enemy_base := 0) -> void:
 	if WorldState.mode != "story" or not WorldState.cutscenes or not Cutscenes.DATA.has(id) or WorldState.has_flag("scene:" + id) \
 			or cutscene.active or _player.is_dead:
 		return
@@ -927,7 +966,7 @@ func play_cutscene(id: String) -> void:
 				lights.append(_cutscene_light(at, step.light))
 			await _pan_camera(at, step.get("time", 1.5))
 		elif step.has("pan_enemy"):
-			var i: int = step.pan_enemy
+			var i: int = step.pan_enemy + enemy_base
 			if i < enemies.size() and is_instance_valid(enemies[i]):
 				var e: Enemy = enemies[i]
 				e.reveal_for_cutscene()
@@ -939,12 +978,41 @@ func play_cutscene(id: String) -> void:
 			await cutscene.wait(step.wait)
 		elif step.has("sfx"):
 			Sfx.play(step.sfx)
+		elif step.has("era"):
+			set_era(step.era)
+	set_era(Areas.get_area(level.area_id).get("era", "") if level else "")
 	for l in lights:
 		if is_instance_valid(l):
 			l.queue_free()
 	_camera.snap_to_target()
 	await cutscene.close()
 	get_tree().paused = was_paused
+
+
+## 時代的畫面色調：""＝現在、"1962"＝泛黃的老底片、"2099"＝未來的霓虹幻象
+const ERAS := {"": 0.0, "2026": 0.0, "1962": 1.0, "2099": 2.0}
+
+
+func set_era(era: String) -> void:
+	if _film_mat:
+		_film_mat.set_shader_parameter("era", ERAS.get(era, 0.0))
+
+
+func current_era() -> float:
+	return _film_mat.get_shader_parameter("era") if _film_mat else 0.0
+
+
+## 播放盤式錄音機（MemoryReel）：先演過場，再走進那段記憶（或從記憶回到現在）
+func _on_play_reel(target_area: String, entry: String, scene: String, flag: String) -> void:
+	if _transitioning or target_area == "":
+		return
+	if scene != "":
+		await play_cutscene(scene)
+	if flag != "":
+		WorldState.set_flag(flag)
+		WorldState.emit_event("memory", flag)
+	Sfx.play("radio_static")
+	await load_area(target_area, entry)
 
 
 ## 對白的頭像：沈若寧依目前狀況（受傷、感染）換表情；守門派是頭盔；無線電另外的人用科瓦契
@@ -1004,17 +1072,35 @@ func _update_region() -> void:
 	var region := current_area_id()
 	if region != _region:
 		_region = region
+		_checkpoint_at_region_door(region)
 		WorldState.emit_event("enter_area", region)
 		_apply_darkness()
 		_check_cutscene(region)
 
 
+## 無縫地圖：走過門進入另一個區域（例如從南岸走進研究站）時，跟以前切換區域一樣存檢查點（門口）
+func _checkpoint_at_region_door(region: String) -> void:
+	if WorldState.mode != "story" or _player.is_dead or level.is_safe_at(_player.global_position):
+		return
+	var best: Dictionary = {}
+	var best_d := 3.5 * Level.TILE
+	for rd in level._data.get("region_doors", []):
+		if rd.region != region:
+			continue
+		var d := _player.global_position.distance_to((Vector2(rd.cell) + Vector2(0.5, 0.5)) * Level.TILE)
+		if d < best_d:
+			best_d = d
+			best = rd
+	if not best.is_empty():
+		WorldState.save_checkpoint(region, best.door)
+
+
 func _apply_darkness() -> void:
 	if level.is_safe_at(_player.global_position):
 		_darkness.color = SAFE_DARKNESS
-	elif level.outdoor:
+	elif not level.is_indoor_at(_player.global_position):
 		_darkness.color = OUTDOOR_DARKNESS
-	elif level.is_lit():
+	elif level.is_lit_at(_player.global_position):
 		_darkness.color = POWERED_DARKNESS
 	else:
 		_darkness.color = INDOOR_DARKNESS
@@ -1291,8 +1377,8 @@ func _refresh_codex() -> void:
 func _build_status_text() -> String:
 	var lines: Array[String] = []
 	lines.append(tr("Condition: %s%s%s") % [tr(_player.get_condition()),
-		tr("  (infected)") if _player.infection >= WorldState.MAX_INFECTION else "", ""])
-	lines.append(tr("Infection: %s") % tr(_infection_word()))
+		tr("  (overwritten)") if _player.infection >= WorldState.MAX_INFECTION else "", ""])
+	lines.append(tr("Static: %s") % tr(_infection_word()))
 	if level and Climates.has_exposure(level.climate_id()):
 		lines.append(tr("  Body: %s").replace("\u3000", "").strip_edges() % tr(_player.get_body_temp_state()))
 	lines.append(tr("Light: %s") % tr(_player.light_name()))
@@ -1616,7 +1702,7 @@ func _build_ending_panel() -> void:
 	_ending_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0, 0, 0, 1)
-	style.set_content_margin_all(28)
+	style.set_content_margin_all(12)
 	_ending_panel.add_theme_stylebox_override("panel", style)
 	var box := VBoxContainer.new()
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1645,14 +1731,14 @@ func _show_ending() -> void:
 	Sfx.play_music("ending", 3.0)
 	Sfx.play_ambience("")
 	await get_tree().create_timer(ENDING_DELAY).timeout
+	# 段落之間不空行（加了 2099 年的那一句之後，空行會讓文字超出畫面）
 	var lines: Array[String] = [tr(last_ending.title), ""]
 	for line in last_ending.lines:
 		lines.append(tr(line))
-		lines.append("")
-	lines.append(tr("THE END"))
 	lines.append("")
-	lines.append(tr("[%s] return to title") % _key_name("interact"))
+	lines.append(tr("THE END"))
 	_ending_text.text = "\n".join(lines)
+	set_era("2099")  # 結局的最後一句是 2099 年：畫面換成未來的霓虹色調
 	_ending_panel.visible = true
 	get_tree().paused = true
 
@@ -1669,8 +1755,14 @@ func _toggle_pause() -> void:
 		help.name = "Controls"
 		help.add_theme_font_size_override("font_size", 12)
 		help.add_theme_color_override("font_color", Color(0.65, 0.75, 0.8))
+		# 中文的操作說明是一整行：要自動換行，不然暫停選單會被撐到超出畫面
+		help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		help.custom_minimum_size = Vector2(300, 0)
 		box.add_child(help)
 	help.text = _build_hint().replace("  ", "\n")
+	# 內容變了（操作說明、選項按鈕）：重新算大小，放回畫面正中間
+	_pause_panel.reset_size()
+	_pause_panel.position = ((get_viewport().get_visible_rect().size - _pause_panel.size) * 0.5).floor()
 	Sfx.play("ui_confirm" if _pause_panel.visible else "ui_cancel")
 	get_tree().paused = _pause_panel.visible
 	if _pause_panel.visible:

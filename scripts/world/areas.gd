@@ -18,6 +18,7 @@
 ##                     p 封住通道的木板（同上，拆掉 = 捷徑）  q 滅火器  r 碎石堆（撿石頭）
 ##   t 裝備（紙娃娃；哪一件見區域資料 gear）  l 區域地圖（撿到 = 整張地圖顯示）  s 保險箱（打開 = 解鎖隱藏要素的情報）
 ##   武器（小寫）：j 獵槍  k 獵槍子彈  n 釘槍  m 釘條  v 信號槍  y 信號彈  z 消防斧
+##   &  盤式錄音機（播放 = 走進 1962 年的記憶，見 reels）
 ##   +  室內自動門（有人靠近就開；關著時看不到門後面。整排 + 是一道寬門）
 ##   =  窗戶（走不過去、看得穿；靠過去看 = 第一人稱視角）
 ##   1～9、a～i  敵人巡邏點，哪些點屬於哪隻敵人見 enemies
@@ -51,6 +52,10 @@
 ##   theme      室內的主題（家具、地板痕跡、牆上細節）：lab、office、dorm、industrial、military、hut、cave、outdoor
 ##   snowcat_to 雪地車開往的區域（到達後站在對方的 entries.snowcat）
 ##   zones 的 label：配電箱提示上顯示的名稱（預設是區域名）
+##   neon       {"x,y": {kind, text, color}}：牆上的霓虹燈（見 NeonSign；1985 年改建時留下的招牌）
+##   reels      {"x,y": {to, entry, scene, flag, prompt}}：盤式錄音機 &（走進／走出一段記憶，見 MemoryReel）
+##   lit        true = 這個區域一直有燈（不管電力）
+##   era        時代的畫面色調："1962"（過去的記憶）、"2099"（未來的訊號）；不寫 = 現在
 class_name Areas
 extends RefCounted
 
@@ -60,61 +65,82 @@ const DEFAULT_CLIMATE := "arctic"
 const START_ENTRY := "start"
 
 const DATA := {
+	# 南岸：直升機降落的海岸。北邊是研究站（station_1f，正門＋貨物門）、東邊是燃料庫（fuel_depot），
+	# 三個合成一張無縫地圖（Areas.ROOMS）：走到門口自動門打開就進去了，不切換畫面。
 	"south_shore": {
 		"theme": "outdoor",
 		"cutscene": "opening",
 		"title": "South Shore",
 		"outdoor": true,
 		"map": [
-			"########################################",
-			"########################################",
-			"########################################",
-			"########################################",
-			"########################################",
-			"########################################",
-			"########################################",
-			"######D#############D#########D#########",
-			"#.......l..............................#",
-			"#....................................A.#",
-			"#...1...........2......................#",
-			"#...........CC.........................#",
-			"D..........................CC..........#",
-			"#..........................CC..........#",
-			"#.....4.........3......................#",
-			"#.........B......CC....................D",
-			"#................................CC....#",
-			"#..................CCCCC.........CC....#",
-			"#..CC..............CCCCC...............#",
-			"#..CC.r................................#",
-			"#........C..............C..............#",
-			"#........C...........Pt.C...........K..#",
-			"#.............................o........#",
-			"#.A....................................#",
-			"########################################",
+			"#######D#############################################################################################",
+			"#.............#######################################################################################",
+			"#.............#######################################################################################",
+			"#.............#######################################################################################",
+			"#..CC.........#######################################################################################",
+			"#..CC.........#######################################################################################",
+			"#.............#######################################################################################",
+			"#.............#######################################################################################",
+			"#.............D######################################################################################",
+			"#........l....#######################################################################################",
+			"#.............#######################################################################################",
+			"#.............#######################################################################################",
+			"#....1........############################################..#########################################",
+			"#.............############################################..#########################################",
+			"#.............############################################..#########################################",
+			"#.........CC..############################################..#########################################",
+			"#.........CC..############################################..#########################################",
+			"#.............############################################..#########################################",
+			"#.............############################################..#########################################",
+			"#.............############################################..#########################################",
+			"#.............############################################..#########################################",
+			"#...C.........############################################..#########################################",
+			"#.............############################################..D########################################",
+			"#.............############################################..#########################################",
+			"#.......x.....############################################..#########################################",
+			"#.............############################################..#########################################",
+			"#.............###################################D########..#########################################",
+			"#..................####################.....................#########################################",
+			"#..................####################.....CC..............#########################################",
+			"#...........CC.....####################.....CC.........A....#########################################",
+			"#.....2............####################.............CC......#########################################",
+			"#..................####################......4......CC......#########################################",
+			"D...........................................................#########################################",
+			"#..........B................................................#########################################",
+			"#.............................3.........CCCCC.......................................................#",
+			"#..CC...................................CCCCC.......................................................#",
+			"#..CC...............Pt................................................CC............................#",
+			"#.....r...........C..................................................................CCC............#",
+			"#.................C......C.....o..................K.................................................#",
+			"#.A...............................C.................................................................#",
+			"#...................................................................................................#",
+			"#####################################################################################################",
 		],
-		"gear": {"22,21": "wool_hat"},
+		"gear": {"21,36": "wool_hat"},
 		"enemies": [
 			{"type": "patroller", "route": "1234"},
 		],
 		# 戶外整區都是冷的：感染者在外面行動遲緩
 		"zones": {
-			"outside": {"rect": Rect2i(0, 0, 40, 25), "heated": false},
+			"outside": {"rect": Rect2i(1, 1, 13, 26), "heated": false},
+			"outside_south": {"rect": Rect2i(0, 27, 101, 15), "heated": false},
+			"outside_lane": {"rect": Rect2i(58, 12, 2, 15), "heated": false},
 		},
 		"breakers": [],
 		"doors": {
-			"front": {"cell": Vector2i(6, 7), "to": "station_1f", "spawn_dir": Vector2i(0, 1)},
-			"huts": {"cell": Vector2i(0, 12), "to": "weather_huts", "spawn_dir": Vector2i(1, 0)},
-			"cargo": {"cell": Vector2i(30, 7), "to": "station_1f", "spawn_dir": Vector2i(0, 1)},
-			"depot": {"cell": Vector2i(39, 15), "to": "fuel_depot", "spawn_dir": Vector2i(-1, 0)},
-			# 機庫的捲門是電動的：要先恢復電力
-			"hangar": {"cell": Vector2i(20, 7), "to": "hangar", "spawn_dir": Vector2i(0, 1), "power": true},
+			"front": {"cell": Vector2i(14, 8), "to": "station_1f", "spawn_dir": Vector2i(-1, 0)},
+			"huts": {"cell": Vector2i(0, 32), "to": "weather_huts", "spawn_dir": Vector2i(1, 0)},
+			"cargo": {"cell": Vector2i(49, 26), "to": "station_1f", "spawn_dir": Vector2i(0, 1)},
+			"depot": {"cell": Vector2i(60, 22), "to": "fuel_depot", "spawn_dir": Vector2i(-1, 0)},
+			# 機庫的捲門是電動的：要先恢復電力（機庫是 Boss 戰場，維持獨立區域）
+			"hangar": {"cell": Vector2i(7, 0), "to": "hangar", "spawn_dir": Vector2i(0, 1), "power": true},
 		},
 		"names": {
-			"36,21": "supply_crate_shore",
+			"50,38": "supply_crate_shore",
 		},
 		# 聽過 127.80 的作業日誌之後才會出現
 		"hidden": {
-			"37,9": "reveal:cache_shore",
+			"55,29": "reveal:cache_shore",
 		},
 		"messages": {},
 	},
@@ -169,6 +195,13 @@ const DATA := {
 		},
 		"stairs": {"2,2": "station_2f"},
 		"entries": {"stairs": Vector2i(2, 3)},
+		# 1985 年改建時的霓虹招牌（大廳）和交誼廳的大型電玩
+		"neon": {
+			"8,0": {"text": "NORTH LATITUDE", "color": "3df5ff"},
+			"15,0": {"kind": "arcade", "color": "ff3df0"},
+			"26,1": {"text": "LAB", "color": "ff3df0"},
+			"28,1": {"kind": "arrow", "text": "right", "color": "ffd23d", "flicker": false},
+		},
 		"names": {
 			"31,2": "lounge_breaker",
 			"2,2": "stairs_up",
@@ -218,12 +251,14 @@ const DATA := {
 		"entries": {
 			"radio": Vector2i(3, 3),
 		},
+		"neon": {"5,0": {"text": "CLEAN ROOM", "color": "4dff9a", "flicker": false}},
 		"names": {
 			"3,2": "radio_safe",
 		},
 		"messages": {},
 	},
 
+	# 二樓：辦公室（station_2f_office）和東翼（station_east_wing，走廊盡頭）合成一張無縫地圖
 	"station_2f": {
 		"theme": "dorm",
 		"title": "Station 2F",
@@ -233,10 +268,10 @@ const DATA := {
 		"map": [
 			"########################################",
 			"#.....#...........#...........#.ttt...##",
-			"#.G...#.CC.....CC.#.CC...d.Q..#.....M.##",
-			"#.....#.......x...#...........#..CC...##",
-			"#.....#.....a.....#....b......#..CC....D",
-			"#.....#.CC.....CC.#.CC.....CC.#.......##",
+			"#.G...#.CC.....CC.#.CC...d.Q..#.....M.#################",
+			"#.....#.......x...#...........#..CC...##...............#",
+			"#.....#.....a.....#....b......#..CC....+...............D",
+			"#.....#.CC.....CC.#.CC.....CC.#.......#################",
 			"#.....#....x......#...x.......#......H##",
 			"#.....#...........#...........#.......##",
 			"###.########.###########.#########.#####",
@@ -249,6 +284,10 @@ const DATA := {
 			"########################################",
 		],
 		"gear": {"32,1": "sneaking_suit", "33,1": "balaclava", "34,1": "soft_soles"},
+		"neon": {
+			"8,8": {"text": "REC ROOM", "color": "ff3df0"},
+			"16,8": {"kind": "arcade", "color": "3df5ff"},
+		},
 		"enemies": [
 			{"type": "patroller", "route": "12"},
 			{"type": "sleeper", "route": "a"},
@@ -263,7 +302,7 @@ const DATA := {
 		"breakers": [],
 		"doors": {
 			"office": {"cell": Vector2i(39, 10), "to": "station_2f_office", "spawn_dir": Vector2i(-1, 0), "access": 1},
-			"east_wing": {"cell": Vector2i(39, 4), "to": "station_east_wing", "spawn_dir": Vector2i(-1, 0)},
+			"east_wing": {"cell": Vector2i(55, 4), "to": "station_east_wing", "spawn_dir": Vector2i(-1, 0)},
 		},
 		"stairs": {"2,2": "station_1f"},
 		"entries": {"stairs": Vector2i(2, 3)},
@@ -304,8 +343,8 @@ const DATA := {
 			"note_office": 12570,
 		},
 		"messages": {
-			"note_office": "DESK NOTE (Halvorsen): \"Ark line, 125.70, scheduled windows only. They promised a pickup for the samples. Not for us.\"",
-			"director_terminal": "HALVORSEN'S RECORDS: \"Day 3: Mendez and Lund show the clicking. Kept off the report - the Ark people paid for this season. Day 6: moved the infected to cold storage. Day 9: power cut. God help us.\"",
+			"note_office": "DESK NOTE (Halvorsen): \"Ark line, 125.70, scheduled windows only. They promised a pickup for the reels and the core. Not for us.\"",
+			"director_terminal": "HALVORSEN'S RECORDS: \"Day 3: Mendez and Lund show the clicking. Kept off the report - the Ark people paid for this season. Day 6: moved the ones who kept listening to cold storage - the cold slows the signal. Day 9: power cut. God help us.\"",
 		},
 	},
 
@@ -377,7 +416,7 @@ const DATA := {
 			"#.....1.............................2..#",
 			"#......................................#",
 			"#...##############.......#######.#######",
-			"#...##############.......#............H#",
+			"#...##############.&...M..#............H#",
 			"#...##############....s..#.............#",
 			"#...######.##########.####.............#",
 			"#................#.......#.............#",
@@ -410,7 +449,13 @@ const DATA := {
 		},
 		"names": {
 			"34,10": "generator_b1",
+			"19,5": "reel_b1",
 		},
+		"entries": {"reel": Vector2i(19, 6)},
+		# 盤式錄音機：1962 年燈籠站最後一捲帶子。播放 = 走進那一夜（lantern_1962）
+		"reels": {"19,5": {"to": "lantern_1962", "entry": "start", "scene": "reel_b1", "prompt": "Play the 1962 reel"}},
+		# 1962 年的佐藤留下的東西（看完記憶才知道在哪）
+		"hidden": {"23,5": "memory:lantern"},
 		"messages": {},
 	},
 
@@ -778,6 +823,7 @@ const DATA := {
 			"bunk": {"cell": Vector2i(7, 8), "to": "weather_huts", "spawn_dir": Vector2i(0, -1)},
 		},
 		"entries": {"radio": Vector2i(3, 2)},
+		"neon": {"8,0": {"text": "HOT COFFEE", "color": "ffa23d"}},
 		"names": {"3,1": "radio_huts"},
 		"messages": {},
 	},
@@ -836,7 +882,7 @@ const DATA := {
 		},
 		"indoor_rects": [Rect2i(29, 8, 14, 6)],
 		"breakers": [],
-		"reinforcements": {"type": "guard", "count": 2, "doors": ["harbor", "caves"]},
+		"reinforcements": {"type": "guard", "count": 2, "doors": ["harbor"]},
 		"doors": {
 			"harbor": {"cell": Vector2i(10, 27), "to": "weather_huts", "spawn_dir": Vector2i(0, -1)},
 			"caves": {"cell": Vector2i(47, 19), "to": "ice_caves", "spawn_dir": Vector2i(-1, 0)},
@@ -844,7 +890,7 @@ const DATA := {
 		"names": {"35,11": "gate_orders"},
 		"loot": {"10,20": ["shells", 2]},
 		"messages": {
-			"gate_orders": "GATE ORDERS (printed, stamped): \"Island is under Accord quarantine. Survivors are to be detained, not evacuated. Specimens take priority over personnel. No aircraft leaves Greycrow without Gate One's word.\"",
+			"gate_orders": "GATE ORDERS (printed, stamped): \"Island is under Accord quarantine. Survivors are to be detained, not evacuated. Receivers take priority over personnel. No aircraft leaves Greycrow without Gate One's word.\"",
 		},
 	},
 
@@ -865,7 +911,7 @@ const DATA := {
 			"##.......####...............###.....#....N.#",
 			"#.......######..............####....#......#",
 			"#......########......x......####.........u.#",
-			"#.......######.............................#",
+			"#.......######.............................D",
 			"##.......####........CC.........b...########",
 			"##...................CC.......####...#######",
 			"D..l..u........###............#####...######",
@@ -894,6 +940,7 @@ const DATA := {
 		"breakers": [],
 		"doors": {
 			"caves": {"cell": Vector2i(0, 11), "to": "north_harbor", "spawn_dir": Vector2i(1, 0)},
+			"gate_tunnel": {"cell": Vector2i(43, 8), "to": "gate_one_yard", "spawn_dir": Vector2i(-1, 0)},
 		},
 		"names": {"42,5": "hunter_note"},
 		"messages": {
@@ -952,15 +999,271 @@ const DATA := {
 			"kovac_memo": "MEMO - A. KOVAC (dated before she left): \"It isn't a disease. It's a hibernation strategy that uses us as the burrow. Whoever is paying for this already knows that.\"",
 		},
 	},
+
+	# 守門一號：守門派在島北端的前進基地。外面是有圍牆的廣場（車庫、崗哨、暴風雪），
+	# 裡面是完整的軍事基地：寢室、更衣室、指揮中心、指揮官辦公室、軍械庫、餐廳、操練大廳、通訊室、簡報室、
+	# 拘留區（牢房、觀察窗）、樣本實驗室（孢子外洩）、大廳、卸貨區，還有安全屋（房間 gate_one_safe）。
+	# 地圖上方 29 列空白＝基地（房間 gate_one_base）貼進來的位置：廣場和基地是同一張無縫地圖。
+	"gate_one_yard": {
+		"theme": "military",
+		"title": "Gate One - Yard",
+		"outdoor": true,
+		"floor": 0,
+		"cutscene": "gate_one",
+		"map": [
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"##############################################################",
+			"###############################D##############################",
+			"#####.....CC.......1.......................2.......CC......###",
+			"#####.....CC...............................................###",
+			"#####.......................CCC....CCC..........o..........###",
+			"#####...w...................CCC....CCC.........oo...CCCC...###",
+			"#####......................................a.......CCCC....###",
+			"#####..CCCC.....3..................................CCCC....###",
+			"#####..CCCC................................................###",
+			"#####..CCCC.......#####=####................y..............###",
+			"#####.............#.......#..........4.....................###",
+			"#####.............=..N..C.=.......................CCCC.5...###",
+			"#####.............#..l..C.+.......................CCCC.....###",
+			"####D.............#..x..A.#.......................CCCC.....###",
+			"#####.............###+#####................................###",
+			"#####...r..............................CC..................###",
+			"#####.......6..........................CC.........w........###",
+			"#####...........................................b..........###",
+			"#####..CCCCCC..........7......................CCCCCC.......###",
+			"#####..CCCCCC.................................CCCCCC....8..###",
+			"#####...................x..................................###",
+			"#####......o.......................CC......................###",
+			"#####.....oo.........u.............CC.......k.........M....###",
+			"#####......................................................###",
+			"##############################################################",
+		],
+		"climate": "blizzard",
+		"hidden": {"44,53": "reveal:cache_gate", "54,53": "reveal:cache_gate"},
+		"enemies": [
+			{"type": "guard", "route": "12"},
+			{"type": "guard", "route": "34"},
+			{"type": "guard", "route": "56"},
+			{"type": "guard", "route": "78"},
+			{"type": "hound", "route": "ab"},
+		],
+		"zones": {
+			"outside": {"rect": Rect2i(4, 32, 56, 24), "heated": false},
+		},
+		"indoor_rects": [Rect2i(18, 40, 9, 6)],
+		"breakers": [],
+		"reinforcements": {"type": "guard", "count": 2, "doors": ["gate_tunnel"]},
+		"doors": {
+			"gate_tunnel": {"cell": Vector2i(4, 44), "to": "ice_caves", "spawn_dir": Vector2i(1, 0)},
+			"base_gate": {"cell": Vector2i(31, 32), "to": "gate_one_base", "spawn_dir": Vector2i(0, 1)},
+		},
+		"names": {"21,42": "gate_duty_log"},
+		"loot": {"8,36": ["ammo", 4], "50,47": ["shells", 2]},
+		"messages": {
+			"gate_duty_log": "GATEHOUSE DUTY LOG: \"Day 6. Two more from the station walked up to the wire. Unarmed. Orders were clear. Day 7. Nobody wants the gate shift anymore.\"",
+		},
+	},
+
+	"gate_one_base": {
+		"theme": "military",
+		"title": "Gate One",
+		"floor": 1,
+		"outdoor": false,
+		"powered_area": true,
+		"cutscene": "gate_base",
+		"neon": {"25,0": {"kind": "holo", "text": "GATE//ONE", "color": "3df5ff"}},
+		"map": [
+			"##############################################################",
+			"#........M.#.A.....#.................#..........#..........w.#",
+			"#..CCCCCC..#..H.H..#...CC........CC..#........s.#..C..C..C...#",
+			"#..........#.......#...CC........CC..#..4.......#............#",
+			"#..CCCCCC..#..C.CH.#.......CCC.......#..........#..C..C..C...#",
+			"#..........#.......#..3....CCC.......#..........#............#",
+			"#..CCCCCC..#.......#.N...........x.l.#.N....CC..#.k..L..A..y.#",
+			"#.x........#..H.H.B#.................#......CC..#............#",
+			"#####++########+#########==++==###########+###########+#######",
+			"#............................................................#",
+			"#..1......................................................2..#",
+			"#####++#####........####++#####=+++=######+###################",
+			"#r.........#........#.......#............#...x.#....#....#.N.#",
+			"#..CCCCCC..#...7....#.CC....=..CCCCCC....#.....#....#....#...#",
+			"#..........#........#.CC....+............#.#=+###=+###=+##+=##",
+			"#..CCCCCC..#........#.......=............#.........d.........#",
+			"#..........#........#.......#............#...................#",
+			"#..CCCCCC..#........#.....N.#..........M.##=+###=+###=+#####.#",
+			"#........B.#........#.......#............#.e..#....#....#....#",
+			"#..........#........##===########===######..x.#....#...V####.#",
+			"############........#....................###################+#",
+			"#...............8...+..CC...CC...CC...C..#...................#",
+			"##########D##########.b......x...........#.ww................#",
+			"#####################...............a....#...CCCCCC..........#",
+			"#####################...CCCC....CCCC.....#...CCCCCC..........#",
+			"#####################..................c.#...............6...#",
+			"#####################....N..........V....#...................#",
+			"##############################++##########............CC.....#",
+			"#####################....................#............CC.....#",
+			"#####################..CC.............CC.+.................o.#",
+			"#####################...5................#.......m........o..#",
+			"#####################q..................M#####################",
+			"###############################D##############################",
+		],
+		# 樣本實驗室的孢子外洩
+		"hazards": [{"rect": Rect2i(21, 20, 20, 7), "kind": "spores"}],
+		"enemies": [
+			{"type": "guard", "route": "12"},
+			{"type": "guard", "route": "34"},
+			{"type": "guard", "route": "56"},
+			{"type": "guard", "route": "78"},
+			{"type": "chorister", "route": "a"},
+			{"type": "crawler", "route": "bc"},
+			{"type": "husk", "route": "d"},
+			{"type": "sleeper", "route": "e"},
+		],
+		"zones": {
+			"base": {"rect": Rect2i(0, 0, 62, 33), "heated": true},
+		},
+		"breakers": [],
+		"doors": {
+			"base_gate": {"cell": Vector2i(31, 32), "to": "gate_one_yard", "spawn_dir": Vector2i(0, -1)},
+			"g1safe": {"cell": Vector2i(10, 22), "to": "gate_one_safe", "spawn_dir": Vector2i(0, -1)},
+		},
+		"safes": {"46,2": {"reveal": "reveal:cache_gate", "text": "SAFE (commander's office): a quartermaster's chit. \"Two crates held back from the manifest - medical and .308 - buried in the yard by the motor pool, southeast corner. Don't tell Gate Two.\""}},
+		"loot": {"59,1": ["shells", 3], "43,22": ["ammo", 6], "44,22": ["med", 1]},
+		"names": {"21,6": "g1_orders", "39,6": "commander_letter", "26,17": "comms_log", "59,12": "cell_scratch", "25,26": "specimen_report"},
+		"messages": {
+			"g1_orders": "OPERATIONS BOARD: \"Priority one: recover the drill core intact. Priority two: recover live receivers. Priority three: personnel. Strike priority three if it slows one or two.\"",
+			"commander_letter": "UNSENT LETTER, commander's desk: \"They told us it was a chemical spill. Then they told us to keep the overwritten alive. Then they told us the overwritten were the cargo. I have stopped asking what we are guarding.\"",
+			"comms_log": "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Receivers: four live, crated, ears taped. Aircraft: one, grounded by ice. The supply pilot's helicopter.\"",
+			"cell_scratch": "SCRATCHED INTO THE CELL WALL: \"I'm not sick. I told them I'm not sick. They took blood every day and they never told me the results. If you read this - they're afraid of the cold room. Ask why.\"",
+			"specimen_report": "RECEIVER REPORT S-4: \"Subject keeps singing at 126.05, the same pitch as the core. When the two are in the same room, both get louder. Recommend they are never shipped together.\"",
+		},
+	},
+
+	"gate_one_safe": {
+		"theme": "military",
+		"title": "Gate One - Ready Room (Safe)",
+		"outdoor": false,
+		"safe": true,
+		"map": [
+			"#########D########",
+			"#................#",
+			"#..R.........Y...#",
+			"#................#",
+			"#..CC........CC..#",
+			"#..CC........CC..#",
+			"#................#",
+			"#........M.......#",
+			"##################",
+		],
+		"enemies": [],
+		"zones": {},
+		"breakers": [],
+		"doors": {
+			"g1safe": {"cell": Vector2i(9, 0), "to": "gate_one_base", "spawn_dir": Vector2i(0, 1)},
+		},
+		"entries": {"radio": Vector2i(3, 3)},
+		"names": {"3,2": "radio_gate"},
+		"messages": {},
+	},
+
+	# 1962 年的記憶：冷戰時期的監聽站「燈籠」（後來改建成北緯站）。從 B1 的盤式錄音機進來，
+	# 走到錄音室播放最後一捲帶子 = 回到現在。被抓到 = 從記憶的開頭重來（檢查點在入口）。
+	"lantern_1962": {
+		"theme": "military",
+		"era": "1962",
+		"lit": true,
+		"title": "LANTERN Listening Post - 1962",
+		"cutscene": "lantern_enter",
+		"floor": -1,
+		"outdoor": false,
+		"powered_area": true,
+		"map": [
+			"########################################",
+			"#......#..............#................#",
+			"#......#...N..........#..C.......C..&..#",
+			"#......#....1.....2...#..C..........C..#",
+			"#..CC..+..............+.....N.......C..#",
+			"#..CC..#..............#..CCC....CCC....#",
+			"#H.....#....CCCC......#................#",
+			"###+####....CCCC......#######++#########",
+			"#......................................#",
+			"#...3..............................4...#",
+			"#......................................#",
+			"#######++##############++#######+#######",
+			"#..........#..............#............#",
+			"#..C..C....#....5.........#..CC..CC....#",
+			"#..C..C..x.#..........6...#..........H.#",
+			"#..C..C....#..CCC...CCC...#..CC..CC....#",
+			"#....M.....#..............#....N.......#",
+			"########################################",
+		],
+		"enemies": [
+			{"type": "guard", "route": "12"},
+			{"type": "guard", "route": "34"},
+			{"type": "guard", "route": "56"},
+		],
+		"zones": {"lantern": {"rect": Rect2i(0, 0, 40, 18), "heated": true}},
+		"breakers": [],
+		"doors": {},
+		"entries": {"start": Vector2i(3, 2)},
+		"neon": {
+			"14,0": {"text": "LANTERN", "color": "ffb347"},
+			"26,7": {"text": "ON AIR", "color": "ff3030"},
+		},
+		"names": {"36,2": "reel_1962", "11,2": "lantern_log", "28,4": "major_order", "31,16": "sato_letter"},
+		"reels": {"36,2": {"to": "station_b1", "entry": "reel", "scene": "lantern_signal", "flag": "memory:lantern", "prompt": "Play the last reel"}},
+		"messages": {
+			"lantern_log": "LANTERN LOG, 14 MARCH 1962: \"Carrier on 126.05 again, from under the ice. Tonight it read us tomorrow's weather. It was right. Then it read a list of names. None of them are born yet.\"",
+			"major_order": "ORDER, MAJOR IWASE: \"Effective immediately: the 126.05 recordings do not exist. Reels to be sealed and shipped to Geneva. Personnel who listened will be transferred. Do not discuss the music.\"",
+			"sato_letter": "LETTER, CORPORAL SATO (unsent): \"Mika - they're burying the reels. I kept one. If this station is still standing when you're grown, there is a med kit in the maintenance room, under the reel table. I don't know why I'm telling a child that. The signal told me to.\"",
+		},
+	},
 }
 
 
 ## 同一棟建築裡的房間：合併進主區域的地圖（無縫：門是自動門，直接走進去，不切換畫面）。
 ## door = 兩邊共用的門 id；合併後那扇門變成室內門（+）。房間自己的設定（安全屋、標題）變成「區域內的一塊範圍」。
 const ROOMS := {
+	"station_1f": {"into": "south_shore", "door": "front", "also": ["cargo"]},
+	"fuel_depot": {"into": "south_shore", "door": "depot"},
 	"station_safe": {"into": "station_1f", "door": "safe"},
 	"station_2f_office": {"into": "station_2f", "door": "office"},
+	"station_east_wing": {"into": "station_2f", "door": "east_wing"},
 	"huts_safe": {"into": "weather_huts", "door": "bunk"},
+	"ice_caves": {"into": "north_harbor", "door": "caves"},
+	"gate_one_yard": {"into": "ice_caves", "door": "gate_tunnel"},
+	"gate_one_base": {"into": "gate_one_yard", "door": "base_gate"},
+	"gate_one_safe": {"into": "gate_one_base", "door": "g1safe"},
 }
 
 static var _composed := {}
@@ -968,7 +1271,10 @@ static var _composed := {}
 
 ## 這個區域（或房間）實際所在的地圖
 static func root_of(area_id: String) -> String:
-	return ROOMS[area_id].into if ROOMS.has(area_id) else area_id
+	var id := area_id
+	while ROOMS.has(id):
+		id = ROOMS[id].into
+	return id
 
 
 static func get_area(area_id: String) -> Dictionary:
@@ -979,24 +1285,88 @@ static func get_area(area_id: String) -> Dictionary:
 	return _composed[root]
 
 
-## 把房間貼進主區域的地圖，所有格子座標換成主地圖的座標。
-## 房間格子上的東西用「房間 id:房間裡的座標」當存檔 key（WorldState 的紀錄和以前一樣）。
+## 這個區域（或房間）的格子座標 + 位移 = 合併後地圖的座標。
+## 房間在主地圖左邊／上面時，主地圖自己也會往右下移，所以主區域的位移不一定是 0。
+static func area_offset(area_id: String) -> Vector2i:
+	return get_area(area_id).offsets[area_id]
+
+
+## 房間貼進主地圖的位移（舊名稱，同 area_offset）
+static func room_offset(room_id: String) -> Vector2i:
+	return area_offset(room_id)
+
+
+## 把房間（或整棟建築、相鄰的戶外區域）貼進主區域的地圖，所有格子座標換成合併後地圖的座標。
+## - 房間可以有敵人（巡邏點換成格子座標 cells）、也可以有自己的房間（巢狀：先把房間自己組好再貼進來）。
+## - 房間可以在主地圖的任何方向：在左邊／上面時整張主地圖往右下移。
+## - 室內建築貼進戶外地圖：自動加進 indoor_rects（室內地板、不失溫），房間黑幕讓沒進去前看不到裡面。
+## - 每個房間記成一個範圍 regions（標題、安全屋、主題、氣候、音樂、電燈、敵人編號起點），Level 依位置查。
+## - 存檔 key 一律用「原本的區域 id:原本的座標」（item_keys），溫度區域的旗標也用原本的區域 id，舊存檔照樣能用。
 static func _compose(root: String) -> Dictionary:
 	var data: Dictionary = DATA[root].duplicate(true)
-	var map: Array = data.map.duplicate()
 	data["regions"] = []
 	data["item_keys"] = {}
+	data["offsets"] = {root: Vector2i.ZERO}
+	data["breaker_cells"] = {}
+	data["region_cells"] = {}
+	_tag_zones(data, root)
+	_tag_breakers(data, root)
+	var rooms: Array = []
+	var shift := Vector2i.ZERO
 	for room_id in ROOMS:
 		if ROOMS[room_id].into != root:
 			continue
-		var room: Dictionary = DATA[room_id]
+		var room: Dictionary = _compose(room_id)
+		var door_id: String = ROOMS[room_id].door
+		var off: Vector2i = data.doors[door_id].cell - room.doors[door_id].cell
+		for extra in ROOMS[room_id].get("also", []):
+			assert(data.doors[extra].cell - room.doors[extra].cell == off, "房間 %s 的門 %s 對不上" % [room_id, extra])
+		rooms.append([room_id, room, off])
+		shift = Vector2i(maxi(shift.x, -off.x), maxi(shift.y, -off.y))
+	if shift != Vector2i.ZERO:
+		for key in _cell_keys(data.map):
+			data.item_keys[key] = "%s:%s" % [root, key]
+		data = _shifted(data, shift)
+		var rows0: Array = []
+		for i in shift.y:
+			rows0.append("")
+		for r in data.map:
+			rows0.append("#".repeat(shift.x) + r)
+		data.map = rows0
+	var map: Array = data.map.duplicate()
+	for entry in rooms:
+		var room_id: String = entry[0]
+		var room0: Dictionary = entry[1]
+		var offset: Vector2i = entry[2] + shift
 		var door_id: String = ROOMS[room_id].door
 		var shared: Vector2i = data.doors[door_id].cell
-		var offset: Vector2i = shared - room.doors[door_id].cell
-		assert(offset.x >= 0 and offset.y >= 0, "房間 %s 要放在主地圖的右邊或下面" % room_id)
-		assert(room.enemies.is_empty(), "房間 %s 不能有敵人（巡邏點符號會衝突）" % room_id)
-		# 地圖
-		var rows: Array = room.map
+		var room := _shifted(room0, offset)
+		# 敵人：巡邏點字元換成格子座標（避免和主地圖的巡邏點衝突），地圖上那格變回地板
+		var rows: Array = room0.map.duplicate()
+		var enemy_start: int = data.enemies.size()
+		var enemies: Array = data.enemies.duplicate()
+		for ei in room0.get("enemies", []).size():
+			var def: Dictionary = room0.enemies[ei]
+			var cells: Array[Vector2i] = []
+			if def.has("cells"):
+				for c in def.cells:
+					cells.append(c + offset)
+			else:
+				for ch in String(def.route):
+					var at := _find_char(rows, ch)
+					assert(at.x >= 0, "房間 %s 缺少巡邏點 %s" % [room_id, ch])
+					cells.append(at + offset)
+			# 存檔 key 用原本的區域和編號（打倒的敵人、離開時的位置）
+			enemies.append({"type": def.type, "cells": cells, "key": def.get("key", "%s:%d" % [room_id, ei])})
+		for def in room0.get("enemies", []):
+			for ch in String(def.get("route", "")):
+				var at := _find_char(rows, ch)
+				var line0: String = rows[at.y]
+				line0[at.x] = "."
+				rows[at.y] = line0
+		data["enemies"] = enemies
+		# 地圖（記下真的貼上去的格子：這個房間的範圍）
+		var mine := {}
 		for y in rows.size():
 			var gy := offset.y + y
 			while map.size() <= gy:
@@ -1006,68 +1376,226 @@ static func _compose(root: String) -> Dictionary:
 			if line.length() < needed:
 				line += "#".repeat(needed - line.length())
 			for x in String(rows[y]).length():
+				# 房間的空白邊（#）不蓋掉主地圖已經有的地板：鄰近的區域可以互相貼得很近
+				if rows[y][x] == "#" and line[offset.x + x] != "#":
+					continue
 				line[offset.x + x] = rows[y][x]
+				mine[Vector2i(offset.x + x, gy)] = rows[y][x] != "#"
 			map[gy] = line
 		# 共用的門變成室內門；權限、電力設定留在門上
-		var door_line: String = map[shared.y]
-		door_line[shared.x] = "+"
-		map[shared.y] = door_line
+		var shared_ids: Array = [door_id]
+		shared_ids.append_array(ROOMS[room_id].get("also", []))
 		var inner: Dictionary = data.get("inner_doors", {})
-		inner["%d,%d" % [shared.x, shared.y]] = {"access": data.doors[door_id].get("access", 0),
-			"safe": room.get("safe", false)}
+		inner.merge(room.get("inner_doors", {}))
+		var region_doors: Array = data.get("region_doors", []).duplicate()
+		for rd in room.get("region_doors", []):
+			region_doors.append(rd)
+		for sid in shared_ids:
+			var sc: Vector2i = data.doors[sid].cell
+			# 走過這扇門＝進入／離開這個範圍：存檢查點用（主地圖這邊的入口 = 門外一格）
+			var outer: Vector2i = sc + data.doors[sid].spawn_dir
+			var ents: Dictionary = data.get("entries", {})
+			if not ents.has(sid):
+				ents[sid] = outer
+			data["entries"] = ents
+			region_doors.append({"region": root, "door": sid, "cell": outer})
+			region_doors.append({"region": room_id, "door": sid, "cell": room.doors[sid].cell + room.doors[sid].spawn_dir})
+			var door_line: String = map[sc.y]
+			door_line[sc.x] = "+"
+			map[sc.y] = door_line
+			var pair: Dictionary = data.doors[sid]
+			inner["%d,%d" % [sc.x, sc.y]] = {"access": pair.get("access", 0), "power": pair.get("power", false),
+				"safe": room0.get("safe", false)}
+			data.doors.erase(sid)
 		data["inner_doors"] = inner
-		data.doors.erase(door_id)
-		# 其他通往外面的門
+		data["region_doors"] = region_doors
 		for d in room.doors:
-			if d != door_id:
-				var copy: Dictionary = room.doors[d].duplicate()
-				copy.cell += offset
-				data.doors[d] = copy
+			if not shared_ids.has(d):
+				data.doors[d] = room.doors[d]
 		# 入口：「房間:入口」，不衝突的話也可以直接用入口名
 		var entries: Dictionary = data.get("entries", {})
 		for e in room.get("entries", {}):
-			var cell: Vector2i = room.entries[e] + offset
+			var cell: Vector2i = room.entries[e]
 			entries["%s:%s" % [room_id, e]] = cell
 			if not entries.has(e):
 				entries[e] = cell
-		var inside: Vector2i = room.doors[door_id].cell + room.doors[door_id].spawn_dir + offset
-		entries["%s:%s" % [room_id, door_id]] = inside
+		for sid in shared_ids:
+			entries["%s:%s" % [room_id, sid]] = room.doors[sid].cell + room.doors[sid].spawn_dir
 		data["entries"] = entries
-		# 以格子座標當 key 的資料
-		for field in ["names", "hidden", "loot", "stairs"]:
-			var src: Dictionary = room.get(field, {})
+		for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "neon", "reels", "item_keys", "breaker_cells", "offsets"]:
 			var dst: Dictionary = data.get(field, {})
-			for key in src:
-				var p := String(key).split(",")
-				dst["%d,%d" % [int(p[0]) + offset.x, int(p[1]) + offset.y]] = src[key]
+			dst.merge(room.get(field, {}), true)
 			data[field] = dst
-		for key in _cell_keys(room.map):
-			var p := String(key).split(",")
-			data.item_keys["%d,%d" % [int(p[0]) + offset.x, int(p[1]) + offset.y]] = "%s:%s" % [room_id, key]
+		for key in _cell_keys(room0.map):
+			var k2 := _shift_key(key, offset)
+			if not data.item_keys.has(k2):
+				data.item_keys[k2] = "%s:%s" % [room_id, key]
 		for field in ["learn", "messages"]:
 			var dst2: Dictionary = data.get(field, {})
 			dst2.merge(room.get(field, {}))
 			data[field] = dst2
+		# 溫度區域：名稱重複時改成「房間:名稱」（配電箱指向新名稱）
 		var zones: Dictionary = data.get("zones", {})
-		for z in room.get("zones", {}):
-			var zc: Dictionary = room.zones[z].duplicate()
-			zc.rect = Rect2i(zc.rect.position + offset, zc.rect.size)
-			zones[z] = zc
+		for z in room.zones:
+			var zname: String = z if not zones.has(z) else "%s:%s" % [room_id, z]
+			zones[zname] = room.zones[z]
+			if zname != z:
+				for bk in room.breaker_cells:
+					if room.breaker_cells[bk] == z:
+						data.breaker_cells[bk] = zname
 		data["zones"] = zones
-		var rect := Rect2i(offset, Vector2i(String(rows[0]).length(), rows.size()))
-		data.regions.append({"id": room_id, "rect": rect, "safe": room.get("safe", false), "title": room.title})
-		if data.outdoor:
-			var ir: Array = data.get("indoor_rects", []).duplicate()
-			ir.append(rect)
-			data["indoor_rects"] = ir
+		var hazards: Array = data.get("hazards", []).duplicate()
+		hazards.append_array(room.get("hazards", []))
+		data["hazards"] = hazards
+		# 範圍：巢狀的房間放前面（region_at 找第一個符合的＝最裡面那間）
+		var base_index: int = data.regions.size()
+		for r in room.regions:
+			var rc: Dictionary = r.duplicate()
+			rc.enemy_start = rc.get("enemy_start", 0) + enemy_start
+			data.regions.append(rc)
+		for c in room.region_cells:
+			data.region_cells[c] = room.region_cells[c] + base_index
+		# 這個房間自己的格子：貼上去的地板，和緊鄰地板的牆（共用的門不算）
+		var own_index: int = data.regions.size()
+		var shared_cells: Array = shared_ids.map(func(sid): return room.doors[sid].cell)
+		for c in mine:
+			if room.region_cells.has(c) or shared_cells.has(c):
+				continue
+			var take: bool = mine[c]
+			if not take:
+				for dy in [-1, 0, 1]:
+					for dx in [-1, 0, 1]:
+						if mine.get(c + Vector2i(dx, dy), false):
+							take = true
+			if take:
+				data.region_cells[c] = own_index
+		var rect := _content_rect(rows, offset, shared_cells)
+		data.regions.append({"id": room_id, "rect": rect, "safe": room0.get("safe", false), "title": room0.title,
+			"powered": room0.get("powered_area", false), "theme": room0.get("theme", ""),
+			"outdoor": room0.get("outdoor", false), "climate": room0.get("climate", ""),
+			"music": room0.get("music", ""), "ambience": room0.get("ambience", ""), "step": room0.get("step", ""),
+			"enemy_start": enemy_start})
+		# 戶外區域裡的建築（倉庫、崗哨）照樣是室內
+		var ir: Array = data.get("indoor_rects", []).duplicate()
+		ir.append_array(room.get("indoor_rects", []))
+		data["indoor_rects"] = ir
 	data.map = map
 	return data
 
 
-## 房間貼進主地圖的位移（房間裡的座標 + 位移 = 主地圖的座標）
-static func room_offset(room_id: String) -> Vector2i:
-	var r: Dictionary = ROOMS[room_id]
-	return DATA[r.into].doors[r.door].cell - DATA[room_id].doors[r.door].cell
+## 房間實際佔的範圍：不是 # 的格子（共用的門不算）外擴一格，限制在房間地圖裡
+static func _content_rect(rows: Array, offset: Vector2i, shared: Array) -> Rect2i:
+	var lo := Vector2i(1 << 20, 1 << 20)
+	var hi := Vector2i(-1, -1)
+	for y in rows.size():
+		var row: String = rows[y]
+		for x in row.length():
+			if row[x] == "#" or shared.has(Vector2i(x, y) + offset):
+				continue
+			lo = Vector2i(mini(lo.x, x), mini(lo.y, y))
+			hi = Vector2i(maxi(hi.x, x), maxi(hi.y, y))
+	if hi.x < 0:
+		return Rect2i(offset, Vector2i.ZERO)
+	lo = Vector2i(maxi(lo.x - 1, 0), maxi(lo.y - 1, 0))
+	hi = Vector2i(hi.x + 1, mini(hi.y + 1, rows.size() - 1))
+	return Rect2i(lo + offset, hi - lo + Vector2i.ONE)
+
+
+## 主區域自己的溫度區域、配電箱記上原本的區域 id（存檔旗標、配電箱都對得上）
+static func _tag_zones(data: Dictionary, area_id: String) -> void:
+	var zones: Dictionary = {}
+	for z in data.get("zones", {}):
+		var zc: Dictionary = data.zones[z].duplicate()
+		if not zc.has("area"):
+			zc["area"] = area_id
+			zc["name"] = z
+		zones[z] = zc
+	data["zones"] = zones
+
+
+static func _tag_breakers(data: Dictionary, _area_id: String) -> void:
+	var i := 0
+	for y in data.map.size():
+		var row: String = data.map[y]
+		for x in row.length():
+			if row[x] == "X":
+				data.breaker_cells["%d,%d" % [x, y]] = data.breakers[i]
+				i += 1
+
+
+## 整個區域資料的格子座標都加上 off（地圖本身不動）
+static func _shifted(d: Dictionary, off: Vector2i) -> Dictionary:
+	var out: Dictionary = d.duplicate(true)
+	for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "neon", "reels", "item_keys", "breaker_cells", "inner_doors"]:
+		var dst := {}
+		for key in d.get(field, {}):
+			dst[_shift_key(key, off)] = d[field][key]
+		out[field] = dst
+	var doors := {}
+	for id in d.get("doors", {}):
+		var dc: Dictionary = d.doors[id].duplicate()
+		dc.cell += off
+		doors[id] = dc
+	out["doors"] = doors
+	var entries := {}
+	for e in d.get("entries", {}):
+		entries[e] = d.entries[e] + off
+	out["entries"] = entries
+	var zones := {}
+	for z in d.get("zones", {}):
+		var zc: Dictionary = d.zones[z].duplicate()
+		zc.rect = Rect2i(zc.rect.position + off, zc.rect.size)
+		zones[z] = zc
+	out["zones"] = zones
+	for field in ["hazards", "regions"]:
+		var arr: Array = []
+		for item in d.get(field, []):
+			var ic: Dictionary = item.duplicate()
+			ic.rect = Rect2i(ic.rect.position + off, ic.rect.size)
+			arr.append(ic)
+		out[field] = arr
+	var ir: Array = []
+	for r in d.get("indoor_rects", []):
+		ir.append(Rect2i(r.position + off, r.size))
+	out["indoor_rects"] = ir
+	var en: Array = []
+	for def in d.get("enemies", []):
+		var dc2: Dictionary = def.duplicate()
+		if dc2.has("cells"):
+			var cs: Array[Vector2i] = []
+			for c in dc2.cells:
+				cs.append(c + off)
+			dc2.cells = cs
+		en.append(dc2)
+	out["enemies"] = en
+	var rds: Array = []
+	for rd in d.get("region_doors", []):
+		var rdc: Dictionary = rd.duplicate()
+		rdc.cell += off
+		rds.append(rdc)
+	out["region_doors"] = rds
+	var rcells := {}
+	for c in d.get("region_cells", {}):
+		rcells[c + off] = d.region_cells[c]
+	out["region_cells"] = rcells
+	var offs := {}
+	for k in d.get("offsets", {}):
+		offs[k] = d.offsets[k] + off
+	out["offsets"] = offs
+	return out
+
+
+static func _shift_key(key: String, offset: Vector2i) -> String:
+	var p := key.split(",")
+	return "%d,%d" % [int(p[0]) + offset.x, int(p[1]) + offset.y]
+
+
+static func _find_char(rows: Array, ch: String) -> Vector2i:
+	for y in rows.size():
+		var x := String(rows[y]).find(ch)
+		if x >= 0:
+			return Vector2i(x, y)
+	return Vector2i(-1, -1)
 
 
 static func _cell_keys(rows: Array) -> Array[String]:

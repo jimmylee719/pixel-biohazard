@@ -10,8 +10,17 @@ const GAME_SCENE := "res://scenes/main.tscn"
 var _language: Button
 
 
+var _options: OptionsPanel
+
+
 func _ready() -> void:
 	get_tree().paused = false
+	DisplayServer.window_set_title("AFTERSIGNAL")
+	# 80 年代合成波風格的背景（霓虹網格、條紋太陽、天線塔）
+	var backdrop := NeonBackdrop.new()
+	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(backdrop)
+	move_child(backdrop, $Background.get_index() + 1)
 	Sfx.play_music("title")
 	Sfx.play_ambience("amb_blizzard")
 	_continue.disabled = not WorldState.has_save()
@@ -35,6 +44,20 @@ func _ready() -> void:
 		get_tree().change_scene_to_file("res://scenes/survival_menu.tscn"))
 	$Center/Box.add_child(survival)
 	$Center/Box.move_child(survival, _continue.get_index() + 1)
+	# 選項（音量、觸控、聲音提示、輔助模式、省電）
+	var options := Button.new()
+	options.text = tr("Options")
+	options.add_theme_font_size_override("font_size", 12)
+	$Center/Box.add_child(options)
+	$Center/Box.move_child(options, _language.get_index())
+	_options = OptionsPanel.new()
+	add_child(_options)
+	options.pressed.connect(func():
+		$Center.visible = false
+		_options.open())
+	_options.closed.connect(func():
+		$Center.visible = true
+		options.grab_focus())
 	(_new_game if _continue.disabled else _continue).grab_focus()
 
 

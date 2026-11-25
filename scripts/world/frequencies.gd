@@ -50,16 +50,16 @@ const DATA := [
 	{
 		"freq": 12570, "id": "ark", "label": "Ark line",
 		"lines": [
-			"[125.70] ...ARK RELAY. WINDOW OPEN. Greycrow, report sample count.",
+			"[125.70] ...ARK RELAY. WINDOW OPEN. Greycrow, report reel count.",
 			"\"Greycrow, we read your silence as consent. Collection team will proceed. Survivors are not part of the manifest.\"",
 		],
 		"reveal": "lore:ark",
 	},
 	{
-		"freq": 12605, "id": "hold", "label": "Unknown",
+		"freq": 12605, "id": "hold", "label": "The Choir",
 		"lines": [
-			"[126.05] ...hold position. Do not transmit. Retrieval is inbound.",
-			"\"Sample integrity is priority one. Survivors are... secondary.\"",
+			"[126.05] ...hold position. do not transmit. we will come to you. we always come to you.",
+			"Under the voice, faint: a dance song nobody has written yet, and the traffic of a city. Your watch says 2026. The song says 2099.",
 		],
 		"reveal": "lore:retrieval",
 	},

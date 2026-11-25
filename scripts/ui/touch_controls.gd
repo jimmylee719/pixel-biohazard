@@ -55,6 +55,23 @@ func _ready() -> void:
 		add_child(button)
 		buttons.append(button)
 	set_enabled(should_show())
+	apply_layout()
+	WorldState.options_changed.connect(apply_layout)
+
+
+## 選項：按鈕透明度、左右對調（左手模式：搖桿在右、按鈕在左）。上方的選單按鈕不換邊。
+func apply_layout() -> void:
+	var lefty: bool = WorldState.option("left_handed")
+	var alpha := clampf(float(WorldState.option("touch_opacity")) / BUTTON_COLOR.a, 0.3, 3.5)
+	for i in buttons.size():
+		var b: Array = BUTTONS[i]
+		var pos: Vector2 = b[2]
+		if lefty and pos.y > 60.0:
+			pos.x = 480.0 - pos.x
+		buttons[i].position = pos - Vector2(b[3], b[3])
+		buttons[i].modulate.a = alpha
+	joystick.zone = Rect2(480.0 - TouchStick.ZONE.end.x, TouchStick.ZONE.position.y, TouchStick.ZONE.size.x, TouchStick.ZONE.size.y) \
+		if lefty else TouchStick.ZONE
 
 
 ## 手機、平板（含網頁版在手機上開）才自動顯示。

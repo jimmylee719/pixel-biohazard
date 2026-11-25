@@ -39,6 +39,7 @@ func _ready() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH)
 	TranslationServer.set_locale(cfg.get_value("game", "language", DEFAULT_LANGUAGE))
+	load_options.call_deferred()
 
 
 func language() -> String:
@@ -52,6 +53,52 @@ func set_language(code: String) -> void:
 	cfg.load(SETTINGS_PATH)
 	cfg.set_value("game", "language", code)
 	cfg.save(SETTINGS_PATH)
+
+
+## ── 選項（設定畫面，跟語言一起存在 settings.cfg 的 options 區段，不跟存檔走）──
+## 依 iOS 同類遊戲的玩家評價加的（docs/IP_REVIEW.md）：音樂／音效分開調、觸控按鈕透明度與左右對調、
+## 「聲音提示」（畫面邊緣顯示畫面外的腳步聲，沒戴耳機也能玩）、輔助模式（受傷和雜訊減半）、省電模式（30 FPS）。
+const OPTION_DEFAULTS := {
+	"music": 0.8, "sfx": 1.0, "touch_opacity": 0.22, "left_handed": false,
+	"sound_cues": true, "assist": false, "battery_saver": false,
+}
+var options := OPTION_DEFAULTS.duplicate()
+signal options_changed
+
+
+func option(key: String) -> Variant:
+	return options.get(key, OPTION_DEFAULTS.get(key))
+
+
+func set_option(key: String, value: Variant, save := true) -> void:
+	options[key] = value
+	apply_options()
+	if save:
+		var cfg := ConfigFile.new()
+		cfg.load(SETTINGS_PATH)
+		cfg.set_value("options", key, value)
+		cfg.save(SETTINGS_PATH)
+	options_changed.emit()
+
+
+func load_options() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	for key in OPTION_DEFAULTS:
+		options[key] = cfg.get_value("options", key, OPTION_DEFAULTS[key])
+	apply_options()
+
+
+func apply_options() -> void:
+	Sfx.set_bus_volume("Music", float(option("music")))
+	Sfx.set_bus_volume("SFX", float(option("sfx")))
+	Sfx.set_bus_volume("Ambience", float(option("sfx")))
+	Engine.max_fps = 30 if option("battery_saver") else 0
+
+
+## 輔助模式：受到的傷害、累積的雜訊值乘上這個倍率
+func assist_mult() -> float:
+	return 0.5 if option("assist") else 1.0
 
 
 ## 過場動畫要不要播（測試、截圖工具會關掉）

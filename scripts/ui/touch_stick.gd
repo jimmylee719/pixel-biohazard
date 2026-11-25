@@ -10,6 +10,8 @@ const RADIUS := 30.0
 const DEADZONE := 0.25
 ## 搖桿只在這個範圍內按下才算（畫面左邊、上方選單按鈕以下）
 const ZONE := Rect2(0, 56, 220, 214)
+## 實際使用的範圍（左右對調時換到右邊，見 TouchControls.apply_layout）
+var zone := ZONE
 
 var active := true
 var vector := Vector2.ZERO
@@ -24,7 +26,7 @@ func _input(event: InputEvent) -> void:
 		return
 	var touch := event as InputEventScreenTouch
 	if touch:
-		if touch.pressed and _touch == -1 and ZONE.has_point(touch.position):
+		if touch.pressed and _touch == -1 and zone.has_point(touch.position):
 			touch_down(touch.index, touch.position)
 		elif not touch.pressed and touch.index == _touch:
 			release()

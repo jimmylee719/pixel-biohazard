@@ -21,7 +21,7 @@ const DATA := [
 	{
 		"id": "quarantine",
 		"label": "QUARANTINE - seal Greycrow, nobody leaves, nothing lands",
-		"sent": "[OUT] GREYCROW TO ANY STATION. BIOLOGICAL CONTAMINATION. QUARANTINE THE ISLAND. DO NOT LAND. NOBODY LEAVES.",
+		"sent": "[OUT] GREYCROW TO ANY STATION. HOSTILE SIGNAL. QUARANTINE THE ISLAND. DO NOT LAND. NOBODY LEAVES.",
 		"reply": "[IN] RESCUE CENTRE: ...Say again, Greycrow? Copy quarantine. Passing it up the chain. Stay off the air.",
 	},
 	{
@@ -35,7 +35,7 @@ const DATA := [
 ## 不管選哪一個，最後都會收到這則（不是救援中心）
 const HOLD_REPLY := [
 	"[IN 126.05] Hold position. Do not transmit again. We will come to you.",
-	"That wasn't the rescue centre. The carrier dies. Below the station, the drill shaft is humming.",
+	"That wasn't the rescue centre. That was the voice from the 1962 reel. Below the station, the drill shaft is humming.",
 ]
 
 

@@ -41,7 +41,7 @@ func _run() -> void:
 	await _test_door_back_and_persistence()
 
 	# 以下測試都在研究站一樓進行（從貨運入口進入）
-	await _main.load_area("station_1f", "cargo", false)
+	await _enter("station_1f", "cargo", false)
 	_bind_area()
 	await _test_safe_room()
 	_bind_area()
@@ -86,6 +86,7 @@ func _run() -> void:
 	await _test_save_migration()
 	await _test_expansion()
 	await _test_new_systems()
+	await _test_aftersignal()
 	await _test_survival()
 
 	print("")
@@ -100,12 +101,18 @@ func _run() -> void:
 
 func _bind_area() -> void:
 	_level = _main.level
-	_watcher = _main.enemies[0]
-	_chimer = _main.enemies[1] if _main.enemies.size() > 1 else null
+	# 合併進大地圖的區域：這個區域自己的第一隻敵人（Areas._compose 的 enemy_start）
+	var start := 0
+	for r in _level._data.get("regions", []):
+		if r.id == _main.current_area_id():
+			start = r.enemy_start
+	_watcher = _main.enemies[start]
+	_chimer = _main.enemies[start + 1] if _main.enemies.size() > start + 1 else null
 
 
 ## 按住方向鍵直到切換到指定區域（最多 2 秒），切換後立刻放開。
 func _walk_until_area(action: String, area_id: String) -> void:
+	var root_before: String = _main.level.area_id
 	Input.action_press(action)
 	for i in 120:
 		if _main.current_area_id() == area_id:
@@ -115,10 +122,14 @@ func _walk_until_area(action: String, area_id: String) -> void:
 	while _main._transitioning:
 		await _frames(1)
 	await _frames(5)
+	# 真的換了一張地圖（不是同一張地圖裡走進房間）：之後的座標用新區域的
+	if _main.level.area_id != root_before:
+		_off = Areas.area_offset(area_id)
 
 
 func _spawn_pos() -> Vector2:
-	return _level.get_entry_position("cargo")
+	var key := "station_1f:cargo" if _level._data.entries.has("station_1f:cargo") else "cargo"
+	return _level.get_entry_position(key)
 
 
 func _frames(n: int) -> void:
@@ -138,8 +149,34 @@ func _check(cond: bool, label: String) -> void:
 		_failures += 1
 
 
+## 測試裡的格子座標都是「目前載入的區域（或房間）自己的座標」：
+## 合併進大地圖的區域（Areas.ROOMS）要加上位移才是地圖上的位置（_enter 會設定）。
+var _off := Vector2i.ZERO
+
+
 func _tile(x: int, y: int) -> Vector2:
-	return (Vector2(x, y) + Vector2(0.5, 0.5)) * Level.TILE
+	return (Vector2(Vector2i(x, y) + _off) + Vector2(0.5, 0.5)) * Level.TILE
+
+
+## 載入區域，之後的 _tile() 用這個區域自己的座標
+func _enter(area_id: String, entry: String, keep := false) -> void:
+	await _main.load_area(area_id, entry, keep)
+	_off = Areas.area_offset(area_id)
+
+
+## 不重新載入，只把之後的 _tile() 換成某個區域（合併進大地圖的房間）自己的座標
+## 房間相對於目前 _tile() 座標的位移（舊測試用 _tile(x + off.x, ...) 的寫法）
+func _rel_offset(area_id: String) -> Vector2i:
+	return Areas.area_offset(area_id) - _off
+
+
+func _use(area_id: String) -> void:
+	_off = Areas.area_offset(area_id)
+
+
+## 區域自己的格子座標 → 合併後地圖的座標
+func _at(area_id: String, cell: Vector2i) -> Vector2i:
+	return cell + Areas.area_offset(area_id)
 
 
 ## 只讓指定的敵人運作，其他敵人停住並放回出生點。
@@ -239,8 +276,8 @@ func _test_supply_crate() -> void:
 	print("[world / supply crate]")
 	_shore_quiet()
 	_level = _main.level
-	var crate := _find_item(SupplyCrate, Vector2i(36, 21))
-	_place_player(_tile(36, 20), false, Vector2.DOWN)
+	var crate := _find_item(SupplyCrate, Vector2i(50, 38))
+	_place_player(_tile(50, 37), false, Vector2.DOWN)
 	await _frames(3)
 	_check(_player.focus == crate, "站在補給箱旁可以打開")
 	await _press("interact")
@@ -252,10 +289,12 @@ func _test_supply_crate() -> void:
 func _test_door_into_station() -> void:
 	print("[world / door]")
 	_shore_quiet()
-	_place_player(_tile(6, 8), false, Vector2.UP)
-	await _walk_until_area("move_up", "station_1f")
-	_check(_main.level.area_id == "station_1f", "走進門會切換到研究站一樓（%s）" % _main.current_area_id())
-	_check(_player.global_position.distance_to(_main.level.get_entry_position("front")) < 20.0, "站在對應的門口")
+	_place_player(_tile(11, 8), false, Vector2.RIGHT)
+	var root_before: String = _main.level.area_id
+	await _walk_until_area("move_right", "station_1f")
+	_check(_main.current_area_id() == "station_1f", "走進正門就在研究站一樓（%s）" % _main.current_area_id())
+	_check(_main.level.area_id == root_before, "無縫：沒有切換地圖（同一張 %s）" % root_before)
+	_check(_player.global_position.distance_to(_main.level.get_entry_position("station_1f:front")) < 20.0, "站在正門內側")
 	_check(Missions.is_done("enter_station"), "完成主線：進入研究站")
 	_check(Missions.tracked_mission().get("id") == "find_shelter", "下一個主線出現：找安全的地方")
 	_check(not Missions.is_available("lost_tape"), "站內支線要用無線電才會出現")
@@ -268,12 +307,13 @@ func _test_door_back_and_persistence() -> void:
 	var bottles := _player.bottles
 	_player.facing = Vector2.LEFT
 	await _walk_until_area("move_left", "south_shore")
-	_check(_main.level.area_id == "south_shore", "從正門回到南岸（%s）" % _main.current_area_id())
+	_check(_main.current_area_id() == "south_shore", "從正門回到南岸（%s）" % _main.current_area_id())
+	_check(WorldState.checkpoint_area() == "south_shore" and WorldState.checkpoint_entry() == "front", "走出正門：檢查點在門外")
 	_check(_player.bottles == bottles, "空瓶數跟著主角走")
 	_level = _main.level
-	var crate := _find_item(SupplyCrate, Vector2i(36, 21))
+	var crate := _find_item(SupplyCrate, Vector2i(50, 38))
 	_check(crate != null and not crate.enabled, "已經打開的補給箱不會重生")
-	var cache := _find_item(ItemPickup, Vector2i(37, 9))
+	var cache := _find_item(ItemPickup, Vector2i(55, 29))
 	_check(cache != null and not cache.enabled and not cache.visible, "還沒聽到作業日誌前，東岸的彈藥藏匿處不存在")
 
 
@@ -302,13 +342,13 @@ func _test_tape_and_intel() -> void:
 
 func _test_level() -> void:
 	print("[level]")
-	_check(_level.enemy_defs.size() == 2, "兩隻敵人")
-	_check(_level.bounds.size == Vector2(704, 480), "地圖大小 704x480（安全屋合併在下面）")
+	_check(_level.enemy_defs.filter(func(d): return d.key.begins_with("station_1f:")).size() == 2, "一樓兩隻敵人")
+	_check(_level.bounds.size.x > 704 and _level.area_id == "south_shore", "一樓、安全屋、南岸、燃料庫是同一張地圖（%s）" % _level.bounds.size)
 	var path := NavigationServer2D.map_get_path(
 		_level.get_navigation_map(), _tile(10, 2), _spawn_pos(), true)
 	_check(path.size() >= 2, "導航可以從交誼廳走到出生點")
-	var lockers := _level.get_interactables().filter(func(i): return i is Locker)
-	_check(lockers.size() == 5, "5 個置物櫃")
+	var lockers := _level.get_interactables().filter(func(i): return i is Locker and _level.region_at(i.global_position) in ["station_1f", "station_safe"])
+	_check(lockers.size() == 5, "一樓 5 個置物櫃（%d）" % lockers.size())
 	_check(_watcher.display_name == "Watcher" and _chimer.display_name == "Chimer", "敵人種類正確")
 
 
@@ -736,7 +776,7 @@ func _test_corpse_persists() -> void:
 	print("[combat / corpse persists]")
 	var death_pos := _watcher.global_position
 	WorldState.save_checkpoint("station_1f", "cargo")
-	await _main.load_area("station_1f", "cargo", false)
+	await _enter("station_1f", "cargo", false)
 	_bind_area()
 	await _frames(5)
 	_check(_watcher.is_dead, "重新進入區域，打倒的敵人還是死的")
@@ -949,11 +989,11 @@ func _test_safe_room() -> void:
 	_check(_main.current_area_id() == "station_safe", "走廊的門通往無菌隔離室（%s）" % _main.current_area_id())
 	_check(_main.level.is_safe_at(_player.global_position), "這是安全屋")
 	_check(_main.enemies.all(func(e): return not _main.level.is_safe_at(e.global_position)), "安全屋裡沒有敵人")
-	_check(_main.level.area_id == "station_1f", "安全屋和走廊是同一張地圖（不切換畫面）")
+	_check(_main.level.area_id == Areas.root_of("station_1f"), "安全屋和走廊是同一張地圖（不切換畫面）")
 	_place_player(_tile(14, 24), false, Vector2.DOWN)
 	await _frames(3)
 	var fog: RoomFog = _main.level.fog
-	_check(fog != null and fog.is_hidden_cell(Vector2i(14, 18)), "在安全屋裡看不到門外的走廊")
+	_check(fog != null and fog.is_hidden_cell(_main.level.cell_of(_tile(14, 18))), "在安全屋裡看不到門外的走廊")
 	_check(not fog.is_hidden_cell(_main.level.cell_of(_player.global_position)), "看得到自己所在的房間")
 	# 敵人追不進安全屋
 	var w: Enemy = _main.enemies[0]
@@ -970,7 +1010,7 @@ func _test_safe_room() -> void:
 	_check(not Missions.is_available("lost_tape"), "還沒用無線電前，支線還沒出現")
 
 	print("[safe room / radio & save]")
-	var off := Areas.room_offset("station_safe")
+	var off := _rel_offset("station_safe")
 	_level = _main.level
 	var radio := _find_item(RadioConsole, Vector2i(3, 2) + off)
 	_place_player(_tile(3 + off.x, 3 + off.y), false, Vector2.UP)
@@ -1042,9 +1082,13 @@ func _test_safe_room() -> void:
 	_place_player(_tile(9 + off.x, 2 + off.y), false, Vector2.UP)
 	await _walk_until_area("move_up", "station_1f")
 	_check(_main.current_area_id() == "station_1f", "從安全屋走回走廊")
+	# 無縫地圖：門口那一格已經算走廊，再往前走幾步
+	Input.action_press("move_up")
+	await _frames(20)
+	Input.action_release("move_up")
 	_check(_player.global_position.y < _tile(14, 20).y, "穿過自動門到了走廊")
 	await _frames(2)
-	_check(_main.level.fog.is_hidden_cell(Vector2i(14, 25)), "出來之後看不到安全屋裡面")
+	_check(_main.level.fog.is_hidden_cell(_main.level.cell_of(_tile(14, 25))), "出來之後看不到安全屋裡面")
 	_enable_all()
 
 
@@ -1118,6 +1162,7 @@ func _test_exit() -> void:
 	_check(Missions.is_done("find_stairs"), "完成主線：到達樓上")
 	_check(Missions.tracked_mission().get("id") == "director_records", "下一個主線：站長的紀錄")
 	_check(_main.level.is_cold(_player.global_position), "二樓暖氣壞了，是冷的")
+	_use("station_2f")
 	_bind_upper()
 	await _test_sleepers()
 	await _test_keycard_and_office()
@@ -1131,7 +1176,8 @@ func _bind_upper() -> void:
 	_watcher = _main.enemies[0]
 	_sleepers.clear()
 	for e in _main.enemies:
-		if e.display_name == "Sleeper":
+		# 二樓和東翼是同一張地圖：只算二樓自己的
+		if e.display_name == "Sleeper" and e.enemy_key.begins_with("station_2f:"):
 			_sleepers.append(e)
 
 
@@ -1140,7 +1186,7 @@ func _test_sleepers() -> void:
 	_check(_sleepers.size() == 4, "二樓有 4 隻凍眠體")
 	var s: Enemy = _sleepers[0]  # 宿舍 A (12,4)
 	_check(s.is_dormant and s.can_be_taken_down_by(_player), "凍眠體一開始躺著（可以偷襲）")
-	var decoys := _level.get_children().filter(func(n): return n is CorpseDecor)
+	var decoys := _level.get_children().filter(func(n): return n is CorpseDecor and _level.region_at(n.global_position) == "station_2f")
 	_check(decoys.size() == 5, "地上還有 5 具普通屍體")
 	_only(s)
 	# 自動鎖定不會鎖到睡著的凍眠體
@@ -1226,7 +1272,7 @@ func _test_keycard_and_office() -> void:
 	_check(_main.current_area_id() == "station_2f_office", "有權限卡就能進站長室")
 	_level = _main.level
 	_check(_level.area_id == "station_2f", "站長室和二樓是同一張地圖")
-	var off := Areas.room_offset("station_2f_office")
+	var off := _rel_offset("station_2f_office")
 	var note := _find_item(ReadableNote, Vector2i(3, 2) + off)
 	_place_player(_tile(3 + off.x, 3 + off.y), false, Vector2.UP)
 	await _frames(3)
@@ -1251,7 +1297,7 @@ func _quiet() -> void:
 
 func _test_power() -> void:
 	print("[power / basement door]")
-	await _main.load_area("station_1f", "stairs", false)
+	await _enter("station_1f", "stairs", false)
 	_quiet()
 	_place_player(_tile(30, 2), false, Vector2.UP)
 	await _walk_until_area("move_up", "station_b1")
@@ -1268,7 +1314,7 @@ func _test_power() -> void:
 	_check(not WorldState.power_on and Missions.step_index("restore_power") == 0, "沒有燃料時發電機不會啟動")
 
 	print("[power / fuel depot]")
-	await _main.load_area("fuel_depot", "depot", false)
+	await _enter("fuel_depot", "depot", false)
 	_quiet()
 	_level = _main.level
 	_check(_main.level.outdoor, "燃料庫在戶外")
@@ -1294,7 +1340,7 @@ func _test_power() -> void:
 	_check(swing.is_empty() or swing.t > 0.1, "搬著燃料桶不能揮刀")
 
 	print("[power / generator]")
-	await _main.load_area("station_b1", "basement", false)
+	await _enter("station_b1", "basement", false)
 	_quiet()
 	_level = _main.level
 	_check(_player.is_carrying(), "換區域時燃料桶還在手上")
@@ -1327,10 +1373,10 @@ func _wait_phase(bear: BossBear, phase: int, max_frames := 240) -> bool:
 
 func _test_hangar() -> void:
 	print("[hangar / electric door]")
-	await _main.load_area("south_shore", "hangar", false)
+	await _enter("south_shore", "hangar", false)
 	_quiet()
 	WorldState.data.flags.erase("power_on")
-	_place_player(_tile(20, 9), false, Vector2.UP)
+	_place_player(_tile(7, 2), false, Vector2.UP)
 	Input.action_press("move_up")
 	await _seconds(0.6)
 	Input.action_release("move_up")
@@ -1338,7 +1384,7 @@ func _test_hangar() -> void:
 	_check(_main.level.area_id == "south_shore", "沒電時機庫的電動門打不開")
 	_check("electric" in _main.get_node("HUD/Message").text, "提示需要電力")
 	WorldState.set_flag("power_on")
-	_place_player(_tile(20, 9), false, Vector2.UP)
+	_place_player(_tile(7, 2), false, Vector2.UP)
 	await _walk_until_area("move_up", "hangar")
 	_check(_main.level.area_id == "hangar", "有電之後可以進機庫")
 	_level = _main.level
@@ -1542,7 +1588,7 @@ func _test_tower() -> void:
 
 func _test_shaft() -> void:
 	print("[shaft / door]")
-	await _main.load_area("station_b1", "basement", false)
+	await _enter("station_b1", "basement", false)
 	_quiet()
 	_level = _main.level
 	WorldState.data.access_level = 2  # 權限只會升不會降：測試直接改資料
@@ -1701,7 +1747,7 @@ func _test_shaft() -> void:
 	get_tree().paused = false
 	_main._resetting = false
 	WorldState.new_game()
-	await _main.load_area(WorldState.data.area, WorldState.data.entry, false)
+	await _enter(WorldState.data.area, WorldState.data.entry, false)
 	_check(WorldState.signal_choice() == "" and not WorldState.power_on, "新遊戲的狀態是乾淨的")
 	await _test_environment()
 
@@ -1773,7 +1819,7 @@ func _test_environment() -> void:
 	_quiet()
 
 	print("[extinguisher]")
-	await _main.load_area("station_1f", "cargo", false)
+	await _enter("station_1f", "cargo", false)
 	_quiet()
 	_level = _main.level
 	var mount := _find_item(ExtinguisherMount, Vector2i(9, 17))
@@ -1809,7 +1855,7 @@ func _test_environment() -> void:
 	_check(_loudest() >= 10.0 * Player.TILE, "滅火器落地很大聲（誘餌）")
 
 	print("[breakables / drum / stones / knock]")
-	await _main.load_area("fuel_depot", "depot", false)
+	await _enter("fuel_depot", "depot", false)
 	_quiet()
 	_level = _main.level
 	var crate := _find_item(Breakable, Vector2i(22, 13))
@@ -1867,8 +1913,8 @@ func _test_environment() -> void:
 	await _press("interact")
 	_check(_noises.size() == 1 and is_equal_approx(_noises[0].radius, 4.0 * Player.TILE), "敲牆發出聲音")
 	_check(_noises.size() == 1 and _noises[0].pos.x < _player.global_position.x, "聲音在牆的位置")
-	await _main.load_area("south_shore", "depot", false)
-	await _main.load_area("fuel_depot", "depot", false)
+	await _enter("south_shore", "depot", false)
+	await _enter("fuel_depot", "depot", false)
 	_level = _main.level
 	_check(_find_item(OilDrum, Vector2i(5, 16)).is_lit(), "回到燃料庫，油桶還在燒")
 	_check(not _find_item(Breakable, Vector2i(27, 15)).enabled, "拆掉的木板不會復原")
@@ -1876,7 +1922,7 @@ func _test_environment() -> void:
 		f.put_out()
 
 	WorldState.new_game()
-	await _main.load_area(WorldState.data.area, WorldState.data.entry, false)
+	await _enter(WorldState.data.area, WorldState.data.entry, false)
 	await _test_cold_and_huts()
 
 
@@ -1887,7 +1933,7 @@ func _test_cold_and_huts() -> void:
 	_check(Climates.has_exposure(_level.climate_id()), "灰鴉島是北極氣候：會失溫")
 	_check(not Climates.has_exposure("temperate"), "溫帶氣候（之後的資料片）不會失溫")
 	WorldState.body_temp = 100.0
-	_place_player(_tile(20, 12), true, Vector2.UP)
+	_place_player(_tile(30, 36), true, Vector2.UP)
 	await _seconds(1.0)
 	_check(WorldState.body_temp < 99.8 and WorldState.body_temp > 99.0, "戶外會慢慢失溫（%.1f）" % WorldState.body_temp)
 	_check("Body:" in _main.get_node("HUD/Condition").text, "會失溫的地方顯示體溫")
@@ -1918,7 +1964,7 @@ func _test_cold_and_huts() -> void:
 	var radio_text := " ".join(Missions.receive_radio())
 	_check("weather camp" in radio_text, "無線電接到氣象小屋的委託")
 	_check(Missions.is_active("weather_station"), "支線：氣象小屋")
-	_place_player(_tile(1, 12), false, Vector2.LEFT)
+	_place_player(_tile(1, 32), false, Vector2.LEFT)
 	await _walk_until_area("move_left", "weather_huts")
 	_check(_main.level.area_id == "weather_huts", "南岸西邊通往氣象小屋群")
 	_quiet()
@@ -1931,7 +1977,7 @@ func _test_cold_and_huts() -> void:
 	_check(_main.level.is_safe_at(_player.global_position) and _main.level.exposure_at(_player.global_position) < 0.0, "安全屋很暖和")
 	_check(_main.level.area_id == "weather_huts", "床鋪小屋和雪原是同一張地圖")
 	_check(Missions.step_index("weather_station") == 1, "支線進行到 Pieter 的下落")
-	await _main.load_area("weather_huts", "bunk", false)
+	await _enter("weather_huts", "bunk", false)
 	_quiet()
 	_level = _main.level
 	var packs := WorldState.inv_count("heat_pack")
@@ -1953,7 +1999,7 @@ func _test_cold_and_huts() -> void:
 		f.put_out()
 
 	WorldState.new_game()
-	await _main.load_area(WorldState.data.area, WorldState.data.entry, false)
+	await _enter(WorldState.data.area, WorldState.data.entry, false)
 	await _test_touch()
 
 
@@ -1965,15 +2011,15 @@ func _test_enemy_persistence() -> void:
 	_watcher._start_search(_tile(10, 10))
 	await _frames(2)
 	var left_at := _watcher.global_position
-	await _main.load_area("south_shore", "front", false)
-	await _main.load_area("station_1f", "cargo", false)
+	await _enter("south_shore", "front", false)
+	await _enter("station_1f", "cargo", false)
 	_bind_area()
 	_check(_watcher.enemy_key == key, "同一隻敵人")
 	_check(_watcher.global_position.distance_to(left_at) < 2.0, "離開再回來，敵人還在原本的地方")
 	_check(_watcher.state == Enemy.State.SEARCH, "離開時在找你，回來時牠還在附近搜索")
 	# 恢復原狀，後面的測試從巡邏起點開始
 	WorldState.data.enemies.clear()
-	await _main.load_area("station_1f", "cargo", false)
+	await _enter("station_1f", "cargo", false)
 	_bind_area()
 	WorldState.save_checkpoint("station_1f", "cargo")
 	await _frames(5)
@@ -2327,7 +2373,7 @@ func _test_expansion() -> void:
 			_check(Areas.DATA.has(to) and Areas.DATA[to].doors.has(door_id), "門 %s:%s 兩邊相通" % [area_id, door_id])
 	for area_id in ["north_harbor", "ice_caves", "station_east_wing"]:
 		var entry: String = Areas.DATA[area_id].doors.keys()[0]
-		await _main.load_area(area_id, entry, false)
+		await _enter(area_id, entry, false)
 		_quiet()
 		var types := {}
 		for e in _main.enemies:
@@ -2335,6 +2381,64 @@ func _test_expansion() -> void:
 		_check(_main.enemies.size() >= 4, "%s 有敵人（%s）" % [area_id, types.keys()])
 		_check(_main.level.title != "", "%s 載入" % area_id)
 	_check(not Areas.DATA.north_harbor.reinforcements.is_empty(), "北港有增援（無線電通報）")
+	# 守門一號：廣場＋基地（安全屋合併進基地、有區域地圖、保險箱、多個房間）
+	# 無縫：廣場、基地、安全屋是同一張地圖（Areas.ROOMS 巢狀合併，房間裡也有敵人）
+	_check(Areas.root_of("gate_one_safe") == "north_harbor", "安全屋→基地→廣場→冰洞→北港：同一張地圖")
+	await _enter("gate_one_yard", "gate_tunnel", false)
+	_quiet()
+	var gate_enemies: Array = _main.enemies.filter(func(en): return en.enemy_key.begins_with("gate_one_"))
+	_check(_main.level.area_id == "north_harbor" and gate_enemies.size() == 13, "廣場和基地的敵人一起載入（%d 隻）" % gate_enemies.size())
+	var base := Areas.get_area("gate_one_base")
+	var ids: Array = base.regions.map(func(r): return r.id)
+	_check(ids.find("gate_one_safe") < ids.find("gate_one_base") and base.regions[ids.find("gate_one_safe")].safe, "安全屋在基地裡面（最裡面的範圍先比對）")
+	var lobby := (Vector2(_at("gate_one_base", Vector2i(31, 31))) + Vector2(0.5, 0.5)) * Level.TILE
+	var yard_pos := (Vector2(_at("gate_one_yard", Vector2i(31, 34))) + Vector2(0.5, 0.5)) * Level.TILE
+	_check(_main.level.region_at(lobby) == "gate_one_base" and _main.level.is_indoor_at(lobby), "基地大廳是室內")
+	_check(not _main.level.is_indoor_at(yard_pos), "廣場是戶外")
+	_check(_main.level.exposure_at(yard_pos) > _main.level.exposure_at(lobby), "走進基地就不會失溫")
+	var inside_safe := (Vector2(Areas.area_offset("gate_one_safe") + Vector2i(5, 3)) + Vector2(0.5, 0.5)) * Level.TILE
+	_check(_main.level.is_safe_at(inside_safe), "安全屋的位置換算正確")
+	# 從基地的門口直接走出廣場：不切換畫面
+	_place_player(lobby, true, Vector2.DOWN)
+	await _frames(2)
+	var walk_area: String = _main.level.area_id
+	_player.global_position = yard_pos
+	await _frames(3)
+	_check(_main.level.area_id == walk_area and _main.current_area_id() == "gate_one_yard", "走出基地＝同一張地圖，沒有切換區域")
+	await _enter("gate_one_base", "base_gate", false)
+	_quiet()
+	_check(_main.current_area_id() == "gate_one_base", "從房間 id 載入：站在基地大廳")
+	# 子彈穿薄牆：走廊往寢室開槍（中間一格牆）打得到；厚的外牆打不穿
+	var cc := func(c: Vector2i) -> Vector2: return _tile(c.x, c.y)
+	_place_player(cc.call(Vector2i(8, 9)), true, Vector2.UP)
+	await _frames(1)
+	var thin: Dictionary = _player.combat.trace_shot(_player.global_position, Vector2.UP, 170.0, [1, 0.55])
+	_check(thin.holes.size() >= 1 and _main.level.cell_of(thin.holes[0]) == _at("gate_one_base", Vector2i(8, 8)) and thin.end.y < cc.call(Vector2i(8, 7)).y, "手槍穿過一格厚的牆（還有床鋪）")
+	var thick: Dictionary = _player.combat.trace_shot(_player.global_position, Vector2.UP, 170.0, [0, 1.0])
+	_check(thick.holes.is_empty() and thick.end.y > cc.call(Vector2i(8, 8)).y - 1.0, "不能穿牆的武器停在牆上")
+	var dummy: Enemy = _main.enemies[0]
+	dummy.process_mode = Node.PROCESS_MODE_DISABLED
+	dummy.global_position = cc.call(Vector2i(8, 5))
+	for other in _main.enemies:
+		if other != dummy:
+			other.global_position = cc.call(Vector2i(50, 28))
+	var hp := dummy.health
+	WorldState.inv_add("pistol", 1)
+	WorldState.equipped = "pistol"
+	WorldState.set_loaded("pistol", 8)
+	_player.combat.target = null
+	_player.combat._cooldown = 0.0
+	_player.facing = Vector2.UP
+	_check(_player.combat.shoot(), "對著牆開槍")
+	_check(dummy.health < hp and _player.combat.last_shot.hit, "牆後的敵人被穿牆的子彈打中")
+	_check(hp - dummy.health < PlayerCombat.WEAPONS.pistol.damage_min, "穿牆後傷害變小")
+	dummy.process_mode = Node.PROCESS_MODE_INHERIT
+	_check(base.entries.has("radio"), "守門一號安全屋有無線電入口")
+	var rows: Array = base.map
+	var joined := "".join(rows)
+	_check(joined.contains("l") and joined.contains("s") and joined.count("+") >= 20, "基地有地圖、保險箱、很多室內門")
+	var safe_area: Dictionary = Areas.DATA.gate_one_base.safes["46,2"]
+	_check(Areas.DATA.gate_one_yard.hidden.values().has(safe_area.reveal), "基地保險箱的情報指向廣場的隱藏物品")
 	# 圖鑑：看到就解鎖、打倒會記數
 	var e: Enemy = _main.enemies[0]
 	var sp := e.get_species()
@@ -2382,6 +2486,60 @@ func _test_expansion() -> void:
 
 
 ## 生存模式「長夜」：波次、分數、補給、撤離、殘響點數、解鎖、主線補給箱
+
+## AFTERSIGNAL 改版：1962 年的記憶（燈籠站）、時代色調、霓虹燈、選項
+func _test_aftersignal() -> void:
+	print("[AFTERSIGNAL: 1962 memory / neon / options]")
+	await _enter("station_b1", "basement", false)
+	_quiet()
+	_level = _main.level
+	var reel := _first(MemoryReel) as MemoryReel
+	_check(reel != null and reel.target_area == "lantern_1962", "B1 有 1962 年的盤式錄音機")
+	var medkit := _find_item(ItemPickup, Vector2i(23, 5))
+	_check(medkit != null and not medkit.visible, "佐藤藏的急救包：還沒看過記憶時看不到")
+	await _main._on_play_reel(reel.target_area, reel.target_entry, reel.scene, reel.flag)
+	_off = Areas.area_offset("lantern_1962")
+	_level = _main.level
+	_quiet()
+	_check(_main.level.area_id == "lantern_1962", "播放錄音帶 = 走進 1962 年的記憶")
+	_check(is_equal_approx(_main.current_era(), 1.0), "1962 年的畫面是泛黃的老底片")
+	_check(_main.enemies.size() == 3 and _main.enemies.all(func(en): return en.faction == "human"), "1962 年的敵人是三個士兵")
+	_check(_main.level.find_children("*", "NeonSign", true, false).size() == 2, "燈籠站的霓虹燈（LANTERN、ON AIR）")
+	_check(WorldState.checkpoint_area() == "lantern_1962", "被抓到會從記憶的開頭重來")
+	var last := _find_item(MemoryReel, Vector2i(36, 2)) as MemoryReel
+	_check(last != null and last.target_area == "station_b1", "錄音室的最後一捲帶子回到現在")
+	await _main._on_play_reel(last.target_area, last.target_entry, last.scene, last.flag)
+	_off = Areas.area_offset("station_b1")
+	_level = _main.level
+	_quiet()
+	_check(_main.level.area_id == "station_b1" and is_equal_approx(_main.current_era(), 0.0), "回到 2026 年的地下室")
+	_check(WorldState.has_flag("memory:lantern"), "記錄看過 1962 年的記憶")
+	medkit = _find_item(ItemPickup, Vector2i(23, 5))
+	_check(medkit != null and medkit.visible, "看完記憶：佐藤藏的急救包出現了")
+	await _enter("station_1f", "front", false)
+	_quiet()
+	_check(_main.level.find_children("*", "NeonSign", true, false).size() >= 4, "一樓大廳的霓虹招牌和大型電玩")
+	_main.set_era("2099")
+	_check(is_equal_approx(_main.current_era(), 2.0), "2099 年的霓虹色調")
+	_main.set_era("")
+	# 選項（依 iOS 玩家評價加的）
+	WorldState.set_option("assist", true, false)
+	_check(is_equal_approx(WorldState.assist_mult(), 0.5), "輔助模式：受傷、雜訊減半")
+	WorldState.set_option("assist", false, false)
+	WorldState.set_option("battery_saver", true, false)
+	_check(Engine.max_fps == 30, "省電模式：30 FPS")
+	WorldState.set_option("battery_saver", false, false)
+	_check(Engine.max_fps == 0, "關掉省電模式：不限 FPS")
+	WorldState.set_option("left_handed", true, false)
+	_check(_main.touch_controls.joystick.zone.position.x > 200.0, "左手模式：搖桿換到右邊")
+	WorldState.set_option("left_handed", false, false)
+	_check(_main.touch_controls.joystick.zone.position.x < 1.0, "右手模式：搖桿在左邊")
+	_check(_main.sound_cues != null and WorldState.option("sound_cues"), "畫面聲音提示預設開啟")
+	_main.options_panel.open()
+	_check(_main.options_panel.visible, "暫停選單可以打開選項")
+	_main.options_panel.close()
+	_check(Missions.get_mission("lantern_1962").size() > 0, "支線：燈籠站，1962")
+
 func _test_survival() -> void:
 	print("[survival]")
 	WorldState.profile_path = "user://test_profile.cfg"
@@ -2460,10 +2618,10 @@ func _first(type: Variant) -> Interactable:
 ## 操作（背對自動瞄準、閃躲、快捷選單）、紙娃娃裝備、孢子區、地圖、保險箱
 func _test_new_systems() -> void:
 	print("[controls / gear / map]")
-	await _main.load_area("station_1f", "front", false)
+	await _enter("station_1f", "front", false)
 	_quiet()
 	_level = _main.level
-	var e: Enemy = _main.enemies[1]
+	var e: Enemy = _main.enemies.filter(func(en): return en.enemy_key == "station_1f:1")[0]
 	e.global_position = _tile(30, 7)
 	e.is_dormant = false
 	WorldState.inv_add("pistol", 1)
@@ -2506,7 +2664,7 @@ func _test_new_systems() -> void:
 	WorldState.equip_gear("feet", "hazmat_boots")
 	_check(Gear.full_set() == "hazmat" and Gear.stat("hazard") == 0.0, "防護套裝整套：完全不受孢子影響")
 	# 孢子區
-	await _main.load_area("station_east_wing", "east_wing", false)
+	await _enter("station_east_wing", "east_wing", false)
 	_quiet()
 	_level = _main.level
 	_check(_level.hazard_at(_tile(23, 2)) == "spores", "東翼的實驗室有孢子")
@@ -2521,11 +2679,12 @@ func _test_new_systems() -> void:
 	_check(WorldState.infection > 1.0, "沒穿防護裝備：在孢子裡一直感染（%.1f）" % WorldState.infection)
 	WorldState.infection = 0.0
 	# 地圖：去過的地方、樓層地圖、主線方向
-	_check(WorldState.data.explored.has("station_east_wing"), "走過的地方記在地圖上")
+	# 地圖是一整張（二樓＋站長室＋東翼）：記在合併後的主地圖底下
+	_check(WorldState.data.explored.has(Areas.root_of("station_east_wing")), "走過的地方記在地圖上")
 	var map_item := _first(AreaMapPickup)
 	_check(map_item != null, "每個區域都撿得到地圖")
 	map_item.use(_player)
-	_check(WorldState.has_flag("map:station_east_wing"), "撿到地圖 = 整張地圖顯示")
+	_check(WorldState.has_flag("map:" + Areas.root_of("station_east_wing")), "撿到地圖 = 整張地圖顯示")
 	_main.open_phone("map")
 	await _frames(1)
 	_check(_main.phone.map.known and _main.phone.map.title != "", "地圖 App 顯示這張地圖")
@@ -2533,20 +2692,20 @@ func _test_new_systems() -> void:
 	var doors: Array[Vector2i] = _main.objective_doors("south_shore", "station_b1")
 	_check(not doors.is_empty(), "主線方向：標出往目的地的門")
 	# 保險箱 → 藍色星號
-	await _main.load_area("station_b1", "basement", false)
+	await _enter("station_b1", "basement", false)
 	_quiet()
 	var safe := _first(SafeBox)
 	_check(safe != null, "地下一樓有保險箱")
 	safe.use(_player)
 	_check(WorldState.has_flag("reveal:cache_caves"), "打開保險箱：解鎖隱藏要素的情報")
-	WorldState.set_flag("map:ice_caves")
+	WorldState.set_flag("map:" + Areas.root_of("ice_caves"))
 	_main.open_phone("map")
-	_main.map_view = "ice_caves"
+	_main.map_view = Areas.root_of("ice_caves")
 	_main._refresh_map()
 	_check(_main.phone.map.stars.size() == 2, "地圖上出現藍色星號（%d）" % _main.phone.map.stars.size())
 	_main.close_phone()
 	# 新武器真的放在地圖上
-	await _main.load_area("ice_caves", "caves", false)
+	await _enter("ice_caves", "caves", false)
 	_quiet()
 	var rifle := false
 	for item in _main.level.get_interactables():

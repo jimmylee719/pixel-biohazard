@@ -10,7 +10,7 @@ msgid "Station 1F"
 msgstr "北緯站 一樓"
 
 msgid "Clean Room (Safe)"
-msgstr "無菌室（安全屋）"
+msgstr "潔淨室（安全屋）"
 
 msgid "Station 2F"
 msgstr "北緯站 二樓"
@@ -534,9 +534,6 @@ msgstr "沒有訊息。"
 msgid "New objective: %s"
 msgstr "新目標：%s"
 
-msgid "Infection: %s"
-msgstr "感染：%s"
-
 msgid "None"
 msgstr "無"
 
@@ -583,7 +580,7 @@ msgid "Close"
 msgstr "關閉"
 
 msgid "KOVAC: \"...is anyone on this channel? This is Dr. Ina Kovac, I left Greycrow two weeks ago. If you're in the clean room, you're safe. Listen carefully.\""
-msgstr "柯瓦奇：「……這個頻道有人嗎？我是伊娜．柯瓦奇博士，兩週前離開了灰鴉。如果你在無菌室裡，你是安全的。仔細聽好。」"
+msgstr "柯瓦奇：「……這個頻道有人嗎？我是伊娜．柯瓦奇博士，兩週前離開了灰鴉。如果你在潔淨室裡，你是安全的。仔細聽好。」"
 
 msgid "YOU DIED"
 msgstr "你死了"
@@ -602,9 +599,6 @@ msgstr "　體溫：%s"
 
 msgid "Condition: %s%s%s"
 msgstr "狀態：%s%s%s"
-
-msgid "  (infected)"
-msgstr "　（已感染）"
 
 msgid "The door is electric. There's no power."
 msgstr "這是電動門。沒有電。"
@@ -924,9 +918,6 @@ msgstr "檔案"
 msgid "Field Files"
 msgstr "現場檔案"
 
-msgid "INFECTED"
-msgstr "感染體"
-
 msgid "HUMAN"
 msgstr "人類"
 
@@ -1105,7 +1096,7 @@ msgid "LAB LOG, East Wing: \"Sealed the wing on the director's order. Twelve sti
 msgstr "東翼實驗日誌：「依站長命令封閉東翼。裡面還有十二個人。他說寒冷會讓他們一直睡著。他說的話可多了。」"
 
 msgid "MEMO - A. KOVAC (dated before she left): \"It isn't a disease. It's a hibernation strategy that uses us as the burrow. Whoever is paying for this already knows that.\""
-msgstr "備忘錄——A．科瓦契（日期在她離開之前）：「這不是疾病。這是一種冬眠策略，而我們是它的巢穴。出錢的人早就知道了。」"
+msgstr "備忘錄——A．柯瓦奇（日期在她離開之前）：「這不是疾病。這是一種冬眠策略，而我們是它的巢穴。出錢的人早就知道了。」"
 
 msgid "Shen"
 msgstr "沈若寧"
@@ -1150,7 +1141,7 @@ msgid "Quiet, then. Stay out of its way."
 msgstr "那就安靜。別擋到它的路。"
 
 msgid "A clean room. Sealed door, its own air. Nothing followed me in."
-msgstr "無菌室。密封門、獨立空調。沒有東西跟進來。"
+msgstr "潔淨室。密封門、獨立空調。沒有東西跟進來。"
 
 msgid "And a radio. I can save what I know here - and listen. Somebody might be talking."
 msgstr "還有無線電。可以在這裡記下我知道的事——然後聽。也許有人在說話。"
@@ -1384,10 +1375,10 @@ msgid "[owned] "
 msgstr "［已有］"
 
 msgid "[KOVAC]"
-msgstr "［科瓦契］"
+msgstr "［柯瓦奇］"
 
 msgid "...anyone at North Latitude? This is Ana Kovac, on the mainland relay. Is anyone still alive up there?"
-msgstr "……北緯站還有人嗎？我是艾娜．科瓦契，在本土的中繼站。那邊還有人活著嗎？"
+msgstr "……北緯站還有人嗎？我是艾娜．柯瓦奇，在本土的中繼站。那邊還有人活著嗎？"
 
 msgid "Supply pilot. Shen Ruoning. Your station is full of people who aren't people anymore."
 msgstr "補給駕駛，沈若寧。你們的研究站裡都是……已經不是人的人。"
@@ -1440,12 +1431,6 @@ msgstr "有地圖"
 msgid "No map - explored only"
 msgstr "沒有地圖——只顯示去過的地方"
 
-msgid "Spores hang in the air here. Without a sealed suit, you're breathing them in."
-msgstr "這裡的空氣裡飄著孢子。沒穿密封的防護衣，你正在把它們吸進去。"
-
-msgid "Spores"
-msgstr "孢子"
-
 msgid "Damage"
 msgstr "受傷"
 
@@ -1484,9 +1469,6 @@ msgstr "你自己的橘色外套。夠暖，也夠顯眼。"
 
 msgid "Hazmat suit"
 msgstr "防護衣"
-
-msgid "Sealed biohazard suit. Keeps the spores out. Crinkles when you move."
-msgstr "密封的生化防護衣。孢子進不來，但一動就沙沙作響。"
 
 msgid "EOD armor"
 msgstr "防爆裝甲"
@@ -1569,9 +1551,6 @@ msgstr "有鞋釘的冰上靴。在雪地站得很穩。"
 msgid "Hazmat set"
 msgstr "防護套裝"
 
-msgid "Full seal: spores can't touch you."
-msgstr "完全密封：孢子碰不到你。"
-
 msgid "EOD set"
 msgstr "防爆套裝"
 
@@ -1595,3 +1574,330 @@ msgstr "保險箱（維修辦公室）：一本獵人的帳簿。「在冰洞東
 
 msgid "SAFE (harbor office): Gatekeeper supply note. \"Medical cache stashed at the fuel depot, northwest corner of the yard, under the tarp.\""
 msgstr "保險箱（港口辦公室）：守門派的補給紀錄。「醫療物資藏在燃料庫，廣場西北角的防水布底下。」"
+
+msgid "Gate One - Yard"
+msgstr "守門一號・廣場"
+
+msgid "Gate One"
+msgstr "守門一號"
+
+msgid "Gate One - Ready Room (Safe)"
+msgstr "守門一號・待命室（安全屋）"
+
+msgid "Gate One - Gatekeeper forward base"
+msgstr "守門一號——守門派前進基地"
+
+msgid "All posts, Gate One. Ice tunnel is unwatched since the dogs went bad. Double the yard."
+msgstr "各崗哨，這裡是守門一號。狗變異之後冰洞隧道就沒人看守了。廣場加倍人手。"
+
+msgid "Their headquarters. Fences, trucks, a gatehouse - and somewhere inside, whoever gives the orders."
+msgstr "他們的指揮部。圍牆、卡車、崗哨——裡面某處，就是下命令的人。"
+
+msgid "If anyone on this island knows what's really going on, it's in there."
+msgstr "如果這座島上有人知道到底發生了什麼事，答案就在裡面。"
+
+msgid "Barracks, an armory, holding cells. They built a whole base in a month."
+msgstr "寢室、軍械庫、拘留牢房。他們一個月就蓋出一整座基地。"
+
+msgid "...and a lab. With the same thing in it as the station."
+msgstr "……還有實驗室。裡面的東西跟研究站的一樣。"
+
+msgid "They weren't containing it. They were collecting it."
+msgstr "他們不是在圍堵它。他們是在收集它。"
+
+msgid "GATEHOUSE DUTY LOG: \"Day 6. Two more from the station walked up to the wire. Unarmed. Orders were clear. Day 7. Nobody wants the gate shift anymore.\""
+msgstr "崗哨值勤日誌：「第六天。又有兩個研究站的人走到鐵絲網前。沒帶武器。命令很清楚。第七天。已經沒人想值大門的班了。」"
+
+msgid "SAFE (commander's office): a quartermaster's chit. \"Two crates held back from the manifest - medical and .308 - buried in the yard by the motor pool, southeast corner. Don't tell Gate Two.\""
+msgstr "保險箱（指揮官辦公室）：一張軍需官的字條。「有兩箱沒登記在清單上——醫療用品和 .308 子彈——埋在廣場東南角、車庫旁邊。別讓守門二號知道。」"
+
+msgid "OPERATIONS BOARD: \"Priority one: recover the drill core intact. Priority two: recover live specimens. Priority three: personnel. Strike priority three if it slows one or two.\""
+msgstr "作戰白板：「第一優先：完整回收鑽探岩芯。第二優先：回收活體樣本。第三優先：人員。如果第三項拖慢前兩項，劃掉第三項。」"
+
+msgid "UNSENT LETTER, commander's desk: \"They told us it was a chemical spill. Then they told us to keep the infected alive. Then they told us the infected were the cargo. I have stopped asking what we are guarding.\""
+msgstr "指揮官桌上沒寄出的信：「他們說是化學外洩。然後要我們讓感染者活著。然後又說感染者就是貨物。我已經不再問我們到底在守什麼了。」"
+
+msgid "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Specimens: four live, crated. Aircraft: one, grounded by ice. The supply pilot's helicopter.\""
+msgstr "通訊紀錄：「本土每六小時要一次人數回報。研究站倖存者：不計。樣本：活體四個，已裝箱。飛機：一架，結冰停飛。是那個補給飛行員的直升機。」"
+
+msgid "SCRATCHED INTO THE CELL WALL: \"I'm not sick. I told them I'm not sick. They took blood every day and they never told me the results. If you read this - they're afraid of the cold room. Ask why.\""
+msgstr "刻在牢房牆上的字：「我沒生病。我跟他們說了我沒生病。他們每天抽血，從來不告訴我結果。如果你看到這個——他們很怕冷藏室。問問為什麼。」"
+
+msgid "SPECIMEN REPORT S-4: \"Subject keeps singing at the same pitch as the core sample. When the two are in the same room, both grow. Recommend they are never shipped together.\""
+msgstr "樣本報告 S-4：「受試體一直用和岩芯樣本相同的音高在唱。兩者在同一個房間時，都會生長。建議絕對不要一起運送。」"
+
+msgid "The echoes slow down in the cold. Shut off the lounge heating from the lab breaker."
+msgstr "回聲體在寒冷中會變慢。用實驗室的配電箱關掉交誼廳的暖氣。"
+
+msgid "LANTERN, 1962"
+msgstr "燈籠站，1962"
+
+msgid "A reel-to-reel recorder sits in the B1 maintenance office. Play it, and find the last reel in the 1962 recording room."
+msgstr "B1 的維修辦公室裡有一台盤式錄音機。播放它，然後在 1962 年的錄音室找到最後一捲帶子。"
+
+msgid "KOVAC: \"The basement was a Cold War listening post before it was a station. LANTERN. If any of their reels survived, play one. I need to know what they heard in 1962.\""
+msgstr "柯瓦奇：「地下室在變成研究站之前，是冷戰時期的監聽站，代號『燈籠』。如果他們的帶子還有留下來的，放一捲來聽。我需要知道他們在 1962 年聽到了什麼。」"
+
+msgid "Damper shot"
+msgstr "抑頻針"
+
+msgid "Experimental. Floods the ear nerves with white noise and pushes the static back."
+msgstr "實驗品。用白噪音灌滿聽覺神經，把雜訊壓回去。"
+
+msgid "DESK NOTE (Halvorsen): \"Ark line, 125.70, scheduled windows only. They promised a pickup for the reels and the core. Not for us.\""
+msgstr "桌上的便條（哈爾沃森）：「方舟專線，125.70，只在排定的時段。他們答應來接錄音帶和岩芯。不是來接我們。」"
+
+msgid "HALVORSEN'S RECORDS: \"Day 3: Mendez and Lund show the clicking. Kept off the report - the Ark people paid for this season. Day 6: moved the ones who kept listening to cold storage - the cold slows the signal. Day 9: power cut. God help us.\""
+msgstr "哈爾沃森的紀錄：「第三天：曼德茲和倫德開始發出喀喀聲。沒寫進報告——這一季的經費是方舟的人出的。第六天：把一直在聽的那些人移到冷藏室——低溫會讓訊號變慢。第九天：停電了。願上帝幫助我們。」"
+
+msgid "GATE ORDERS (printed, stamped): \"Island is under Accord quarantine. Survivors are to be detained, not evacuated. Receivers take priority over personnel. No aircraft leaves Greycrow without Gate One's word.\""
+msgstr "大門命令（印刷、蓋章）：「本島由協定實施隔離。倖存者一律拘留，不得撤離。接收體優先於人員。沒有守門一號的命令，任何飛機都不准離開灰鴉島。」"
+
+msgid "OPERATIONS BOARD: \"Priority one: recover the drill core intact. Priority two: recover live receivers. Priority three: personnel. Strike priority three if it slows one or two.\""
+msgstr "作戰白板：「第一優先：完整回收鑽探岩芯。第二優先：回收活的接收體。第三優先：人員。如果第三項拖慢前兩項，劃掉第三項。」"
+
+msgid "UNSENT LETTER, commander's desk: \"They told us it was a chemical spill. Then they told us to keep the overwritten alive. Then they told us the overwritten were the cargo. I have stopped asking what we are guarding.\""
+msgstr "指揮官桌上沒寄出的信：「他們說是化學外洩。然後要我們讓被覆寫的人活著。然後又說被覆寫的人就是貨物。我已經不再問我們到底在守什麼了。」"
+
+msgid "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Receivers: four live, crated, ears taped. Aircraft: one, grounded by ice. The supply pilot's helicopter.\""
+msgstr "通訊紀錄：「本土每六小時要一次人數回報。研究站倖存者：不計。接收體：活的四個，已裝箱，耳朵貼上膠帶。飛機：一架，結冰停飛。是那個補給飛行員的直升機。」"
+
+msgid "RECEIVER REPORT S-4: \"Subject keeps singing at 126.05, the same pitch as the core. When the two are in the same room, both get louder. Recommend they are never shipped together.\""
+msgstr "接收體報告 S-4：「受試體一直在 126.05 唱歌，和岩芯是同一個音高。兩者在同一個房間時，聲音都會變大。建議絕對不要一起運送。」"
+
+msgid "LANTERN Listening Post - 1962"
+msgstr "燈籠監聽站——1962"
+
+msgid "LANTERN LOG, 14 MARCH 1962: \"Carrier on 126.05 again, from under the ice. Tonight it read us tomorrow's weather. It was right. Then it read a list of names. None of them are born yet.\""
+msgstr "燈籠站日誌，1962 年 3 月 14 日：「126.05 又出現載波，從冰層底下傳來。今晚它念了明天的天氣給我們聽。它說對了。然後它念了一串名字。那些人都還沒出生。」"
+
+msgid "ORDER, MAJOR IWASE: \"Effective immediately: the 126.05 recordings do not exist. Reels to be sealed and shipped to Geneva. Personnel who listened will be transferred. Do not discuss the music.\""
+msgstr "命令，岩瀨少校：「即刻生效：126.05 的錄音不存在。所有帶子封存，運往日內瓦。聽過的人員一律調離。不准討論那段音樂。」"
+
+msgid "LETTER, CORPORAL SATO (unsent): \"Mika - they're burying the reels. I kept one. If this station is still standing when you're grown, there is a med kit in the maintenance room, under the reel table. I don't know why I'm telling a child that. The signal told me to.\""
+msgstr "佐藤下士的信（沒寄出）：「美佳——他們要把帶子埋掉。我偷留了一捲。如果妳長大的時候這座站還在，維修室的錄音機桌底下有一個急救包。我不知道為什麼要跟一個小孩說這個。是訊號叫我說的。」"
+
+msgid "[125.70] ...ARK RELAY. WINDOW OPEN. Greycrow, report reel count."
+msgstr "[125.70] ……方舟中繼。時段開放。灰鴉島，回報錄音帶數量。"
+
+msgid "The Choir"
+msgstr "合唱"
+
+msgid "[126.05] ...hold position. do not transmit. we will come to you. we always come to you."
+msgstr "[126.05] ……原地等待。不要發訊。我們會去接你。我們一直都會去接你。"
+
+msgid "Under the voice, faint: a dance song nobody has written yet, and the traffic of a city. Your watch says 2026. The song says 2099."
+msgstr "聲音底下，很微弱：一首還沒有人寫出來的舞曲，和一座城市的車聲。你的手錶寫著 2026。那首歌寫著 2099。"
+
+msgid "You never learn who sent it. Some nights, between stations, your radio plays music from a city that doesn't exist yet."
+msgstr "你始終不知道是誰派它來的。有些夜裡，收音機在兩個電台之間，會播出一座還不存在的城市的音樂。"
+
+msgid "2099. The city at the end of the century sings with one voice - a little quieter than it should. It is still waiting for you."
+msgstr "2099 年。世紀末的那座城市用同一個聲音歌唱——比它該有的安靜一點。它還在等你。"
+
+msgid "They take the survivors, the logs, the sealed reel cases. Nobody opens the reel cases."
+msgstr "他們帶走了倖存者、紀錄，還有封好的錄音帶箱。沒有人打開那些錄音帶箱。"
+
+msgid "Somewhere over the sea, behind the cargo net, a tape machine starts turning on its own."
+msgstr "海上某處，貨網後面，一台錄音機自己開始轉了起來。"
+
+msgid "2099. The city sings with one voice, and every child learns the name of the pilot who brought the song home."
+msgstr "2099 年。那座城市用同一個聲音歌唱，每個孩子都學過那個把歌帶回家的飛行員的名字。"
+
+msgid "From the sea, the rescue crew will report a single bright light on Greycrow. Then, on every frequency, silence."
+msgstr "海上的救援人員會回報：灰鴉島上有一道很亮的光。然後，每個頻率都安靜了。"
+
+msgid "2099. Nobody builds the city. On 126.05 there is nothing but snow - and once a year, very faintly, a reel-to-reel running out."
+msgstr "2099 年。沒有人建起那座城市。126.05 上只剩下雪花雜訊——還有每年一次，很微弱地，一捲盤式錄音帶轉到盡頭的聲音。"
+
+msgid "[OUT] GREYCROW TO ANY STATION. HOSTILE SIGNAL. QUARANTINE THE ISLAND. DO NOT LAND. NOBODY LEAVES."
+msgstr "[發送] 灰鴉島呼叫任何電台。敵對訊號。隔離本島。不要降落。任何人都不准離開。"
+
+msgid "That wasn't the rescue centre. That was the voice from the 1962 reel. Below the station, the drill shaft is humming."
+msgstr "那不是救援中心。那是 1962 年那捲帶子裡的聲音。研究站底下，鑽探井在嗡嗡作響。"
+
+msgid "LANTERN Listening Post - March 1962"
+msgstr "燈籠監聽站——1962 年 3 月"
+
+msgid "[SATO]"
+msgstr "[佐藤]"
+
+msgid "Carrier on one-two-six-oh-five. Again. It's coming from under the ice."
+msgstr "一二六點零五，又出現載波了。是從冰層底下傳來的。"
+
+msgid "It isn't Morse, Major. It's music. And under the music... a city."
+msgstr "少校，這不是摩斯電碼。是音樂。音樂底下……是一座城市。"
+
+msgid "[THE CHOIR]"
+msgstr "[合唱]"
+
+msgid "...hold position. we will come to you. we always come to you..."
+msgstr "……原地等待。我們會去接你。我們一直都會去接你……"
+
+msgid "It just said my name."
+msgstr "它剛剛叫了我的名字。"
+
+msgid "Sixty-four years later"
+msgstr "六十四年後"
+
+msgid "Greycrow Island, Arctic Ocean - November 2026"
+msgstr "北冰洋．灰鴉島——2026 年 11 月"
+
+msgid "...That was a person. The eyes are glass. Something under the skin is clicking, like a radio between stations."
+msgstr "……那是一個人。眼睛變成了玻璃。皮膚底下有東西在喀喀作響，像收音機卡在兩個電台之間。"
+
+msgid "Then listen carefully. They aren't sick - they're tuned. They hear everything. Stay quiet, stay cold - and stay away from the drill shaft."
+msgstr "那就仔細聽好。他們不是生病——是被調頻了。他們什麼都聽得到。保持安靜、待在冷的地方——還有，離鑽探井遠一點。"
+
+msgid "The east wing. Signal labs. The doors were sealed from this side."
+msgstr "東翼。訊號實驗室。門是從這一側封起來的。"
+
+msgid "A reel-to-reel recorder. Older than the station. The label says LANTERN, 15-III-1962."
+msgstr "一台盤式錄音機。比這座研究站還老。標籤寫著：燈籠，1962 年 3 月 15 日。"
+
+msgid "The tape is warm. It shouldn't be warm."
+msgstr "帶子是溫的。它不應該是溫的。"
+
+msgid "The hiss fills the room - and the room changes around it."
+msgstr "沙沙聲充滿了整個房間——房間在聲音裡變了樣子。"
+
+msgid "LANTERN Listening Post - 15 March 1962, 02:40"
+msgstr "燈籠監聽站——1962 年 3 月 15 日，凌晨 2:40"
+
+msgid "This is the basement. Sixty-four years ago. I can smell the cigarettes."
+msgstr "這裡是地下室。六十四年前的地下室。我聞得到菸味。"
+
+msgid "The signal kept everything that ever listened to it. Including this night."
+msgstr "那個訊號留下了所有聽過它的東西。包括這一夜。"
+
+msgid "Soldiers. If they see me, the memory starts over. The recording room is at the far end - ON AIR."
+msgstr "士兵。如果被他們看到，這段記憶就會從頭開始。錄音室在最裡面——亮著 ON AIR 的那間。"
+
+msgid "Recording room - 03:12"
+msgstr "錄音室——凌晨 3:12"
+
+msgid "Last reel. If the Major finds this one, it goes to Geneva with the rest."
+msgstr "最後一捲。如果少校找到這一捲，它也會跟其他的一起送去日內瓦。"
+
+msgid "Whoever is playing this: it isn't a disease. It's a broadcast. It changes whoever listens long enough."
+msgstr "不管是誰在聽這捲帶子：這不是疾病。這是一段廣播。聽得夠久的人，都會被它改變。"
+
+msgid "126.05 MHz - origin: 2099"
+msgstr "126.05 MHz——來源：2099 年"
+
+msgid "we are the city at the end of your century. one voice. no cold, no dark, no alone."
+msgstr "我們是你們這個世紀盡頭的城市。同一個聲音。沒有寒冷，沒有黑暗，沒有孤單。"
+
+msgid "we are sending ourselves back so that you will build us. thank you for listening."
+msgstr "我們把自己送回過去，好讓你們把我們建出來。謝謝你們收聽。"
+
+msgid "The Accord is meeting on the twentieth. They'll bury it under the ice and call it a weather station."
+msgstr "協定二十號要開會。他們會把它埋在冰底下，然後叫它氣象站。"
+
+msgid "I hid supplies in the maintenance room. For whoever comes next. It said someone would."
+msgstr "我把補給藏在維修室了。留給下一個來的人。它說會有人來。"
+
+msgid "The reel runs out. Sixty-four years, and it's the same voice on the same frequency."
+msgstr "帶子轉完了。六十四年，同一個頻率，同一個聲音。"
+
+msgid "...and a lab. Antennas, speakers, people strapped to chairs. Same frequency as the station."
+msgstr "……還有實驗室。天線、喇叭、綁在椅子上的人。跟研究站是同一個頻率。"
+
+msgid "They weren't jamming it. They were recording it."
+msgstr "他們不是在干擾它。他們是在錄它。"
+
+msgid "Station staff, still in their coveralls. The signal overwrote them a little at a time. The eyes went to glass first, but they hear everything, and they still walk the rounds they walked alive."
+msgstr "研究站的員工，還穿著工作服。訊號一點一點覆寫了他們。眼睛最先變成玻璃，但他們什麼都聽得到，而且還在走生前每天走的巡邏路線。"
+
+msgid "An echo between broadcasts. It lies among the real dead and looks exactly like them - except for a faint glint of glass, now and then, when the carrier comes back."
+msgstr "兩段廣播之間的回聲。它躺在真正的死者之間，看起來和他們一模一樣——只是載波回來的時候，偶爾會閃過一點玻璃的反光。"
+
+msgid "The skull has been retuned into a receiver. It clicks and listens to the echo, like a bat. Light means nothing to it."
+msgstr "頭骨被重新調成了一具接收器。它發出喀喀聲，聽回音，像蝙蝠一樣。光對它毫無意義。"
+
+msgid "This one listened for too long. It is swollen with static, slow and enormous, and one grab pours the signal straight into you."
+msgstr "這個聽得太久了。它被雜訊撐得腫脹，又慢又巨大，被它抓到一下，訊號就直接灌進你身體裡。"
+
+msgid "Glass rings its throat like a collar. When it sees you, it sings the carrier - and everything nearby comes to listen."
+msgstr "玻璃像項圈一樣環著它的喉嚨。它看到你就會唱出載波——附近所有東西都會過來聽。"
+
+msgid "One of the station's sled dogs. Dogs hear higher than we do; it heard the signal first. Fast, and its nose still works."
+msgstr "研究站的雪橇犬之一。狗聽得到比人更高的頻率，所以牠最先聽到了訊號。很快，鼻子也還很靈。"
+
+msgid "A polar bear that slept on the hangar roof, right under the antenna. The hangar was hers long before you arrived."
+msgstr "一頭睡在機庫屋頂、就在天線正下方的北極熊。早在你來之前，機庫就是她的了。"
+
+msgid "Its back is soft where the glass splits."
+msgstr "玻璃裂開的地方，背部很軟。"
+
+msgid "The receiver at the bottom of the drill shaft. Sixty-four years of a future city singing into the ice, grown into one throat."
+msgstr "鑽探井底的接收器。一座未來的城市對著冰層唱了六十四年，長成了一個喉嚨。"
+
+msgid "Gatekeeper troops of the Quiet Accord, landed to contain the island - and everyone on it. Armed, trained, and they carry radios."
+msgstr "靜默協定的守門派部隊，登島來隔離這座島——連同島上的每一個人。有武器、受過訓練，而且帶著無線電。"
+
+msgid "Static: %s"
+msgstr "雜訊：%s"
+
+msgid "  (overwritten)"
+msgstr "　（已被覆寫）"
+
+msgid "ECHOES"
+msgstr "回聲體"
+
+msgid "The air here is crawling with static. Without a shielded suit, the signal is getting into you."
+msgstr "這裡的空氣滿是雜訊。沒穿屏蔽衣，訊號正在鑽進你的身體。"
+
+msgid "Copper-mesh Faraday suit. Keeps the signal haze off you. Crinkles when you move."
+msgstr "銅網法拉第衣。訊號霧碰不到你，但一動就沙沙作響。"
+
+msgid "Full shielding: the signal haze can't touch you."
+msgstr "完全屏蔽：訊號霧碰不到你。"
+
+msgid "Signal"
+msgstr "訊號"
+
+msgid "Play the reel"
+msgstr "播放錄音帶"
+
+msgid "Play the 1962 reel"
+msgstr "播放 1962 年的錄音帶"
+
+msgid "Play the last reel"
+msgstr "播放最後一捲帶子"
+
+msgid "Options"
+msgstr "選項"
+
+msgid "OPTIONS"
+msgstr "選項"
+
+msgid "On"
+msgstr "開"
+
+msgid "Off"
+msgstr "關"
+
+msgid "Music: %d%%"
+msgstr "音樂：%d%%"
+
+msgid "Sound effects: %d%%"
+msgstr "音效：%d%%"
+
+msgid "Sound cues on screen: %s"
+msgstr "畫面聲音提示：%s"
+
+msgid "Assist mode (half damage): %s"
+msgstr "輔助模式（受傷減半）：%s"
+
+msgid "Touch buttons: %d%%"
+msgstr "觸控按鈕：%d%%"
+
+msgid "Left-handed touch: %s"
+msgstr "左手觸控：%s"
+
+msgid "Battery saver (30 FPS): %s"
+msgstr "省電模式（30 FPS）：%s"
+
+msgid "1962 / 2026 / 2099 - same frequency"
+msgstr "1962／2026／2099——同一個頻率"

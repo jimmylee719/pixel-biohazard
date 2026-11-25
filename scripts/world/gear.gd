@@ -14,7 +14,7 @@ const DATA := {
 	"parka": {"slot": "body", "name": "Expedition parka", "sprite": "player",
 		"desc": "Your own orange parka. Warm enough, bright enough to be seen.", "stats": {}},
 	"hazmat_suit": {"slot": "body", "name": "Hazmat suit", "sprite": "player_hazmat", "set": "hazmat",
-		"desc": "Sealed biohazard suit. Keeps the spores out. Crinkles when you move.",
+		"desc": "Copper-mesh Faraday suit. Keeps the signal haze off you. Crinkles when you move.",
 		"stats": {"hazard": 0.35, "warmth": 1.1, "speed": 0.95, "noise": 1.15}},
 	"eod_armor": {"slot": "body", "name": "EOD armor", "sprite": "player_eod", "set": "eod",
 		"desc": "Bomb disposal armor from the Gatekeeper stores. Shrugs off claws and bullets. Heavy.",
@@ -51,7 +51,7 @@ const DATA := {
 
 ## 一整套的額外效果
 const SETS := {
-	"hazmat": {"name": "Hazmat set", "desc": "Full seal: spores can't touch you.", "stats": {"hazard": 0.0}},
+	"hazmat": {"name": "Hazmat set", "desc": "Full shielding: the signal haze can't touch you.", "stats": {"hazard": 0.0}},
 	"eod": {"name": "EOD set", "desc": "Full armor: knockback barely moves you.", "stats": {"armor": 0.75}},
 	"sneak": {"name": "Sneaking set", "desc": "Full set: quieter still, harder to spot.", "stats": {"noise": 0.8, "detect": 0.85}},
 	"arctic": {"name": "Arctic set", "desc": "Full set: the cold barely reaches you.", "stats": {"warmth": 0.6}},
@@ -61,7 +61,7 @@ const SETS := {
 const START_EQUIPPED := {"head": "", "body": "parka", "feet": "snow_boots"}
 const START_OWNED := ["parka", "snow_boots"]
 ## 能力在畫面上的名稱
-const STAT_NAMES := {"warmth": "Cold", "hazard": "Spores", "armor": "Damage", "speed": "Speed", "noise": "Noise",
+const STAT_NAMES := {"warmth": "Cold", "hazard": "Signal", "armor": "Damage", "speed": "Speed", "noise": "Noise",
 	"detect": "Visibility", "kick": "Kick"}
 
 

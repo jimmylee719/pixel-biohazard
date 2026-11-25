@@ -24,16 +24,33 @@ func _run() -> void:
 	await _frames(30)
 
 	_overlay.debug_enabled = false
+	# 第二個參數 new = 只拍 AFTERSIGNAL 改版的新畫面（快速檢查用）
+	if OS.get_cmdline_user_args().has("new"):
+		await _aftersignal_shots()
+		_main.queue_free()
+		var title_new: Control = load("res://scenes/title.tscn").instantiate()
+		add_child(title_new)
+		await _frames(20)
+		await _shot("61_title_neon")
+		get_tree().quit()
+		return
 	await _shot("0_shore_start")
-	_put_player(_tile(8, 9), Vector2.UP, true)
+	_put_player(_tile(11, 8), Vector2.RIGHT, true)
 	await _frames(40)
 	await _shot("0b_shore_door")
+	# 無縫：從正門走進研究站（同一張地圖，門外的雪地也看得到）
+	_put_player(_tile(16, 8), Vector2.LEFT, true)
+	await _frames(40)
+	await _shot("0d_station_front_inside")
+	_put_player(_tile(58, 22), Vector2.RIGHT, true)
+	await _frames(40)
+	await _shot("0e_shore_depot_lane")
 	_main._toggle_mission_panel()
 	await _frames(3)
 	await _shot("0c_missions")
 	_main._toggle_mission_panel()
 
-	await _main.load_area("station_1f", "cargo", false)
+	await _enter("station_1f", "cargo", false)
 	var level: Level = _main.level
 	var chimer: Enemy = _main.enemies[1]
 	await _frames(20)
@@ -129,7 +146,7 @@ func _run() -> void:
 	# 安全屋
 	WorldState.health = 100.0
 	WorldState.infection = 0.0
-	await _main.load_area("station_safe", "safe", false)
+	await _enter("station_safe", "safe", false)
 	_put_player(_tile(4, 3), Vector2.LEFT, true)
 	_main._on_radio_used()
 	await _frames(5)
@@ -153,7 +170,7 @@ func _run() -> void:
 
 	# 二樓宿舍：凍眠體和普通屍體混在一起
 	_main._close_radio()
-	await _main.load_area("station_2f", "stairs", false)
+	await _enter("station_2f", "stairs", false)
 	_put_player(_tile(8, 3), Vector2.RIGHT, true)
 	await _frames(40)
 	await _shot("14_dorm_sleepers")
@@ -163,26 +180,26 @@ func _run() -> void:
 	_overlay.debug_enabled = false
 	# 站長室
 	WorldState.access_level = 1
-	await _main.load_area("station_2f_office", "office", false)
+	await _enter("station_2f_office", "office", false)
 	_put_player(_tile(10, 3), Vector2.RIGHT, true)
 	await _frames(20)
 	await _shot("16_office")
 
 	# 燃料庫（搬著燃料桶）、恢復電力後的地下層
-	await _main.load_area("fuel_depot", "depot", false)
+	await _enter("fuel_depot", "depot", false)
 	WorldState.carrying = "fuel"
 	_put_player(_tile(28, 8), Vector2.LEFT, true)
 	await _frames(30)
 	await _shot("17_depot_carry")
 	WorldState.set_flag("power_on")
 	WorldState.carrying = ""
-	await _main.load_area("station_b1", "basement", false)
+	await _enter("station_b1", "basement", false)
 	_put_player(_tile(33, 13), Vector2.UP, true)
 	await _frames(30)
 	await _shot("18_b1_powered")
 
 	# 機庫 Boss 戰
-	await _main.load_area("hangar", "hangar", false)
+	await _enter("hangar", "hangar", false)
 	_put_player(_tile(5, 7), Vector2.RIGHT, true)
 	await _frames(20)
 	var bear: Enemy = _main.enemies[0]
@@ -193,11 +210,11 @@ func _run() -> void:
 	# 天線塔：庭院、通訊甲板、發訊介面
 	bear.health = 0.0
 	WorldState.set_flag("defeated:tundra_mother")
-	await _main.load_area("tower_yard", "snowcat", false)
+	await _enter("tower_yard", "snowcat", false)
 	_put_player(_tile(10, 18), Vector2.RIGHT, true)
 	await _frames(30)
 	await _shot("20_tower_yard")
-	await _main.load_area("tower_top", "stairs", false)
+	await _enter("tower_top", "stairs", false)
 	_put_player(_tile(12, 8), Vector2.RIGHT, true)
 	await _frames(30)
 	await _shot("21_tower_deck")
@@ -215,11 +232,11 @@ func _run() -> void:
 	_main._close_signal_panel()
 
 	# 鑽探井、最終 Boss、結局
-	await _main.load_area("drill_shaft", "shaft", false)
+	await _enter("drill_shaft", "shaft", false)
 	_put_player(_tile(12, 6), Vector2.DOWN, true)
 	await _frames(30)
 	await _shot("25_drill_shaft")
-	await _main.load_area("shaft_bottom", "stairs", false)
+	await _enter("shaft_bottom", "stairs", false)
 	var well: BossWell = _main.enemies[0]
 	_put_player(_tile(8, 11), Vector2.RIGHT, true)
 	well._set_phase(BossWell.Phase.CHARGING)
@@ -239,7 +256,7 @@ func _run() -> void:
 
 	# 環境互動：汽油彈的火、燒起來的油桶、滅火器的白霧；氣象小屋群；觸控介面
 	WorldState.data.flags.erase("signal")
-	await _main.load_area("weather_huts", "huts", false)
+	await _enter("weather_huts", "huts", false)
 	_put_player(_tile(19, 21), Vector2.UP, false)
 	_player.cycle_light()
 	_player.cycle_light()  # 打火機
@@ -267,6 +284,7 @@ func _run() -> void:
 	# 擴張區域：北港（過場）、東翼、冰洞、圖鑑
 	WorldState.cutscenes = true
 	_main.load_area("north_harbor", "harbor", false)
+	_off = Areas.area_offset("north_harbor")
 	await _frames(40)
 	await _shot("40_harbor_cutscene")
 	_main.cutscene.next()
@@ -278,14 +296,39 @@ func _run() -> void:
 	_put_player(_tile(30, 18), Vector2.UP, true)
 	await _frames(40)
 	await _shot("41_harbor")
-	await _main.load_area("station_east_wing", "east_wing", false)
+	await _enter("station_east_wing", "east_wing", false)
 	_put_player(_tile(12, 9), Vector2.RIGHT, true)
 	await _frames(40)
 	await _shot("42_east_wing")
-	await _main.load_area("ice_caves", "caves", false)
+	await _enter("ice_caves", "caves", false)
 	_put_player(_tile(8, 11), Vector2.RIGHT, true)
 	await _frames(40)
 	await _shot("43_ice_caves")
+	await _enter("north_harbor", "harbor", false)
+	_put_player(_tile(44, 19), Vector2.RIGHT, true)
+	await _frames(40)
+	await _shot("43b_harbor_to_caves")
+	await _enter("station_2f", "stairs", false)
+	_put_player(_tile(47, 4), Vector2.RIGHT, true)
+	await _frames(40)
+	await _shot("43c_2f_to_east_wing")
+	# 守門一號：廣場和基地是同一張無縫地圖
+	await _enter("gate_one_yard", "gate_tunnel", false)
+	_put_player(_tile(31, 36), Vector2.UP, true)
+	await _frames(40)
+	await _shot("45_gate_yard")
+	_put_player(_tile(31, 30), Vector2.UP, true)
+	await _frames(40)
+	await _shot("46_gate_lobby")
+	_put_player(_tile(30, 10), Vector2.LEFT, true)
+	await _frames(40)
+	await _shot("47_gate_corridor")
+	_put_player(_tile(50, 16), Vector2.RIGHT, true)
+	await _frames(40)
+	await _shot("48_gate_cells")
+	_put_player(_tile(30, 25), Vector2.UP, true)
+	await _frames(40)
+	await _shot("49_gate_lab")
 	for id in ["watcher", "crawler", "husk", "chorister", "rifle"]:
 		WorldState.codex_see(id)
 	_main.open_phone("codex")
@@ -295,6 +338,7 @@ func _run() -> void:
 	await _shot("44_codex")
 	_main.close_phone()
 
+	await _aftersignal_shots()
 	# 標題畫面
 	_main.queue_free()
 	var title: Control = load("res://scenes/title.tscn").instantiate()
@@ -304,8 +348,81 @@ func _run() -> void:
 	get_tree().quit()
 
 
+## AFTERSIGNAL 改版：霓虹燈、1962 年的記憶、訊號霧、2099 色調、選項、聲音提示
+func _aftersignal_shots() -> void:
+	await _enter("station_1f", "front", false)
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	_put_player(_tile(8, 3), Vector2.UP, true)
+	await _frames(30)
+	await _shot("50_neon_lobby")
+	_put_player(_tile(26, 3), Vector2.UP, false)
+	await _frames(20)
+	await _shot("51_neon_lab")
+	await _enter("station_2f", "stairs", false)
+	_put_player(_tile(12, 10), Vector2.UP, false)
+	await _frames(30)
+	await _shot("52_rec_room_arcade")
+	await _enter("station_b1", "basement", false)
+	_put_player(_tile(19, 6), Vector2.UP, true)
+	await _frames(20)
+	await _shot("53_b1_reel")
+	await _enter("lantern_1962", "start", false)
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	await _frames(30)
+	await _shot("54_lantern_1962")
+	_put_player(_tile(30, 8), Vector2.UP, true)
+	await _frames(30)
+	await _shot("55_lantern_on_air")
+	_put_player(_tile(34, 3), Vector2.RIGHT, true)
+	await _frames(30)
+	await _shot("56_lantern_reel")
+	await _enter("station_east_wing", "east_wing", false)
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	_put_player(_tile(23, 4), Vector2.UP, true)
+	await _frames(30)
+	await _shot("57_signal_haze")
+	_main.set_era("2099")
+	await _frames(5)
+	await _shot("58_era_2099")
+	_main.set_era("")
+	# 聲音提示：畫面外的敵人在走
+	await _enter("station_1f", "front", false)
+	var e0: Enemy = _main.enemies[0]
+	e0.process_mode = Node.PROCESS_MODE_INHERIT
+	_put_player(_tile(3, 5), Vector2.UP, true)
+	e0.global_position = _tile(9, 16)
+	e0.velocity = Vector2(30, 0)
+	await _frames(6)
+	await _shot("59_sound_cues")
+	_main._toggle_pause()
+	await _frames(3)
+	await _shot("62_pause")
+	_main._pause_panel.visible = false
+	_main.options_panel.open()
+	await _frames(3)
+	await _shot("60_options")
+	_main.options_panel.close()
+	_main._toggle_pause()
+	# 結局畫面（最後一句是 2099 年，畫面換成未來色調）
+	await _main._show_ending()
+	await _frames(5)
+	await _shot("63_ending_2099")
+
+
+## 座標都是目前區域自己的座標（合併進大地圖的區域要加位移，見 Areas.area_offset）
+var _off := Vector2i.ZERO
+
+
+func _enter(area_id: String, entry: String, fade := false) -> void:
+	await _main.load_area(area_id, entry, fade)
+	_off = Areas.area_offset(area_id)
+
+
 func _tile(x: int, y: int) -> Vector2:
-	return (Vector2(x, y) + Vector2(0.5, 0.5)) * Level.TILE
+	return (Vector2(Vector2i(x, y) + _off) + Vector2(0.5, 0.5)) * Level.TILE
 
 
 func _put_player(pos: Vector2, facing: Vector2, light: bool) -> void:
