@@ -7,7 +7,7 @@ size = Vector2(20, 14)
 
 [node name="TundraMother" type="CharacterBody2D"]
 collision_layer = 4
-collision_mask = 1
+collision_mask = 57
 motion_mode = 1
 script = ExtResource("1_bear")
 display_name = "Tundra Mother"

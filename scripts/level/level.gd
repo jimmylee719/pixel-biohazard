@@ -8,6 +8,10 @@ signal zone_heat_changed(zone_name: String, heated: bool)
 
 const TILE := 16
 const WALL_LAYER := 1
+## 窗戶：擋路但不擋視線、不擋光（Sight 只看 WALL_LAYER）
+const WINDOW_LAYER := 8
+## 看不穿的格子（第一人稱視角的射線、房間判定用）
+const SOLID_CHARS := "#CH"
 
 const INDOOR_FLOOR_A := Color(0.42, 0.44, 0.48)
 const INDOOR_FLOOR_B := Color(0.38, 0.40, 0.44)
@@ -25,7 +29,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZUJIowpqru"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZUJIowpqru+"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -48,6 +52,14 @@ var _nav_region: NavigationRegion2D
 var _structure_layer: CanvasLayer
 var _interactables: Array[Interactable] = []
 var _rebake_pending := false
+## 格子 → 房間編號（見 _build_rooms）
+var room_of := {}
+var room_count := 0
+var _inner_doors: Array[InteriorDoor] = []
+## 有兩間以上的房間時才有（看不到別的房間）
+var fog: RoomFog
+## 這個區域的警戒狀態（ALERT／EVASION／CAUTION、呼叫同伴）
+var alert: AlertNetwork
 
 
 func _ready() -> void:
@@ -57,9 +69,23 @@ func _ready() -> void:
 	outdoor = _data.outdoor
 	safe = _data.get("safe", false)
 	zones = _data.zones
+	alert = AlertNetwork.new()
+	alert.name = "AlertNetwork"
+	add_child(alert)
 	_parse_map()
 	_build_solids()
 	_spawn_interactables()
+	_build_inner_doors()
+	_build_rooms()
+	if room_count > 1:
+		var fog_layer := CanvasLayer.new()
+		fog_layer.name = "RoomFog"
+		fog_layer.layer = 2
+		fog_layer.follow_viewport_enabled = true
+		add_child(fog_layer)
+		fog = RoomFog.new()
+		fog.setup(self)
+		fog_layer.add_child(fog)
 	_bake_navigation()
 	queue_redraw()
 
@@ -76,14 +102,15 @@ func _draw() -> void:
 			draw_rect(rect, SNOW_FLOOR_A if even else SNOW_FLOOR_B)
 			continue
 		# 室內：地板貼圖（64px 一張 = 4x4 格）。安全屋是無菌室的地板；沒暖氣的地方結霜。
-		var cold := not safe and is_cold(_cell_center(cell))
-		var tex: Texture2D = lab if safe else (frost if cold else concrete)
+		var cell_safe := is_safe_cell(cell)
+		var cold := not cell_safe and is_cold(_cell_center(cell))
+		var tex: Texture2D = lab if cell_safe else (frost if cold else concrete)
 		if tex:
 			var src := Rect2(Vector2(posmod(cell.x, 4), posmod(cell.y, 4)) * TILE, Vector2(TILE, TILE))
-			draw_texture_rect_region(tex, rect, src, Color(0.85, 0.85, 0.9) if safe else Color.WHITE)
+			draw_texture_rect_region(tex, rect, src, Color(0.85, 0.85, 0.9) if cell_safe else Color.WHITE)
 			continue
 		var color: Color
-		if safe:
+		if cell_safe:
 			color = SAFE_FLOOR_A if even else SAFE_FLOOR_B
 		else:
 			color = INDOOR_FLOOR_A if even else INDOOR_FLOOR_B
@@ -209,7 +236,7 @@ func climate_id() -> String:
 ## 安全屋、有暖氣的室內、火堆旁邊會回暖；戶外、沒暖氣的室內會失溫（依氣候）。
 func exposure_at(pos: Vector2) -> float:
 	var c := Climates.get_climate(climate_id())
-	if safe:
+	if is_safe_cell(cell_of(pos)):
 		return -c.recover * 2.0
 	if outdoor and not _is_indoor_cell(cell_of(pos)):
 		return c.outdoor_loss
@@ -228,10 +255,10 @@ func step_surface(pos: Vector2) -> String:
 
 
 ## 區域的音樂（區域資料 music 可以指定）：安全屋、Boss 戰、戶外、室內
-func music_id() -> String:
+func music_id(pos := Vector2(-1, -1)) -> String:
 	if _data.has("music"):
 		return _data.music
-	if safe:
+	if safe or (pos.x >= 0 and is_safe_cell(cell_of(pos))):
 		return "safe_room"
 	match boss_name():
 		"TUNDRA MOTHER":
@@ -250,6 +277,129 @@ func ambience_id(powered: bool) -> String:
 	if outdoor:
 		return ""
 	return "amb_station_hum" if powered else "amb_station_dark"
+
+
+# ── 房間（合併進來的房間、室內門分隔的空間）────────────────
+
+## 這個位置屬於哪個區域 id：合併進來的房間（例如 station_safe）或主區域本身
+func region_at(pos: Vector2) -> String:
+	var cell := cell_of(pos)
+	for r in _data.get("regions", []):
+		if (r.rect as Rect2i).has_point(cell):
+			return r.id
+	return area_id
+
+
+func region_title(region_id: String) -> String:
+	for r in _data.get("regions", []):
+		if r.id == region_id:
+			return r.title
+	return title
+
+
+func is_safe_cell(cell: Vector2i) -> bool:
+	if safe:
+		return true
+	for r in _data.get("regions", []):
+		if r.safe and (r.rect as Rect2i).has_point(cell):
+			return true
+	return false
+
+
+func is_safe_at(pos: Vector2) -> bool:
+	return is_safe_cell(cell_of(pos))
+
+
+func get_inner_doors() -> Array[InteriorDoor]:
+	return _inner_doors
+
+
+func _build_inner_doors() -> void:
+	var defs: Dictionary = _data.get("inner_doors", {})
+	for cell in _floor_cells:
+		if char_at(cell) != "+":
+			continue
+		var key := "%d,%d" % [cell.x, cell.y]
+		var def: Dictionary = defs.get(key, {})
+		var door := InteriorDoor.new()
+		# 左右是牆 = 門板橫的（上下通行）
+		var side := (SOLID_CHARS + "+").contains(char_at(cell + Vector2i.LEFT)) or (SOLID_CHARS + "+").contains(char_at(cell + Vector2i.RIGHT))
+		var horizontal := side
+		door.setup(cell, horizontal, def.get("access", 0), def.get("safe", false))
+		add_child(door)
+		_inner_doors.append(door)
+		if door.safe_door:
+			# 只擋敵人的牆（也讓敵人的導航不會規劃進安全屋）
+			var barrier := StaticBody2D.new()
+			barrier.collision_layer = InteriorDoor.SAFE_BARRIER_LAYER
+			barrier.collision_mask = 0
+			var bs := CollisionShape2D.new()
+			var br := RectangleShape2D.new()
+			br.size = Vector2(TILE, TILE)
+			bs.shape = br
+			bs.position = _cell_center(cell)
+			barrier.add_child(bs)
+			_nav_region.add_child(barrier)
+	# 相鄰的門格是同一道門：一起開關
+	var by_cell := {}
+	for d in _inner_doors:
+		by_cell[d.cell] = d
+	for d in _inner_doors:
+		for n in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			if by_cell.has(d.cell + n):
+				d.partners.append(by_cell[d.cell + n])
+
+
+## 用室內門把地板分成一間一間的房間（洪水填充）。家具、窗戶算在旁邊那間。
+func _build_rooms() -> void:
+	room_of.clear()
+	room_count = 0
+	for start in _floor_cells:
+		if room_of.has(start) or char_at(start) == "+":
+			continue
+		var stack: Array[Vector2i] = [start]
+		room_of[start] = room_count
+		while not stack.is_empty():
+			var c: Vector2i = stack.pop_back()
+			for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+				var n: Vector2i = c + d
+				if room_of.has(n):
+					continue
+				var ch := char_at(n)
+				if ch == "+" or ch == "#" or SOLID_CHARS.contains(ch) or ch == "=":
+					continue
+				room_of[n] = room_count
+				stack.append(n)
+		room_count += 1
+	# 家具、置物櫃、窗戶：歸給旁邊的房間
+	for y in _map.size():
+		for x in String(_map[y]).length():
+			var cell := Vector2i(x, y)
+			var ch := char_at(cell)
+			if ch == "#" or room_of.has(cell) or ch == "+":
+				continue
+			for d in [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]:
+				if room_of.has(cell + d) and char_at(cell + d) != "+":
+					room_of[cell] = room_of[cell + d]
+					break
+
+
+## 主角現在看得到哪些房間：所在的房間；站在門口就是門兩邊的房間
+func visible_rooms(pos: Vector2) -> Array[int]:
+	var cell := cell_of(pos)
+	var result: Array[int] = []
+	if room_of.has(cell) and char_at(cell) != "+":
+		result.append(room_of[cell])
+		return result
+	for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		if room_of.has(cell + d) and not result.has(room_of[cell + d]):
+			result.append(room_of[cell + d])
+	return result
+
+
+## 無線電通報成功時從哪裡來增援：{"type": 敵人種類, "count": 幾個, "doors": [門 id…]}；沒設定 = 不會增援
+func reinforcements() -> Dictionary:
+	return _data.get("reinforcements", {})
 
 
 ## 樓層（樓梯提示用）
@@ -332,7 +482,7 @@ func _parse_map() -> void:
 		width = maxi(width, row.length())
 		for x in row.length():
 			var ch := row[x]
-			if ch == "#" or ch == "C" or ch == "H":
+			if ch == "#" or ch == "C" or ch == "H" or ch == "=":
 				continue
 			_floor_cells.append(Vector2i(x, y))
 			if ch == "P":
@@ -397,13 +547,19 @@ func _build_solids() -> void:
 		if wall_tex:
 			wall.texture = wall_tex
 			wall.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-			wall.color = Color(0.55, 0.58, 0.66)  # 牆比地板暗，地形一眼看得出來
+			wall.color = Color(0.38, 0.4, 0.47)  # 牆頂比地板暗，地形一眼看得出來
 	for rect in _merge_rects("C"):
 		if outdoor:
 			_add_solid(rect, ROCK_COLOR, ROCK_EDGE_COLOR)
 		else:
 			_add_solid(rect, CABINET_COLOR, CABINET_EDGE_COLOR)
 			_add_furniture(rect)
+	for rect in _merge_rects("="):
+		_add_window(rect)
+	var faces := WallFaces.new()
+	faces.name = "WallFaces"
+	_structure_layer.add_child(faces)
+	faces.setup(self)
 	for rect in _merge_rects("H"):
 		_add_solid(rect, LOCKER_COLOR, LOCKER_EDGE_COLOR)
 		_add_prop_sprites(rect, Art.tex("props/locker"))
@@ -480,6 +636,43 @@ func _add_solid(cell_rect: Rect2i, fill: Color, edge: Color) -> Polygon2D:
 	return visual
 
 
+## 窗戶：玻璃（看得穿、光透得過去），走不過去
+func _add_window(cell_rect: Rect2i) -> void:
+	var rect := Rect2(Vector2(cell_rect.position) * TILE, Vector2(cell_rect.size) * TILE)
+	var body := StaticBody2D.new()
+	body.collision_layer = WINDOW_LAYER
+	body.collision_mask = 0
+	var shape := CollisionShape2D.new()
+	var rect_shape := RectangleShape2D.new()
+	rect_shape.size = rect.size
+	shape.shape = rect_shape
+	shape.position = rect.get_center()
+	body.add_child(shape)
+	_nav_region.add_child(body)
+	var frame := ColorRect.new()
+	frame.position = rect.position
+	frame.size = rect.size
+	frame.color = Color(0.2, 0.22, 0.26)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_structure_layer.add_child(frame)
+	var glass := ColorRect.new()
+	glass.position = rect.position + Vector2(2, 2)
+	glass.size = rect.size - Vector2(4, 4)
+	glass.color = Color(0.55, 0.75, 0.9, 0.35)
+	glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_structure_layer.add_child(glass)
+
+
+## 地圖上這格的符號（超出地圖 = 牆）
+func char_at(cell: Vector2i) -> String:
+	if cell.y < 0 or cell.y >= _map.size():
+		return "#"
+	var row: String = _map[cell.y]
+	if cell.x < 0 or cell.x >= row.length():
+		return "#"
+	return row[cell.x]
+
+
 func _spawn_interactables() -> void:
 	var breaker_index := 0
 	for y in _map.size():
@@ -489,6 +682,8 @@ func _spawn_interactables() -> void:
 			match row[x]:
 				"H":
 					item = Locker.new()
+				"=":
+					item = WindowPane.new()
 				"B":
 					item = BottlePickup.new()
 				"K":
@@ -548,7 +743,8 @@ func _spawn_interactables() -> void:
 				continue
 			var key := "%d,%d" % [x, y]
 			item.item_name = _data.names.get(key, "")
-			item.item_id = "%s:%s" % [area_id, key]
+			# 合併進來的房間（Areas.ROOMS）：用原本房間的 id 和座標，存檔紀錄不變
+			item.item_id = _data.get("item_keys", {}).get(key, "%s:%s" % [area_id, key])
 			item.hidden_flag = _data.get("hidden", {}).get(key, "")
 			item.level = self
 			item.position = _cell_center(Vector2i(x, y))
@@ -561,7 +757,7 @@ func _bake_navigation() -> void:
 	var nav_poly := NavigationPolygon.new()
 	nav_poly.agent_radius = 6.0
 	nav_poly.parsed_geometry_type = NavigationPolygon.PARSED_GEOMETRY_STATIC_COLLIDERS
-	nav_poly.parsed_collision_mask = WALL_LAYER
+	nav_poly.parsed_collision_mask = WALL_LAYER | WINDOW_LAYER | InteriorDoor.SAFE_BARRIER_LAYER
 	nav_poly.add_outline(PackedVector2Array([
 		bounds.position,
 		Vector2(bounds.end.x, bounds.position.y),

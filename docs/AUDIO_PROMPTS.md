@@ -55,6 +55,10 @@
 | `knife_swing` | 0.3 秒 | ×2 | A short combat knife slashing through cold air, quick whoosh. |
 | `knife_hit` | 0.4 秒 | ×2 | A knife stabbing into frozen flesh with a brittle, icy crunch. |
 | `bullet_hit_flesh` | 0.3 秒 | ×3 | A bullet hitting a frozen body: dull thud with crackling ice shards. |
+| `punch_hit` | 0.3 秒 | ×3 | A hard gloved punch landing on a body, meaty thump with a little ice crackle. |
+| `kick_hit` | 0.4 秒 | ×2 | A heavy boot kick to a body, deep thud and a grunt of air knocked out. |
+| `body_slam` | 0.7 秒 | ×2 | A body slammed hard onto a concrete floor or into a wall, heavy impact with gear rattling. |
+| `grab` | 0.4 秒 | ×1 | Grabbing someone from behind: fabric rustle, a firm grip, a muffled struggle breath. |
 
 ### 投擲與環境互動
 

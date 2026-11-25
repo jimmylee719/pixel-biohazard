@@ -57,6 +57,24 @@ const TILE := 16.0
 ## 回聲定位喀喀聲的間隔（秒）；0 = 不發出。只是給玩家的「聲音提示」，不影響其他敵人
 @export var click_interval := 0.0
 
+@export_group("呼叫同伴（見 AlertNetwork）")
+## monster（怪物）或 human（人類）
+@export var faction := "monster"
+## 發現主角時叫聲／喊聲傳多遠（格），範圍內的同伴會趕來；0 = 不會叫
+@export var call_radius_tiles := 8.0
+## 有無線電：發現主角後花 radio_time 秒通報整個區域（這段時間被打中就失敗）
+@export var has_radio := false
+@export var radio_time := 1.6
+
+@export_group("遠距離攻擊（人類的槍）")
+## 0 = 沒有槍
+@export var ranged_range := 0.0
+@export var ranged_damage := 14.0
+@export var ranged_windup := 0.55
+@export var ranged_cooldown := 1.3
+## 主角站著不動時的命中率；移動中、奔跑中會降低
+@export var ranged_accuracy := 0.8
+
 @export_group("察覺值（每秒）")
 @export var awareness_rate_far := 0.6
 @export var awareness_rate_near := 3.0
@@ -138,6 +156,21 @@ var _body_color := Color.WHITE
 ## 被火燒到的閃爍時間
 var burn_flash := 0.0
 var _sprite: CharacterSprite
+## 正在用無線電通報（剩幾秒）；0 = 沒在通報
+var radio_timer := 0.0
+var radio_interrupted := false
+## 被同伴叫來的（不會再接力呼叫，避免整張地圖一起湧來）
+var _answered := false
+## 被踢倒／摔倒在地上（硬直結束前）
+var knocked_down := false
+## 被主角抓住（CQC）
+var grabbed := false
+## 被擊退的力道夠大：撞到牆會額外受傷
+var _slam_armed := false
+var _ranged_windup := 0.0
+var _ranged_cd := 0.0
+## 最近一次開槍（畫面效果用）
+var last_ranged := {}
 
 @onready var _agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _body: Node2D = $Body
@@ -145,6 +178,7 @@ var _sprite: CharacterSprite
 
 func _ready() -> void:
 	add_to_group("enemies")
+	add_to_group("door_users")
 	if sprite_set != "":
 		_sprite = CharacterSprite.new()
 		if _sprite.setup(sprite_set):
@@ -166,10 +200,18 @@ func setup(points: Array[Vector2], player: Player, level: Level) -> void:
 	_nav_map = level.get_navigation_map()
 	_spawn = points[0]
 	reset()
+	restore_snapshot()
 
 
 func reset() -> void:
 	global_position = _spawn
+	knocked_down = false
+	grabbed = false
+	_slam_armed = false
+	radio_timer = 0.0
+	_answered = false
+	_ranged_windup = 0.0
+	_ranged_cd = 0.0
 	_stagger = 0.0
 	_windup = 0.0
 	winding_up = false
@@ -195,6 +237,95 @@ func reset() -> void:
 	if patrol_points.size() > 1:
 		facing = (patrol_points[_patrol_index] - global_position).normalized()
 	_set_state(State.UNAWARE)
+
+
+## 離開區域時的樣子（WorldState.store_enemy）
+func snapshot() -> Dictionary:
+	return {"pos": global_position, "facing": facing, "health": health, "dormant": is_dormant,
+		"patrol_index": _patrol_index, "patrol_step": _patrol_step,
+		"hunting": state == State.ALERT or state == State.SEARCH}
+
+
+## 建立區域、回到檢查點時呼叫（reset() 本身不會，reset 只回到巡邏起點）
+func restore_snapshot() -> void:
+	if enemy_key == "" or is_boss() or is_dead:
+		return
+	var snap := WorldState.enemy_snapshot(enemy_key)
+	if snap.is_empty():
+		return
+	global_position = snap.pos
+	facing = snap.facing
+	health = snap.health
+	_patrol_index = clampi(snap.patrol_index, 0, maxi(patrol_points.size() - 1, 0))
+	_patrol_step = snap.patrol_step
+	if is_dormant and not snap.dormant:
+		is_dormant = false
+		_set_body_color(_body_color)
+		_body.scale = Vector2.ONE
+		_set_details_visible(true)
+	# 你離開時牠正在找你：回來時牠還在附近搜索
+	if snap.hunting:
+		_start_search(global_position)
+
+
+func last_contact() -> Vector2:
+	return _last_known
+
+
+func set_vigilant(duration: float) -> void:
+	_vigilance_timer = maxf(_vigilance_timer, duration)
+
+
+## 同伴呼叫：趕去主角被看到的地方。睡著的會被吵醒。回傳 true = 有回應
+func answer_call(target: Vector2) -> bool:
+	if is_dead:
+		return false
+	_answered = true
+	if is_dormant:
+		wake(target)
+		return true
+	awareness = 1.0
+	_make_contact(target)
+	_no_contact_time = 0.0
+	if state != State.ALERT:
+		_set_state(State.ALERT)
+	return true
+
+
+## 跟丟了：去最後看到的地方附近搜
+func search_near(target: Vector2) -> void:
+	if state == State.ALERT and sees_player:
+		return
+	_start_search(target)
+
+
+func _alert_network() -> AlertNetwork:
+	return _level.alert if _level else null
+
+
+## 剛發現主角：怪物叫、人類用無線電（或大喊）
+func _raise_alarm() -> void:
+	if _answered:
+		return
+	if has_radio:
+		radio_timer = radio_time
+		radio_interrupted = false
+		Sfx.play("radio_static", global_position)
+		return
+	var net := _alert_network()
+	if net and call_radius_tiles > 0.0:
+		net.call_allies(self, call_radius_tiles * TILE, _last_known)
+
+
+func _update_radio(delta: float) -> void:
+	if radio_timer <= 0.0:
+		return
+	radio_timer -= delta
+	if radio_timer <= 0.0:
+		radio_timer = 0.0
+		var net := _alert_network()
+		if net:
+			net.radio_call(self, _last_known)
 
 
 func get_state_name() -> String:
@@ -237,10 +368,24 @@ func _physics_process(delta: float) -> void:
 		_update_visibility(delta)
 		return
 	_attack_cd = maxf(_attack_cd - delta, 0.0)
+	if grabbed:
+		velocity = Vector2.ZERO
+		radio_timer = 0.0
+		_update_visibility(delta)
+		return  # 位置由主角控制（PlayerCombat._process_grab）
 	if _stagger > 0.0:
+		if radio_timer > 0.0:
+			radio_timer = 0.0  # 被打斷：通報失敗
+			radio_interrupted = true
 		_stagger -= delta
-		velocity = velocity.move_toward(Vector2.ZERO, 400.0 * delta)
+		var speed_before := velocity.length()
+		velocity = velocity.move_toward(Vector2.ZERO, (250.0 if knocked_down else 400.0) * delta)
 		move_and_slide()
+		if _slam_armed and get_slide_collision_count() > 0 and speed_before > 120.0:
+			_hit_wall()
+		if _stagger <= 0.0:
+			knocked_down = false
+			_slam_armed = false
 		_update_visibility(delta)
 		return
 	in_cold = _level != null and _level.is_cold(global_position)
@@ -254,6 +399,8 @@ func _physics_process(delta: float) -> void:
 	_check_flashlight_hit()
 	_update_clicks(delta)
 	_update_idle_voice(delta)
+	_update_radio(delta)
+	_ranged_cd = maxf(_ranged_cd - delta, 0.0)
 
 	if _process_attack(delta):
 		move_and_slide()
@@ -396,6 +543,8 @@ func _update_clicks(delta: float) -> void:
 
 ## 回傳 true = 這一幀在出手（預備動作中），不做一般的狀態行為。
 func _process_attack(delta: float) -> bool:
+	if _process_ranged(delta):
+		return true
 	if _windup > 0.0:
 		_windup -= delta
 		velocity = Vector2.ZERO
@@ -413,6 +562,42 @@ func _process_attack(delta: float) -> bool:
 		velocity = Vector2.ZERO
 		return true
 	return false
+
+
+## 人類的槍：看得到主角、在射程內就停下來瞄準，然後開槍（有命中率）
+func _process_ranged(delta: float) -> bool:
+	if ranged_range <= 0.0:
+		return false
+	if _ranged_windup > 0.0:
+		_ranged_windup -= delta
+		velocity = Vector2.ZERO
+		_turn_toward((_player.global_position - global_position).normalized(), delta * 3.0)
+		if _ranged_windup <= 0.0:
+			_fire_ranged()
+		return true
+	var dist := global_position.distance_to(_player.global_position)
+	if state == State.ALERT and sees_player and _ranged_cd <= 0.0 and radio_timer <= 0.0 \
+			and dist <= ranged_range and dist > attack_range and not _player.is_dead:
+		_ranged_windup = ranged_windup
+		return true
+	return false
+
+
+func _fire_ranged() -> void:
+	_ranged_cd = ranged_cooldown
+	var from := global_position
+	NoiseBus.emit_noise(from, 14.0 * TILE, self)
+	Sfx.play("pistol_shot", from, 0.08)
+	var chance := ranged_accuracy
+	match _player.gait:
+		Player.Gait.RUN:
+			chance *= 0.45
+		Player.Gait.WALK, Player.Gait.SNEAK:
+			chance *= 0.7
+	var hit := sees_player and Sight.is_clear(self, from, _player.global_position) and randf() < chance
+	if hit:
+		_player.take_hit(ranged_damage, 0.0, from)
+	last_ranged = {"from": from, "to": _player.global_position, "t": 0.0, "hit": hit}
 
 
 func _can_hit_player(reach: float) -> bool:
@@ -445,6 +630,49 @@ func take_damage(amount: float, from_pos: Vector2, stagger: float) -> void:
 	_make_contact(from_pos)
 	if state != State.ALERT:
 		_set_state(State.ALERT)
+
+
+## 被打飛：dir 方向、speed 像素／秒；knockdown = 倒在地上（硬直加長，可以補刀、擒拿）
+func apply_knockback(dir: Vector2, speed: float, knockdown: bool) -> void:
+	if is_dead or is_boss() or grabbed:
+		return
+	velocity = dir.normalized() * speed
+	_slam_armed = speed >= 150.0
+	if knockdown:
+		knocked_down = true
+		_stagger = maxf(_stagger, 1.2)
+
+
+## 被踢飛撞到牆：額外受傷、暈更久
+func _hit_wall() -> void:
+	_slam_armed = false
+	velocity = Vector2.ZERO
+	health -= 15.0
+	_stagger += 0.6
+	Sfx.play("body_slam", global_position)
+	NoiseBus.emit_noise(global_position, 3.0 * TILE, self)
+	if health <= 0.0:
+		_die()
+
+
+func set_grabbed(on: bool) -> void:
+	grabbed = on
+	if on:
+		_windup = 0.0
+		winding_up = false
+		_ranged_windup = 0.0
+		velocity = Vector2.ZERO
+	else:
+		_stagger = maxf(_stagger, 0.4)
+
+
+## 擒拿時間到、掙脫：知道主角在哪
+func break_free(player_pos: Vector2) -> void:
+	grabbed = false
+	_stagger = 0.3
+	awareness = 1.0
+	_make_contact(player_pos)
+	_set_state(State.ALERT)
 
 
 # ── 休眠（凍眠體）────────────────────────────────────
@@ -525,8 +753,8 @@ func boss_suffix() -> String:
 func can_be_taken_down_by(player: Player) -> bool:
 	if is_dead:
 		return false
-	if is_dormant:
-		return true
+	if is_dormant or knocked_down:
+		return true  # 睡著的、被踢倒在地上的
 	if state != State.UNAWARE or sees_player:
 		return false
 	if not has_sight:
@@ -608,6 +836,8 @@ func _set_state(new_state: State) -> void:
 	_wait_timer = 0.0
 	if new_state == State.ALERT:
 		awareness = 1.0
+		if previous != State.ALERT and not is_boss():
+			_raise_alarm.call_deferred()
 		if previous != State.ALERT and shriek_radius_tiles > 0.0:
 			NoiseBus.emit_noise(global_position, shriek_radius_tiles * TILE, self)
 			Sfx.play("listener_shriek", global_position)

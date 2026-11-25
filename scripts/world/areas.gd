@@ -16,6 +16,8 @@
 ##   I  實驗室酒精（＋空瓶 = 汽油彈）
 ##   環境互動（小寫）：o 油桶（打火機點燃）  w 木箱（踢開／刀割，內容見 loot）
 ##                     p 封住通道的木板（同上，拆掉 = 捷徑）  q 滅火器  r 碎石堆（撿石頭）
+##   +  室內自動門（有人靠近就開；關著時看不到門後面。整排 + 是一道寬門）
+##   =  窗戶（走不過去、看得穿；靠過去看 = 第一人稱視角）
 ##   1～9、a～i  敵人巡邏點，哪些點屬於哪隻敵人見 enemies
 ##
 ## 每個區域的欄位：
@@ -119,7 +121,7 @@ const DATA := {
 			"############################################",
 			"#......H.........A.###########D#############",
 			"#.G.......1........####........X..N......###",
-			"#...............2..####.W.......a.....B..###",
+			"#...............2..====.W.......a.....B..###",
 			"#...CC......CC.....####.............I....###",
 			"#...CC......CC............CCCCC..CCCCC...###",
 			"D........................................###",
@@ -129,7 +131,7 @@ const DATA := {
 			"#..............3...####................b.###",
 			"#...............M..####H.c............T.V###",
 			"########...############..................###",
-			"########...#################...#############",
+			"########+++#################+++#############",
 			"########.4.#################...#############",
 			"########...#################...#############",
 			"########...#################...#############",
@@ -752,6 +754,125 @@ const DATA := {
 }
 
 
+## 同一棟建築裡的房間：合併進主區域的地圖（無縫：門是自動門，直接走進去，不切換畫面）。
+## door = 兩邊共用的門 id；合併後那扇門變成室內門（+）。房間自己的設定（安全屋、標題）變成「區域內的一塊範圍」。
+const ROOMS := {
+	"station_safe": {"into": "station_1f", "door": "safe"},
+	"station_2f_office": {"into": "station_2f", "door": "office"},
+	"huts_safe": {"into": "weather_huts", "door": "bunk"},
+}
+
+static var _composed := {}
+
+
+## 這個區域（或房間）實際所在的地圖
+static func root_of(area_id: String) -> String:
+	return ROOMS[area_id].into if ROOMS.has(area_id) else area_id
+
+
 static func get_area(area_id: String) -> Dictionary:
 	assert(DATA.has(area_id), "沒有這個區域：%s" % area_id)
-	return DATA[area_id]
+	var root := root_of(area_id)
+	if not _composed.has(root):
+		_composed[root] = _compose(root)
+	return _composed[root]
+
+
+## 把房間貼進主區域的地圖，所有格子座標換成主地圖的座標。
+## 房間格子上的東西用「房間 id:房間裡的座標」當存檔 key（WorldState 的紀錄和以前一樣）。
+static func _compose(root: String) -> Dictionary:
+	var data: Dictionary = DATA[root].duplicate(true)
+	var map: Array = data.map.duplicate()
+	data["regions"] = []
+	data["item_keys"] = {}
+	for room_id in ROOMS:
+		if ROOMS[room_id].into != root:
+			continue
+		var room: Dictionary = DATA[room_id]
+		var door_id: String = ROOMS[room_id].door
+		var shared: Vector2i = data.doors[door_id].cell
+		var offset: Vector2i = shared - room.doors[door_id].cell
+		assert(offset.x >= 0 and offset.y >= 0, "房間 %s 要放在主地圖的右邊或下面" % room_id)
+		assert(room.enemies.is_empty(), "房間 %s 不能有敵人（巡邏點符號會衝突）" % room_id)
+		# 地圖
+		var rows: Array = room.map
+		for y in rows.size():
+			var gy := offset.y + y
+			while map.size() <= gy:
+				map.append("")
+			var line: String = map[gy]
+			var needed: int = offset.x + String(rows[y]).length()
+			if line.length() < needed:
+				line += "#".repeat(needed - line.length())
+			for x in String(rows[y]).length():
+				line[offset.x + x] = rows[y][x]
+			map[gy] = line
+		# 共用的門變成室內門；權限、電力設定留在門上
+		var door_line: String = map[shared.y]
+		door_line[shared.x] = "+"
+		map[shared.y] = door_line
+		var inner: Dictionary = data.get("inner_doors", {})
+		inner["%d,%d" % [shared.x, shared.y]] = {"access": data.doors[door_id].get("access", 0),
+			"safe": room.get("safe", false)}
+		data["inner_doors"] = inner
+		data.doors.erase(door_id)
+		# 其他通往外面的門
+		for d in room.doors:
+			if d != door_id:
+				var copy: Dictionary = room.doors[d].duplicate()
+				copy.cell += offset
+				data.doors[d] = copy
+		# 入口：「房間:入口」，不衝突的話也可以直接用入口名
+		var entries: Dictionary = data.get("entries", {})
+		for e in room.get("entries", {}):
+			var cell: Vector2i = room.entries[e] + offset
+			entries["%s:%s" % [room_id, e]] = cell
+			if not entries.has(e):
+				entries[e] = cell
+		var inside: Vector2i = room.doors[door_id].cell + room.doors[door_id].spawn_dir + offset
+		entries["%s:%s" % [room_id, door_id]] = inside
+		data["entries"] = entries
+		# 以格子座標當 key 的資料
+		for field in ["names", "hidden", "loot", "stairs"]:
+			var src: Dictionary = room.get(field, {})
+			var dst: Dictionary = data.get(field, {})
+			for key in src:
+				var p := String(key).split(",")
+				dst["%d,%d" % [int(p[0]) + offset.x, int(p[1]) + offset.y]] = src[key]
+			data[field] = dst
+		for key in _cell_keys(room.map):
+			var p := String(key).split(",")
+			data.item_keys["%d,%d" % [int(p[0]) + offset.x, int(p[1]) + offset.y]] = "%s:%s" % [room_id, key]
+		for field in ["learn", "messages"]:
+			var dst2: Dictionary = data.get(field, {})
+			dst2.merge(room.get(field, {}))
+			data[field] = dst2
+		var zones: Dictionary = data.get("zones", {})
+		for z in room.get("zones", {}):
+			var zc: Dictionary = room.zones[z].duplicate()
+			zc.rect = Rect2i(zc.rect.position + offset, zc.rect.size)
+			zones[z] = zc
+		data["zones"] = zones
+		var rect := Rect2i(offset, Vector2i(String(rows[0]).length(), rows.size()))
+		data.regions.append({"id": room_id, "rect": rect, "safe": room.get("safe", false), "title": room.title})
+		if data.outdoor:
+			var ir: Array = data.get("indoor_rects", []).duplicate()
+			ir.append(rect)
+			data["indoor_rects"] = ir
+	data.map = map
+	return data
+
+
+## 房間貼進主地圖的位移（房間裡的座標 + 位移 = 主地圖的座標）
+static func room_offset(room_id: String) -> Vector2i:
+	var r: Dictionary = ROOMS[room_id]
+	return DATA[r.into].doors[r.door].cell - DATA[room_id].doors[r.door].cell
+
+
+static func _cell_keys(rows: Array) -> Array[String]:
+	var keys: Array[String] = []
+	for y in rows.size():
+		for x in String(rows[y]).length():
+			if not "#.".contains(rows[y][x]):
+				keys.append("%d,%d" % [x, y])
+	return keys

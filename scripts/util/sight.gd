@@ -2,7 +2,8 @@
 class_name Sight
 extends RefCounted
 
-const WALL_MASK := 1
+## 擋視線的：牆（1）＋關著的室內門（32）。窗戶（8）看得穿。
+const WALL_MASK := 33
 
 
 static func is_clear(node: Node2D, from: Vector2, to: Vector2) -> bool:

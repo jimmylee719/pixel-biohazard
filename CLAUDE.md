@@ -42,6 +42,17 @@
   清單 `scripts/audio/sound_list.gd`（id = 檔名），提示詞 `docs/AUDIO_PROMPTS.md`（測試會檢查兩邊一致、每個 id 都有檔案）。
   正式素材放 `assets/audio/{sfx,music,ambience}/<id>.ogg`（或 _1、_2 多版本），沒有就用 `assets/audio/synth/` 的合成暫代版（`python3 tools/synth_audio.py` 產生）。
   區域音樂／環境音由 `Level.music_id()`、`ambience_id()` 決定（區域資料可用 `music`、`ambience`、`step` 指定），追逐音樂在 `main.gd` 的 `_update_music`。
+- 無縫建築：`Areas.ROOMS` 把房間（安全屋、站長室、床鋪小屋）合併進主區域地圖，共用的門變成室內自動門 `+`（`scripts/level/interior_door.gd`）。
+  `level.area_id` 是主地圖；主角所在的房間用 `main.current_area_id()` / `Level.region_at()`；房間的存檔 key 維持「房間 id:房間座標」。
+  載入房間：`load_area("station_safe", "radio")` 會載入主地圖並用 `main.entry_key()` 找入口。測試用 `Areas.room_offset()` 換算座標。
+  房間黑幕 `RoomFog`：室內門把地板分成房間，只看得到所在的房間。安全屋的門有只擋敵人的牆（圖層 16）。
+  圖層：1 牆、2 主角、4 敵人、8 窗戶（擋路不擋視線）、16 安全屋門口（只擋敵人）、32 關著的室內門（擋視線）。`Sight.WALL_MASK = 33`。
+- 第一人稱：`scripts/ui/first_person_view.gd`（地圖格子射線投射），躲櫃子、看窗戶（地圖符號 `=`，`WindowPane`）時開啟。
+- 警戒：每個 Level 有 `AlertNetwork`（ALERT → EVASION → CAUTION）。怪物發現主角會叫 `call_radius_tiles` 內的同伴；
+  人類（`faction = "human"`，`scenes/enemy_guard.tscn`）有無線電：通報中被打中就失敗，成功 = 全區域人類趕來＋區域資料 `reinforcements` 增援。
+- 近戰：`PlayerCombat.COMBO`（刀 → 拳 → 踢，踢倒可補刀、撞牆額外傷害）、擒拿（背後按互動抓住；攻擊 = 解決、投擲 = 摔、互動 = 放開）。
+- 敵人離開區域時的位置記在 `WorldState.data.enemies`（`Enemy.snapshot()` / `restore_snapshot()`）。
+- 畫面：牆的正面 `scripts/level/wall_faces.gd`（3/4 高度感）、後製 `assets/shaders/film.gdshader`（顆粒、暗角）。
 - 操作手感：類比搖桿輕推（< `analog_sneak_tilt`）自動潛行；撞到牆角邊緣會自動滑開（`Player._assist_corner`）。
 - 觸控：`scripts/ui/touch_controls.gd`、`touch_stick.gd`（全部轉成 InputMap 動作）。注意 Godot 4.7 內建 `VirtualJoystick` 類別，自己的類別不要取這個名字。
 - 多語系：介面與劇情文字一律寫英文原文，顯示時用 `tr()`（資料裡的整句在 `show_message`、面板顯示處翻譯）。

@@ -410,3 +410,57 @@ pixel art title screen key art, polar night, a lone research station on a black 
 3. 主角跑步、舉槍
 4. 北極熊、深井
 5. 道具、物品欄圖示、標題畫面
+
+## 8. 第三批（2026-11-25）：新怪物、人類敵人、室內門與窗（惡靈古堡 1～3 代、潛龍諜影 1 代的感覺）
+
+規則同 7.1（純洋紅背景、一隻角色置中、全身、5 個方向：down、downright、right、upright、up）。
+風格方向：**早期 PS1 生存恐怖的預渲染感**，但做成像素圖：顏色偏暗、偏綠灰和土黃、高對比的光影、細節靠陰影不靠線條。
+在每條角色提示詞前面加上：
+```text
+pixel art game sprite, 32x48, 3/4 top-down view, late-90s survival horror style, dark muted palette, strong rim light, gritty, original creature design,
+```
+怪物全部要原創：不要模仿任何現有遊戲的怪物外型（例如特定遊戲的殭屍犬、舔食者、暴君）。共通設定：被古菌「霜鳴菌」感染，身上有半透明青色結晶、結霜、裂開的皮膚。
+
+### 8.1 新怪物（走路 5 方向各 2 張；攻擊 5 方向各 1 張；倒地 1 張）
+| id（資料夾名） | 說明 | 提示詞 |
+|---|---|---|
+| `crawler` 爬行者 | 下半身被凍住斷掉、用雙手在地上爬，速度快、很低，從家具底下鑽出來 | `infected research scientist torso crawling on the floor using both arms, legs missing below the waist encased in ice, torn lab coat dragging, cyan crystals along the spine, facing {DIRECTION}` |
+| `husk` 冰殼者 | 全身包著厚冰殼的大個子，子彈打冰殼沒用，要先用火融化 | `hulking infected station worker encased in a thick translucent ice shell, only the face visible through cracked ice, heavy slow stance, crystal spikes on shoulders, facing {DIRECTION}` |
+| `hound` 雪橇犬 | 被感染的雪橇犬，成群行動、聽到聲音就衝過來 | `infected sled dog, thin and emaciated, patches of fur missing revealing frosted skin, cyan crystal growths along the ribs, blind white eyes, running on four legs, facing {DIRECTION}` |
+| `chorister` 合唱者 | 頭部裂開長出結晶的瘦高個子，會「唱」出聲音把同伴叫來（呼叫範圍很大） | `tall gaunt infected figure in a parka, head split open with a cluster of singing cyan crystals growing out, mouth stretched open, arms hanging long, facing {DIRECTION}` |
+
+- 倒地：`same creature collapsed on the floor, top-down view, defeated`。
+- 被踢倒（新動作）：`same creature knocked down on its back, limbs splayed, top-down view`。
+
+### 8.2 人類敵人：清除小組（Cleanup Team）
+私人軍事公司派來「清理」北緯站的部隊。有無線電、會開槍、會叫增援。**原創裝備，不要模仿任何現有遊戲或真實部隊的標誌。**
+```text
+pixel art game sprite, 32x48, 3/4 top-down view, private military contractor in white arctic camouflage, balaclava and tinted ski goggles, plate carrier vest, compact rifle held at low ready, small radio on the shoulder strap, no insignia, facing {DIRECTION}, full body, single character, centered, solid flat magenta background #FF00FF, no ground shadow
+```
+- 資料夾 `operative`：走路 5 方向各 2 張、舉槍瞄準（`aiming rifle at shoulder`）5 方向各 1 張、用無線電通報（`one hand pressing the shoulder radio, talking, looking around`）down 1 張、被抓住（`being grabbed from behind in a chokehold, struggling`）1 張、倒地 1 張。
+- 隊長 `operative_leader`：`same contractor with a red armband and a flashlight mounted on the rifle`，走路 5 方向各 2 張。
+
+### 8.3 主角的近戰與擒拿（新動作）
+| 動作 | 提示詞（加在 7.2 主角那段後面） | 數量 |
+|---|---|---|
+| 揮刀 | `slashing with a combat knife, wide horizontal swing` | 5 方向各 1 |
+| 揮拳 | `throwing a straight punch` | 5 方向各 1 |
+| 踢 | `front kick, leg extended forward` | 5 方向各 1 |
+| 擒拿 | `grabbing an enemy from behind, arm around the neck` | 5 方向各 1 |
+| 摔 | `throwing an enemy over the shoulder to the ground` | down 1 |
+
+### 8.4 室內門、窗、牆（地圖用）
+| 物件 | 提示詞 |
+|---|---|
+| 自動門（關） | `pixel art, 16x16 top-down view, sliding metal security door closed, yellow-black hazard stripes on the frame, small status light` |
+| 自動門（開） | `same sliding door open, panels retracted into the wall` |
+| 安全屋的門 | `pixel art, 16x16 top-down view, heavy pressure door with a green light and a red cross emblem, closed` |
+| 觀察窗 | `pixel art, 16x16 top-down view, reinforced observation window glass in a concrete wall, frost in the corners, faint reflection` |
+| 牆的正面 | `pixel art seamless horizontal strip, 16x10, front face of a concrete wall in a research station, painted lower half, pipes and a cable tray, grime, cold lighting` |
+
+### 8.5 優先順序
+1. 人類敵人 `operative`（警戒、無線電、增援系統已經做好，現在用色塊代替）
+2. 主角近戰與擒拿動作
+3. `crawler`、`hound`（之後會加進地圖）
+4. 門、窗、牆面
+5. `husk`、`chorister`

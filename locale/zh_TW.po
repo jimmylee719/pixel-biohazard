@@ -495,6 +495,27 @@ msgstr "出來"
 msgid "Hide"
 msgstr "躲進去"
 
+msgid "[%s] Leave the locker"
+msgstr "[%s] 離開櫃子"
+
+msgid "[%s] Step back"
+msgstr "[%s] 離開窗邊"
+
+msgid "Look through the window"
+msgstr "看窗外"
+
+msgid "ALERT"
+msgstr "警戒"
+
+msgid "EVASION"
+msgstr "搜索中"
+
+msgid "CAUTION"
+msgstr "警覺"
+
+msgid "Enemy radio: \"Contact! All units, converge!\""
+msgstr "敵方無線電：「發現目標！所有單位，集合！」"
+
 msgid "Read"
 msgstr "閱讀"
 

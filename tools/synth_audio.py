@@ -341,6 +341,27 @@ def bullet_hit_flesh(rng):
                length=n(0.3))
 
 
+def punch_hit(rng):
+    return mix((thump(rng, 120, 0.05, 1600, 0.04), 0, 1.0), (crackle(0.15, 120, rng, 3500, 0.002), 0, 0.3),
+               length=n(0.3))
+
+
+def kick_hit(rng):
+    return mix((thump(rng, 80, 0.08, 1200, 0.06), 0, 1.0), (env(bp(noise(0.3, rng), 700, 1.5), 0.01, 0.08), 0.03, 0.5),
+               length=n(0.4))
+
+
+def body_slam(rng):
+    rattle = mix(*[(click(rng, rng.uniform(1500, 3000), 0.01), rng.uniform(0.03, 0.2), 0.4) for _ in range(6)])
+    return mix((thump(rng, 55, 0.12, 900, 0.1), 0, 1.0), (rattle, 0, 1.0), length=n(0.7))
+
+
+def grab(rng):
+    rustle = bell(bp(noise(0.35, rng), 1500, 0.8), 0.3)
+    return mix((rustle, 0, 0.8), (thump(rng, 150, 0.03, 1500, 0.03), 0.05, 0.5),
+               (bell(bp(noise(0.3, rng), 600, 2), 0.6), 0.1, 0.4), length=n(0.4))
+
+
 def throw_whoosh(rng):
     return whoosh(rng, 0.3, 500, 1800)
 
@@ -619,7 +640,8 @@ SFX = {
     "flashlight_click": (flashlight_click, 1), "lighter_flick": (lighter_flick, 2),
     "pistol_shot": (pistol_shot, 3), "shotgun_shot": (shotgun_shot, 2), "gun_empty": (gun_empty, 1),
     "reload": (reload, 1), "knife_swing": (knife_swing, 2), "knife_hit": (knife_hit, 2),
-    "bullet_hit_flesh": (bullet_hit_flesh, 3), "throw_whoosh": (throw_whoosh, 1), "stone_land": (stone_land, 3),
+    "bullet_hit_flesh": (bullet_hit_flesh, 3), "punch_hit": (punch_hit, 3), "kick_hit": (kick_hit, 2),
+    "body_slam": (body_slam, 2), "grab": (grab, 1), "throw_whoosh": (throw_whoosh, 1), "stone_land": (stone_land, 3),
     "bottle_break": (bottle_break, 2), "molotov_ignite": (molotov_ignite, 1), "fire_loop": (fire_loop, 1),
     "extinguisher_spray": (extinguisher_spray, 1), "extinguisher_clang": (extinguisher_clang, 1),
     "wood_break": (wood_break, 2), "drum_ignite": (drum_ignite, 1), "pickup_item": (pickup_item, 2),

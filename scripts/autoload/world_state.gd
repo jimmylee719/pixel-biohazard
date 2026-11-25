@@ -65,6 +65,7 @@ func new_game() -> void:
 		"ready_throw": "bottle",
 		"extinguisher": 0,
 		"body_temp": MAX_BODY_TEMP,
+		"enemies": {},
 	}
 	_checkpoint = data.duplicate(true)
 
@@ -222,6 +223,15 @@ func is_enemy_dead(enemy_key: String) -> bool:
 
 
 ## 記住死掉的位置，屍體會留在那裡
+## 離開區域時記下活著的敵人在哪、在做什麼；回來時從這裡接著（不會全部回到原位）
+func store_enemy(enemy_key: String, snapshot: Dictionary) -> void:
+	data.enemies[enemy_key] = snapshot
+
+
+func enemy_snapshot(enemy_key: String) -> Dictionary:
+	return data.get("enemies", {}).get(enemy_key, {})
+
+
 func mark_enemy_dead(enemy_key: String, position: Vector2) -> void:
 	set_flag("dead:" + enemy_key, position)
 
@@ -394,6 +404,7 @@ func _migrate(old: Dictionary) -> Dictionary:
 		"ready_throw": "bottle",
 		"extinguisher": 0,
 		"body_temp": MAX_BODY_TEMP,
+		"enemies": {},
 	}
 	if old.has("pistol_loaded") and not old.has("loaded"):
 		old["loaded"] = {"pistol": old.pistol_loaded, "shotgun": 0}

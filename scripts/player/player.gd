@@ -14,6 +14,8 @@ enum Gait { IDLE, SNEAK, WALK, RUN }
 const TILE := 16.0
 const BODY_LAYER := 2
 const WALL_MASK := 1
+## 會擋住身體的東西：牆＋窗戶（窗戶看得穿但走不過去）
+const MOVE_MASK := 41
 
 @export_group("移動")
 @export var sneak_speed := 36.0
@@ -136,6 +138,7 @@ var last_spray := {}
 
 func _ready() -> void:
 	add_to_group("player")
+	add_to_group("door_users")
 	_lighter = PointLight2D.new()
 	_lighter.texture = LightTextures.make_radial()
 	_lighter.texture_scale = lighter_radius / (LightTextures.SIZE * 0.5)
@@ -175,12 +178,14 @@ func _physics_process(delta: float) -> void:
 	if lighter_on:
 		_lighter.energy = 0.85 + 0.12 * sin(Time.get_ticks_msec() * 0.023) + randf() * 0.05
 	focus = _find_focus()
-	if input_enabled and Input.is_action_just_pressed("interact"):
-		if focus:
+	if input_enabled and Input.is_action_just_pressed("interact") and combat.grabbed == null:
+		if focus and not (combat.grab_target() != null and focus is Locker):
 			focus.use(self)
 			focus = _find_focus()
 		elif not is_hiding:
-			knock()
+			# 面前有可以抓的敵人就擒拿，不然就敲牆
+			if not combat.grab():
+				knock()
 
 	if is_hiding:
 		velocity = Vector2.ZERO
@@ -194,7 +199,7 @@ func _physics_process(delta: float) -> void:
 			sneaking = not sneaking
 		if Input.is_action_just_pressed("flashlight"):
 			cycle_light()
-		if Input.is_action_just_pressed("throw"):
+		if Input.is_action_just_pressed("throw") and combat.grabbed == null:
 			if WorldState.carrying == "extinguisher":
 				throw_extinguisher()
 			elif not is_carrying():
@@ -203,7 +208,7 @@ func _physics_process(delta: float) -> void:
 			spray()
 
 	# 舉槍時可以邊走邊射：面向固定（鎖定目標時由 Combat 朝向目標），所以能後退、橫移
-	var aim_moving := combat.aiming
+	var aim_moving := combat.aiming or combat.grabbed != null
 
 	# 搬燃料桶時不能跑；舉槍時也不能跑
 	var running := input_enabled and Input.is_action_pressed("run") and move_input != Vector2.ZERO \
@@ -453,7 +458,7 @@ func _leave_locker_state() -> void:
 	hiding_in = null
 	hide_spotted = false
 	collision_layer = BODY_LAYER
-	collision_mask = WALL_MASK
+	collision_mask = MOVE_MASK
 	_body.visible = true
 	_facing_marker.visible = _sprite == null
 	_ambient.energy = _ambient_energy

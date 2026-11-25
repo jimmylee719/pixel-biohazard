@@ -16,6 +16,7 @@ const ENEMY_SCENES := {
 	"patroller": preload("res://scenes/enemy.tscn"),
 	"listener": preload("res://scenes/enemy_listener.tscn"),
 	"sleeper": preload("res://scenes/enemy_sleeper.tscn"),
+	"guard": preload("res://scenes/enemy_guard.tscn"),
 	"bear": preload("res://scenes/boss_bear.tscn"),
 	"well": preload("res://scenes/boss_well.tscn"),
 }
@@ -91,12 +92,14 @@ var _locked_door_notice := ""
 
 
 func _ready() -> void:
-	_player.hiding_changed.connect(func(is_hidden: bool): _vignette.visible = is_hidden)
+	_player.hiding_changed.connect(_on_hiding_changed)
 	_overlay.setup(_player)
 	_vignette.texture = _make_vignette()
 	_infection_vignette.texture = _make_vignette(Color(0.75, 0.95, 1.0, 0.85))
 	_player.died.connect(func(): _end_attempt(tr("YOU DIED"), Color(0.9, 0.2, 0.2)))
-	_player.hurt.connect(func(_d): _hurt_flash.color.a = 0.45)
+	_player.hurt.connect(func(_d):
+		_hurt_flash.color.a = 0.45
+		close_window_view())
 	_banner.visible = false
 	_hint.text = _build_hint()
 	Missions.mission_completed.connect(func(id: String):
@@ -118,6 +121,32 @@ func _ready() -> void:
 	signal_style.set_content_margin_all(6)
 	_signal_panel.add_theme_stylebox_override("panel", signal_style)
 	_build_ending_panel()
+	# 畫面後製（顆粒、暗角、色調）：蓋在遊戲畫面上、HUD 底下
+	var film_layer := CanvasLayer.new()
+	film_layer.layer = 9
+	film_layer.name = "Film"
+	add_child(film_layer)
+	var film := ColorRect.new()
+	film.set_anchors_preset(Control.PRESET_FULL_RECT)
+	film.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://assets/shaders/film.gdshader")
+	film.material = mat
+	film_layer.add_child(film)
+	first_person = FirstPersonView.new()
+	$HUD.add_child(first_person)
+	$HUD.move_child(first_person, _hint.get_index())
+	# 警戒狀態（ALERT／EVASION／CAUTION）在畫面上方正中間
+	_alert_label = Label.new()
+	_alert_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_alert_label.offset_left = -80
+	_alert_label.offset_right = 80
+	_alert_label.offset_top = 40
+	_alert_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_alert_label.add_theme_font_size_override("font_size", 12)
+	_alert_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_alert_label.add_theme_constant_override("outline_size", 3)
+	$HUD.add_child(_alert_label)
 	touch_controls = TouchControls.new()
 	add_child(touch_controls)
 	_hint.visible = not touch_controls.visible  # 觸控時不顯示鍵盤說明
@@ -200,6 +229,13 @@ func _process(delta: float) -> void:
 	_update_status()
 	_update_boss_bar()
 	_update_music(delta)
+	_update_alert_hud()
+	_process_window_view(delta)
+	_update_region()
+	# 第一人稱時不顯示鍵盤說明和互動提示（畫面要乾淨）
+	_hint.visible = not first_person.active and not touch_controls.visible
+	if first_person.active:
+		_prompt.text = ""
 
 
 # ── 音樂 ──────────────────────────────────────────────
@@ -207,8 +243,108 @@ func _process(delta: float) -> void:
 ## 有敵人追著你（ALERT）就換成追逐音樂；甩掉之後過一陣子才換回探索音樂（避免一直切換）
 const CHASE_HOLD := 6.0
 var _chase_timer := 0.0
+var _region := ""
+## 第一人稱視角（櫃子、窗戶）
+var first_person: FirstPersonView
+var _fp_opened_frame := -1
+var _fp_closed_frame := -100
+var _window_push := 0.0
+var _reinforced := false
+var _alert_label: Label
 var _any_alert := false
 var _any_suspicious := false
+
+
+# ── 第一人稱：櫃子、窗戶 ─────────────────────────────
+
+func _on_hiding_changed(is_hidden: bool) -> void:
+	_vignette.visible = is_hidden
+	if is_hidden and _player.hiding_in:
+		var out := (_player._hide_return - _player.hiding_in.global_position).normalized()
+		first_person.open(level, _player.hiding_in.global_position, out, "locker",
+			tr("[%s] Leave the locker") % _key_name("interact"))
+	else:
+		first_person.close()
+
+
+func _on_window_look(window: WindowPane, from_pos: Vector2) -> void:
+	# 剛離開窗邊的那一下互動鍵不要又打開
+	if first_person.active or Engine.get_physics_frames() - _fp_closed_frame <= 3:
+		return
+	_player.input_enabled = false
+	_player.velocity = Vector2.ZERO
+	_fp_opened_frame = Engine.get_process_frames()
+	first_person.open(level, from_pos, window.global_position - from_pos, "window",
+		tr("[%s] Step back") % _key_name("interact"))
+
+
+func close_window_view() -> void:
+	if first_person.mode != "window" or not first_person.active:
+		return
+	first_person.close()
+	_fp_closed_frame = Engine.get_physics_frames()
+	_player.input_enabled = true
+
+
+func _process_window_view(delta: float) -> void:
+	if first_person.active and first_person.mode == "window":
+		if Engine.get_process_frames() == _fp_opened_frame:
+			return
+		if Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_cancel") \
+				or Input.get_vector("move_left", "move_right", "move_up", "move_down").dot(-first_person._dir) > 0.5:
+			close_window_view()
+		return
+	# 往窗戶推一下（推著不動 0.25 秒）就自動靠過去看
+	var w := _player.focus as WindowPane
+	var push := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if w and _player.input_enabled and push.dot((w.global_position - _player.global_position).normalized()) > 0.7:
+		_window_push += delta
+		if _window_push >= 0.25:
+			_window_push = 0.0
+			_on_window_look(w, _player.global_position)
+	else:
+		_window_push = 0.0
+
+
+## 人類敵人無線電通報成功：區域有設定的話，從門口來增援
+func _on_radio_called(_caller: Node, target: Vector2) -> void:
+	show_message(tr("Enemy radio: \"Contact! All units, converge!\""), true)
+	var r := level.reinforcements()
+	if r.is_empty() or _reinforced:
+		return
+	_reinforced = true
+	var doors: Array = r.get("doors", [])
+	for i in r.get("count", 0):
+		var door: String = doors[i % doors.size()]
+		var enemy := spawn_enemy(r.get("type", "guard"), level.get_entry_position(door))
+		enemy.answer_call(target)
+
+
+## 臨時加入的敵人（增援）：不記錄生死與位置
+func spawn_enemy(type: String, pos: Vector2) -> Enemy:
+	var enemy: Enemy = ENEMY_SCENES[type].instantiate()
+	_enemy_root.add_child(enemy)
+	var pts: Array[Vector2] = [pos]
+	enemy.setup(pts, _player, level)
+	enemies.append(enemy)
+	_overlay.bind_area(level, enemies)
+	return enemy
+
+
+func _update_alert_hud() -> void:
+	var net := level.alert if level else null
+	if net == null or net.phase == AlertNetwork.Phase.NONE:
+		_alert_label.text = ""
+		return
+	var text := tr(net.phase_name())
+	if net.phase != AlertNetwork.Phase.ALERT:
+		text += "  %02d" % ceili(net.timer)
+	_alert_label.text = text
+	_alert_label.add_theme_color_override("font_color", {
+		AlertNetwork.Phase.ALERT: Color(1, 0.25, 0.2),
+		AlertNetwork.Phase.EVASION: Color(1, 0.7, 0.2),
+		AlertNetwork.Phase.CAUTION: Color(1, 0.95, 0.4),
+	}[net.phase])
 
 
 func _update_music(delta: float) -> void:
@@ -230,12 +366,13 @@ func _update_music(delta: float) -> void:
 		Sfx.play("suspicious_sting")
 	_any_alert = alert
 	_any_suspicious = suspicious
-	if alert:
+	var phase := level.alert.phase
+	if alert or phase == AlertNetwork.Phase.ALERT or phase == AlertNetwork.Phase.EVASION:
 		_chase_timer = CHASE_HOLD
 	else:
 		_chase_timer = maxf(_chase_timer - delta, 0.0)
-	var base := level.music_id()
-	if _chase_timer > 0.0 and not level.safe and level.boss_name() == "":
+	var base := level.music_id(_player.global_position)
+	if _chase_timer > 0.0 and not level.is_safe_at(_player.global_position) and level.boss_name() == "":
 		Sfx.play_music("chase", 0.4)
 	else:
 		Sfx.play_music(base, 2.0)
@@ -286,14 +423,22 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	if fade:
 		await _fade_to(1.0)
 
+	if first_person and first_person.active:
+		first_person.close()
 	if level:
+		# 馬上從場景移除（不然舊地圖的牆在這一幀還在，會把主角推開）
+		remove_child(level)
 		level.queue_free()
 	for enemy in enemies:
+		if not enemy.is_dead and not enemy.is_boss() and not _resetting:
+			WorldState.store_enemy(enemy.enemy_key, enemy.snapshot())
 		enemy.queue_free()
 	enemies.clear()
 
+	# 合併進主地圖的房間（Areas.ROOMS）：載入主地圖，站在房間裡的入口
+	var root := Areas.root_of(area_id)
 	level = Level.new()
-	level.area_id = area_id
+	level.area_id = root
 	level.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(level)
 	move_child(level, _darkness.get_index() + 1)
@@ -301,7 +446,7 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	for i in level.enemy_defs.size():
 		var def: Dictionary = level.enemy_defs[i]
 		var enemy: Enemy = ENEMY_SCENES[def.type].instantiate()
-		enemy.enemy_key = "%s:%d" % [area_id, i]
+		enemy.enemy_key = "%s:%d" % [root, i]
 		_enemy_root.add_child(enemy)
 		enemy.setup(def.points, _player, level)
 		enemies.append(enemy)
@@ -325,16 +470,27 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.drive.connect(func(target: String): load_area(target, "snowcat"))
 		elif item is ShaftLift:
 			item.message_shown.connect(func(text: String): show_message(text, true))
+		elif item is WindowPane:
+			item.look.connect(_on_window_look)
 		elif item is Uplink:
 			item.opened.connect(_open_signal_panel)
 			item.message_shown.connect(func(text: String): show_message(text, true))
 
-	_apply_darkness()
+	level.alert.radio_called.connect(_on_radio_called)
+	for door in level.get_inner_doors():
+		door.denied.connect(func():
+			show_message(tr("Locked. Keycard access level %d required.") % door.access, true)
+			Sfx.play("door_locked"))
 	_chase_timer = 0.0
+	_reinforced = false
 	_any_alert = false
 	_any_suspicious = false
 	_player.level = level
-	_player.reset_to(level.get_entry_position(entry))
+	_player.reset_to(level.get_entry_position(entry_key(area_id, entry)))
+	_region = current_area_id()
+	if level.fog:
+		level.fog.update(_player.global_position)
+	_apply_darkness()
 	_camera.setup(_player, level.bounds, level.camera_mode())
 	_overlay.bind_area(level, enemies)
 
@@ -356,8 +512,31 @@ func _fade_to(alpha: float) -> void:
 
 # ── 被抓到、重來 ──────────────────────────────────────
 
+## 合併進主地圖的房間用「房間:入口」找入口位置
+func entry_key(area_id: String, entry: String) -> String:
+	return entry if Areas.root_of(area_id) == area_id else "%s:%s" % [area_id, entry]
+
+
+## 主角現在所在的區域 id（在合併進來的房間裡 = 那個房間的 id，例如 station_safe）
+func current_area_id() -> String:
+	return level.region_at(_player.global_position) if level else ""
+
+
+## 走進／走出合併進來的房間：觸發任務事件、換燈光
+func _update_region() -> void:
+	if level == null or _transitioning:
+		return
+	if level.fog:
+		level.fog.update(_player.global_position)
+	var region := current_area_id()
+	if region != _region:
+		_region = region
+		WorldState.emit_event("enter_area", region)
+		_apply_darkness()
+
+
 func _apply_darkness() -> void:
-	if level.safe:
+	if level.is_safe_at(_player.global_position):
 		_darkness.color = SAFE_DARKNESS
 	elif level.outdoor:
 		_darkness.color = OUTDOOR_DARKNESS
@@ -398,13 +577,17 @@ func _end_attempt(text: String, color: Color, new_game := false, delay := RESET_
 
 ## 回到最近的檢查點（目前所在區域的入口）。
 func reset_attempt() -> void:
+	close_window_view()
 	WorldState.restore_checkpoint()
 	# 回到檢查點時至少有一半的體溫，避免一進戶外就凍死的死循環
 	WorldState.body_temp = maxf(WorldState.body_temp, 60.0)
 	level.sync_from_state()
-	_player.reset_to(level.get_entry_position(WorldState.checkpoint_entry()))
+	_player.reset_to(level.get_entry_position(entry_key(WorldState.checkpoint_area(), WorldState.checkpoint_entry())))
+	_region = current_area_id()
+	_apply_darkness()
 	for enemy in enemies:
 		enemy.reset()
+		enemy.restore_snapshot()
 	_camera.snap_to_target()
 	_banner.visible = false
 	_player.input_enabled = true
@@ -446,7 +629,7 @@ func _on_radio_used() -> void:
 		_radio_transcript.append(tr(KOVAC_INTRO))
 	for text in Missions.receive_radio():
 		_radio_transcript.append(tr(text))
-	WorldState.save_checkpoint(level.area_id, "radio")
+	WorldState.save_checkpoint(current_area_id(), "radio")
 	var saved := WorldState.save_to_disk()
 	_radio_transcript.append(tr("Progress saved.") if saved else tr("Save failed."))
 	if saved:

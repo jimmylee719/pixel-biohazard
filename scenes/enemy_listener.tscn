@@ -7,12 +7,13 @@ size = Vector2(10, 10)
 
 [node name="Listener" type="CharacterBody2D"]
 collision_layer = 4
-collision_mask = 1
+collision_mask = 57
 motion_mode = 1
 script = ExtResource("1_enemy")
 display_name = "Chimer"
 sprite_set = "listener"
 voice = "listener"
+call_radius_tiles = 12.0
 patrol_speed = 24.0
 investigate_speed = 34.0
 chase_speed = 78.0

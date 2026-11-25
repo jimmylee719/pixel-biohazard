@@ -29,6 +29,10 @@ const SFX := {
 	"knife_swing": {"vol": -8.0, "dist": 8},
 	"knife_hit": {"vol": -6.0, "dist": 10},
 	"bullet_hit_flesh": {"vol": -6.0, "dist": 16},
+	"punch_hit": {"vol": -6.0, "dist": 10},
+	"kick_hit": {"vol": -4.0, "dist": 12},
+	"body_slam": {"vol": -3.0, "dist": 18},
+	"grab": {"vol": -8.0, "dist": 8},
 	# 投擲與環境互動
 	"throw_whoosh": {"vol": -10.0, "dist": 8},
 	"stone_land": {"vol": -6.0, "dist": 16},

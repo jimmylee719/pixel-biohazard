@@ -57,6 +57,7 @@ func _run() -> void:
 	await _test_noise()
 	await _test_wall_muffles_noise()
 	await _test_lose_and_search()
+	await _test_enemy_persistence()
 	await _test_caught_reset()
 	await _test_enemy_hidden_behind_wall()
 	await _test_chimer_blind()
@@ -65,6 +66,7 @@ func _run() -> void:
 	await _test_chimer_shriek()
 	await _test_hide_unseen()
 	await _test_hide_spotted()
+	await _test_first_person()
 	await _test_bottle()
 	await _test_breaker()
 	await _test_tape_and_intel()
@@ -73,6 +75,7 @@ func _run() -> void:
 	await _test_reload()
 	await _test_corpse_persists()
 	await _test_melee()
+	await _test_combo_and_cqc()
 	await _test_hidden_cache_and_shotgun()
 	await _test_enemy_attack_and_death()
 	await _test_items_and_infection()
@@ -101,7 +104,7 @@ func _bind_area() -> void:
 func _walk_until_area(action: String, area_id: String) -> void:
 	Input.action_press(action)
 	for i in 120:
-		if _main.level.area_id == area_id:
+		if _main.current_area_id() == area_id:
 			break
 		await _frames(1)
 	Input.action_release(action)
@@ -245,7 +248,7 @@ func _test_door_into_station() -> void:
 	_shore_quiet()
 	_place_player(_tile(6, 8), false, Vector2.UP)
 	await _walk_until_area("move_up", "station_1f")
-	_check(_main.level.area_id == "station_1f", "走進門會切換到研究站一樓（%s）" % _main.level.area_id)
+	_check(_main.level.area_id == "station_1f", "走進門會切換到研究站一樓（%s）" % _main.current_area_id())
 	_check(_player.global_position.distance_to(_main.level.get_entry_position("front")) < 20.0, "站在對應的門口")
 	_check(Missions.is_done("enter_station"), "完成主線：進入研究站")
 	_check(Missions.tracked_mission().get("id") == "find_shelter", "下一個主線出現：找安全的地方")
@@ -259,7 +262,7 @@ func _test_door_back_and_persistence() -> void:
 	var bottles := _player.bottles
 	_player.facing = Vector2.LEFT
 	await _walk_until_area("move_left", "south_shore")
-	_check(_main.level.area_id == "south_shore", "從正門回到南岸（%s）" % _main.level.area_id)
+	_check(_main.level.area_id == "south_shore", "從正門回到南岸（%s）" % _main.current_area_id())
 	_check(_player.bottles == bottles, "空瓶數跟著主角走")
 	_level = _main.level
 	var crate := _find_item(SupplyCrate, Vector2i(36, 21))
@@ -294,7 +297,7 @@ func _test_tape_and_intel() -> void:
 func _test_level() -> void:
 	print("[level]")
 	_check(_level.enemy_defs.size() == 2, "兩隻敵人")
-	_check(_level.bounds.size == Vector2(704, 400), "地圖大小 704x400")
+	_check(_level.bounds.size == Vector2(704, 480), "地圖大小 704x480（安全屋合併在下面）")
 	var path := NavigationServer2D.map_get_path(
 		_level.get_navigation_map(), _tile(10, 2), _spawn_pos(), true)
 	_check(path.size() >= 2, "導航可以從交誼廳走到出生點")
@@ -543,8 +546,9 @@ func _test_chimer_shriek() -> void:
 	await _frames(2)
 	_chimer._set_state(Enemy.State.ALERT)
 	await _frames(2)
-	_check(_watcher.state == Enemy.State.SUSPICIOUS, "鳴骨者尖鳴會讓附近的值班者過來查看（%s）" % _watcher.get_state_name())
+	_check(_watcher.state == Enemy.State.ALERT, "鳴骨者尖鳴＝呼叫同伴，附近的值班者趕過來（%s）" % _watcher.get_state_name())
 	await _reset_world()
+	await _test_alert_network()
 
 
 # ── 躲藏 ──
@@ -936,16 +940,34 @@ func _test_safe_room() -> void:
 		e.process_mode = Node.PROCESS_MODE_DISABLED
 	_place_player(_tile(14, 18), false, Vector2.DOWN)
 	await _walk_until_area("move_down", "station_safe")
-	_check(_main.level.area_id == "station_safe", "走廊的門通往無菌隔離室（%s）" % _main.level.area_id)
-	_check(_main.level.safe, "這是安全屋")
-	_check(_main.enemies.is_empty(), "安全屋裡沒有敵人")
+	_check(_main.current_area_id() == "station_safe", "走廊的門通往無菌隔離室（%s）" % _main.current_area_id())
+	_check(_main.level.is_safe_at(_player.global_position), "這是安全屋")
+	_check(_main.enemies.all(func(e): return not _main.level.is_safe_at(e.global_position)), "安全屋裡沒有敵人")
+	_check(_main.level.area_id == "station_1f", "安全屋和走廊是同一張地圖（不切換畫面）")
+	_place_player(_tile(14, 24), false, Vector2.DOWN)
+	await _frames(3)
+	var fog: RoomFog = _main.level.fog
+	_check(fog != null and fog.is_hidden_cell(Vector2i(14, 18)), "在安全屋裡看不到門外的走廊")
+	_check(not fog.is_hidden_cell(_main.level.cell_of(_player.global_position)), "看得到自己所在的房間")
+	# 敵人追不進安全屋
+	var w: Enemy = _main.enemies[0]
+	w.process_mode = Node.PROCESS_MODE_INHERIT
+	w.global_position = _tile(14, 17)
+	w.answer_call(_player.global_position)
+	await _seconds(2.5)
+	_check(not _main.level.is_safe_at(w.global_position), "敵人進不了安全屋（%s）" % w.global_position)
+	_check(WorldState.health == WorldState.MAX_HEALTH, "在安全屋裡不會被打到")
+	w.process_mode = Node.PROCESS_MODE_DISABLED
+	w.reset()
+	WorldState.health = WorldState.MAX_HEALTH
 	_check(Missions.step_index("find_shelter") == 1, "主線「找安全的地方」進行到用無線電")
 	_check(not Missions.is_available("lost_tape"), "還沒用無線電前，支線還沒出現")
 
 	print("[safe room / radio & save]")
+	var off := Areas.room_offset("station_safe")
 	_level = _main.level
-	var radio := _find_item(RadioConsole, Vector2i(3, 2))
-	_place_player(_tile(3, 3), false, Vector2.UP)
+	var radio := _find_item(RadioConsole, Vector2i(3, 2) + off)
+	_place_player(_tile(3 + off.x, 3 + off.y), false, Vector2.UP)
 	await _frames(3)
 	_check(_player.focus == radio, "可以使用無線電")
 	await _press("interact")
@@ -959,8 +981,8 @@ func _test_safe_room() -> void:
 
 	print("[safe room / storage]")
 	WorldState.inv_add("med", 1)
-	var box := _find_item(StorageBox, Vector2i(15, 2))
-	_place_player(_tile(15, 3), false, Vector2.UP)
+	var box := _find_item(StorageBox, Vector2i(15, 2) + off)
+	_place_player(_tile(15 + off.x, 3 + off.y), false, Vector2.UP)
 	await _frames(3)
 	_check(_player.focus == box, "可以打開儲物箱")
 	await _press("interact")
@@ -1011,10 +1033,13 @@ func _test_safe_room() -> void:
 	_check(not pause.visible and not get_tree().paused, "再按一次繼續")
 
 	print("[safe room / back]")
-	_place_player(_tile(9, 2), false, Vector2.UP)
+	_place_player(_tile(9 + off.x, 2 + off.y), false, Vector2.UP)
 	await _walk_until_area("move_up", "station_1f")
-	_check(_main.level.area_id == "station_1f", "從安全屋回到走廊")
-	_check(_player.global_position.distance_to(_main.level.get_entry_position("safe")) < 20.0, "站在安全屋門口")
+	_check(_main.current_area_id() == "station_1f", "從安全屋走回走廊")
+	_check(_player.global_position.y < _tile(14, 20).y, "穿過自動門到了走廊")
+	await _frames(2)
+	_check(_main.level.fog.is_hidden_cell(Vector2i(14, 25)), "出來之後看不到安全屋裡面")
+	_enable_all()
 
 
 func _test_title() -> void:
@@ -1072,7 +1097,7 @@ func _test_exit() -> void:
 	while _main._transitioning:
 		await _frames(1)
 	await _frames(5)
-	_check(_main.level.area_id == "station_2f", "樓梯通往二樓（%s）" % _main.level.area_id)
+	_check(_main.level.area_id == "station_2f", "樓梯通往二樓（%s）" % _main.current_area_id())
 	_check(Missions.is_done("find_stairs"), "完成主線：到達樓上")
 	_check(Missions.tracked_mission().get("id") == "director_records", "下一個主線：站長的紀錄")
 	_check(_main.level.is_cold(_player.global_position), "二樓暖氣壞了，是冷的")
@@ -1167,7 +1192,7 @@ func _test_keycard_and_office() -> void:
 	await _seconds(0.6)
 	Input.action_release("move_right")
 	await _frames(5)
-	_check(_main.level.area_id == "station_2f", "沒有權限卡時辦公室的門打不開")
+	_check(_main.current_area_id() == "station_2f", "沒有權限卡時辦公室的門打不開")
 	_check(_main.get_node("HUD/Message").visible and "Locked" in _main.get_node("HUD/Message").text, "顯示需要權限卡")
 	# 拿權限卡
 	var card := _find_item(AccessCard, Vector2i(27, 2))
@@ -1181,15 +1206,17 @@ func _test_keycard_and_office() -> void:
 	# 進辦公室
 	_place_player(_tile(37, 10), false, Vector2.RIGHT)
 	await _walk_until_area("move_right", "station_2f_office")
-	_check(_main.level.area_id == "station_2f_office", "有權限卡就能進站長室")
+	_check(_main.current_area_id() == "station_2f_office", "有權限卡就能進站長室")
 	_level = _main.level
-	var note := _find_item(ReadableNote, Vector2i(3, 2))
-	_place_player(_tile(3, 3), false, Vector2.UP)
+	_check(_level.area_id == "station_2f", "站長室和二樓是同一張地圖")
+	var off := Areas.room_offset("station_2f_office")
+	var note := _find_item(ReadableNote, Vector2i(3, 2) + off)
+	_place_player(_tile(3 + off.x, 3 + off.y), false, Vector2.UP)
 	await _frames(3)
 	await _press("interact")
 	_check(WorldState.is_freq_known(12570), "站長的便條：記下 125.70")
-	var terminal := _find_item(Terminal, Vector2i(12, 2))
-	_place_player(_tile(12, 3), false, Vector2.UP)
+	var terminal := _find_item(Terminal, Vector2i(12, 2) + off)
+	_place_player(_tile(12 + off.x, 3 + off.y), false, Vector2.UP)
 	await _frames(3)
 	_check(_player.focus == terminal, "可以使用終端機")
 	await _press("interact")
@@ -1883,8 +1910,9 @@ func _test_cold_and_huts() -> void:
 	_check(_level.exposure_at(_tile(15, 12)) < _level.exposure_at(_tile(10, 22)), "小屋裡擋風，失溫比較慢")
 	_place_player(_tile(45, 13), false, Vector2.UP)
 	await _walk_until_area("move_up", "huts_safe")
-	_check(_main.level.area_id == "huts_safe", "進入床鋪小屋（第二間安全屋）")
-	_check(_main.level.safe and _main.level.exposure_at(_tile(5, 4)) < 0.0, "安全屋很暖和")
+	_check(_main.current_area_id() == "huts_safe", "進入床鋪小屋（第二間安全屋）")
+	_check(_main.level.is_safe_at(_player.global_position) and _main.level.exposure_at(_player.global_position) < 0.0, "安全屋很暖和")
+	_check(_main.level.area_id == "weather_huts", "床鋪小屋和雪原是同一張地圖")
 	_check(Missions.step_index("weather_station") == 1, "支線進行到 Pieter 的下落")
 	await _main.load_area("weather_huts", "bunk", false)
 	_quiet()
@@ -1910,6 +1938,209 @@ func _test_cold_and_huts() -> void:
 	WorldState.new_game()
 	await _main.load_area(WorldState.data.area, WorldState.data.entry, false)
 	await _test_touch()
+
+
+func _test_enemy_persistence() -> void:
+	print("[enemies stay where they were]")
+	_enable_all()
+	var key := _watcher.enemy_key
+	_watcher.global_position = _tile(10, 10)
+	_watcher._start_search(_tile(10, 10))
+	await _frames(2)
+	var left_at := _watcher.global_position
+	await _main.load_area("south_shore", "front", false)
+	await _main.load_area("station_1f", "cargo", false)
+	_bind_area()
+	_check(_watcher.enemy_key == key, "同一隻敵人")
+	_check(_watcher.global_position.distance_to(left_at) < 2.0, "離開再回來，敵人還在原本的地方")
+	_check(_watcher.state == Enemy.State.SEARCH, "離開時在找你，回來時牠還在附近搜索")
+	# 恢復原狀，後面的測試從巡邏起點開始
+	WorldState.data.enemies.clear()
+	await _main.load_area("station_1f", "cargo", false)
+	_bind_area()
+	WorldState.save_checkpoint("station_1f", "cargo")
+	await _frames(5)
+
+
+func _test_alert_network() -> void:
+	print("[alert network / calls / radio]")
+	var net: AlertNetwork = _main.level.alert
+	# 範圍外沒有同伴：叫了也沒人來
+	_enable_all()
+	_freeze(_watcher, _tile(3, 18), Vector2.UP)
+	_freeze(_chimer, _tile(38, 3), Vector2.LEFT)
+	_place_player(_spawn_pos(), false)
+	await _frames(2)
+	_watcher.awareness = 1.0
+	_watcher._make_contact(_player.global_position)
+	_watcher._set_state(Enemy.State.ALERT)
+	await _frames(3)
+	_check(_chimer.state == Enemy.State.UNAWARE, "叫聲傳不到的同伴不會來（%s）" % _chimer.get_state_name())
+	_check(net.phase == AlertNetwork.Phase.ALERT, "有敵人追你 = ALERT")
+	# 跟丟 → EVASION → CAUTION → 平常（敵人停住，只看警戒狀態怎麼變）
+	_watcher._start_search(_watcher.global_position)
+	_watcher.process_mode = Node.PROCESS_MODE_DISABLED
+	_chimer.process_mode = Node.PROCESS_MODE_DISABLED
+	await _frames(3)
+	_check(net.phase == AlertNetwork.Phase.EVASION, "跟丟了 = EVASION")
+	net.timer = 0.01
+	await _frames(3)
+	_check(net.phase == AlertNetwork.Phase.CAUTION, "搜索時間到 = CAUTION")
+	_check(_watcher._vigilance_timer > 0.0, "CAUTION 時大家比較警覺")
+	net.timer = 0.01
+	await _frames(3)
+	_check(net.phase == AlertNetwork.Phase.NONE, "CAUTION 結束回到平常")
+	await _reset_world()
+
+	# 人類：無線電通報（被打斷就失敗）、增援、開槍
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	var guard: Enemy = _main.spawn_enemy("guard", _tile(6, 6))
+	var buddy: Enemy = _main.spawn_enemy("guard", _tile(38, 18))
+	guard.ranged_accuracy = 1.0
+	_place_player(_tile(11, 6), true, Vector2.LEFT)
+	guard.facing = Vector2.RIGHT
+	await _seconds(1.5)
+	_check(guard.state == Enemy.State.ALERT, "人類看到你就警戒（%s）" % guard.get_state_name())
+	_check(guard.radio_timer > 0.0 or net.radio_calls > 0, "發現你就拿起無線電")
+	guard.take_damage(5.0, _player.global_position, 0.4)
+	await _frames(3)
+	_check(guard.radio_interrupted and net.radio_calls == 0, "通報途中被打中 = 通報失敗")
+	_check(buddy.state == Enemy.State.UNAWARE, "通報失敗，遠處的同伴不知道")
+	await _seconds(0.5)  # 等硬直結束（硬直中拿無線電會被打斷）
+	guard._raise_alarm()
+	await _seconds(guard.radio_time + 0.2)
+	_check(net.radio_calls == 1, "沒被打斷就通報成功")
+	_check(buddy.state == Enemy.State.ALERT, "通報成功，整個區域的人類都知道你在哪")
+	var hp := WorldState.health
+	guard._ranged_cd = 0.0
+	await _seconds(1.2)
+	_check(not guard.last_ranged.is_empty(), "人類會開槍")
+	_check(WorldState.health < hp, "被打中會受傷")
+	for e in [guard, buddy]:
+		_main.enemies.erase(e)
+		e.queue_free()
+	WorldState.health = WorldState.MAX_HEALTH
+	await _reset_world()
+	_enable_all()
+
+
+func _test_combo_and_cqc() -> void:
+	print("[combat / combo, kick, grab]")
+	var combat: PlayerCombat = _player.combat
+	# 連段：刀 → 拳 → 踢（踢倒）
+	_only(_watcher)
+	_revive_watcher()
+	_freeze(_watcher, _tile(12, 6), Vector2.DOWN)
+	_watcher.max_health = 500.0
+	_watcher.health = 500.0
+	_place_player(_tile(12, 7), false, Vector2.UP)
+	await _seconds(0.6)
+	var moves := []
+	for i in 3:
+		_watcher.global_position = _tile(12, 6)
+		await _press("fire")
+		moves.append(combat.last_melee.get("move", ""))
+		await _seconds(0.3)
+	_check(moves == ["slash", "punch", "kick"], "連按 = 刀 → 拳 → 踢（%s）" % [moves])
+	_check(_watcher.knocked_down, "最後一腳把敵人踢倒")
+	_check(_watcher.can_be_taken_down_by(_player), "倒地的敵人可以補刀")
+	await _seconds(0.8)
+	await _press("fire")
+	_check(combat.last_melee.get("move", "") == "slash", "停頓太久，連段從頭開始")
+	# 踢飛撞牆：額外受傷
+	_freeze(_watcher, _tile(12, 2), Vector2.DOWN)
+	_watcher.max_health = 500.0
+	_watcher.health = 500.0
+	_place_player(_tile(12, 3), false, Vector2.UP)
+	await _seconds(0.6)
+	combat.combo_step = 1
+	combat._since_melee = 0.0
+	var hp := _watcher.health
+	Sfx.history.clear()
+	await _press("fire")
+	await _seconds(0.3)
+	_check(Sfx.history.has("body_slam"), "踢到牆邊 = 撞牆")
+	_check(hp - _watcher.health > 30.0, "撞牆額外受傷（%.0f）" % (hp - _watcher.health))
+	# 擒拿：從背後抓住 → 摔倒；再抓 → 勒昏解決
+	_revive_watcher()
+	_freeze(_watcher, _tile(12, 6), Vector2.UP)  # 背對主角
+	_place_player(_tile(12, 7), false, Vector2.UP)
+	_player.sneaking = true
+	await _frames(3)
+	await _press("interact")
+	_check(combat.grabbed == _watcher, "從背後按互動 = 抓住")
+	_check(_watcher.state == Enemy.State.UNAWARE, "抓住的那一刻不會直接放開")
+	await _seconds(0.3)
+	_check(_watcher.global_position.distance_to(_player.global_position) < 14.0, "敵人被拖在面前")
+	await _press("throw")
+	_check(combat.grabbed == null and _watcher.knocked_down, "按投擲 = 摔在地上")
+	await _seconds(0.2)
+	await _press("interact")
+	_check(combat.grabbed == _watcher, "倒地的敵人可以再抓起來")
+	await _press("fire")
+	_check(_watcher.is_dead, "抓住時攻擊 = 解決")
+	# 太久沒動作，敵人掙脫
+	_revive_watcher()
+	_freeze(_watcher, _tile(12, 6), Vector2.UP)
+	_place_player(_tile(12, 7), false, Vector2.UP)
+	await _seconds(0.3)
+	await _press("interact")
+	combat._grab_timer = 0.05
+	await _seconds(0.2)
+	_check(combat.grabbed == null and _watcher.state == Enemy.State.ALERT, "抓太久敵人會掙脫並警戒")
+	_player.sneaking = false
+	_watcher.max_health = 80.0
+	_revive_watcher()
+	await _reset_world()
+
+
+func _test_first_person() -> void:
+	print("[first person: locker, window]")
+	var fp: FirstPersonView = _main.first_person
+	_only(_watcher)
+	_freeze(_watcher, _tile(7, 5), Vector2.UP)
+	_watcher.process_mode = Node.PROCESS_MODE_DISABLED
+	var locker := _find_item(Locker, Vector2i(7, 1))
+	_place_player(_tile(7, 2), false, Vector2.UP)
+	await _frames(3)
+	await _press("interact")
+	_check(_player.is_hiding and fp.active and fp.mode == "locker", "躲進櫃子 = 第一人稱視角")
+	await _frames(2)
+	_check(fp.visible_enemies.has(_watcher), "從櫃子縫看得到正前方的敵人")
+	_watcher.global_position = _tile(3, 18)
+	await _frames(2)
+	_check(not fp.visible_enemies.has(_watcher), "牆後面的敵人看不到（只聽得到）")
+	await _press("interact")
+	_check(not _player.is_hiding and not fp.active, "離開櫃子就回到一般視角")
+	# 窗戶：休息室和實驗室中間的觀察窗
+	_freeze(_watcher, _tile(26, 3), Vector2.LEFT)
+	_watcher.process_mode = Node.PROCESS_MODE_DISABLED
+	var window := _find_item(WindowPane, Vector2i(19, 3))
+	_check(window != null, "觀察窗 (19,3)")
+	_place_player(_tile(18, 3), false, Vector2.RIGHT)
+	await _frames(3)
+	_check(_player.focus == window, "站在窗前可以看")
+	await _press("interact")
+	_check(fp.active and fp.mode == "window", "看窗外 = 第一人稱視角")
+	_check(not _player.input_enabled, "看窗外時不能移動")
+	await _frames(2)
+	_check(fp.visible_enemies.has(_watcher), "透過玻璃看得到另一邊的敵人")
+	await _press("interact")
+	_check(not fp.active and _player.input_enabled, "按互動離開窗邊")
+	# 往窗戶推 = 自動靠過去看
+	_place_player(_tile(18, 3), false, Vector2.RIGHT)
+	Input.action_press("move_right")
+	await _seconds(0.2)
+	await _seconds(0.3)
+	Input.action_release("move_right")
+	_check(fp.active and fp.mode == "window", "往窗戶推一下就自動切換")
+	Input.action_press("move_left")
+	await _frames(3)
+	Input.action_release("move_left")
+	_check(not fp.active, "往後退就離開")
+	await _reset_world()
+	_enable_all()
 
 
 func _test_audio() -> void:

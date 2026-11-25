@@ -14,6 +14,26 @@ extends Node
 @export var melee_noise_tiles := 2.0
 ## 從背後偷襲沒察覺的敵人：傷害倍率（一刀解決一般值班者）
 @export var takedown_mult := 4.0
+## 連段：在 combo_window 秒內再按一次就接下一招（刀 → 拳 → 踢）
+@export var combo_window := 0.5
+
+@export_group("擒拿（CQC）")
+## 從背後抓住沒察覺／被踢倒的敵人。抓住後：攻擊 = 解決、投擲 = 摔倒、互動 = 放開
+@export var grab_reach := 18.0
+## 怪物掙脫的時間（人類比較久）
+@export var grab_hold_monster := 3.0
+@export var grab_hold_human := 5.0
+@export var slam_damage := 25.0
+@export var slam_down_time := 2.5
+
+## 近戰連段：每一招的傷害、距離、硬直、擊退力道（像素／秒）、冷卻、聲音
+## knockdown = 踢倒（倒地時可以補刀）；擊退撞到牆會額外受傷、暈更久
+const COMBO := [
+	{"name": "slash", "damage": 20.0, "range": 22.0, "stagger": 0.5, "knock": 60.0, "cooldown": 0.32, "noise": 2.0},
+	{"name": "punch", "damage": 12.0, "range": 18.0, "stagger": 0.6, "knock": 110.0, "cooldown": 0.3, "noise": 2.0},
+	{"name": "kick", "damage": 18.0, "range": 21.0, "stagger": 1.1, "knock": 240.0, "cooldown": 0.55, "noise": 3.0,
+		"knockdown": true},
+]
 
 @export_group("瞄準")
 @export var aim_half_angle_deg := 45.0
@@ -47,6 +67,13 @@ var last_melee := {}
 
 var _cooldown := 0.0
 var _reload_timer := 0.0
+## 連段第幾招（0 = 刀）、距離上一招幾秒
+var combo_step := 0
+var _since_melee := 99.0
+## 正在擒拿的敵人
+var grabbed: Enemy = null
+var _grab_timer := 0.0
+var _grab_frame := -1
 
 @onready var player: Player = get_parent()
 
@@ -79,6 +106,7 @@ func reload_progress() -> float:
 
 ## 被打到時中斷舉槍、裝填。
 func interrupt() -> void:
+	_release_grab()
 	aiming = false
 	target = null
 	aim_focus = 0.0
@@ -87,12 +115,16 @@ func interrupt() -> void:
 
 func _physics_process(delta: float) -> void:
 	_cooldown = maxf(_cooldown - delta, 0.0)
+	_since_melee += delta
 	for fx in [last_shot, last_melee]:
 		if not fx.is_empty():
 			fx.t += delta
 
 	if not player.input_enabled or player.is_hiding or player.is_dead or player.is_carrying():
 		interrupt()
+		return
+	if grabbed:
+		_process_grab(delta)
 		return
 
 	if reloading:
@@ -220,31 +252,127 @@ func _finish_reload() -> void:
 func melee() -> bool:
 	if _cooldown > 0.0:
 		return false
-	_cooldown = melee_cooldown
+	combo_step = combo_step + 1 if _since_melee <= combo_window and combo_step < COMBO.size() - 1 else 0
+	_since_melee = 0.0
+	var move: Dictionary = COMBO[combo_step]
+	_cooldown = move.cooldown
 	var origin := player.global_position
 	var half := deg_to_rad(melee_half_angle_deg)
+	var reach: float = move.range if combo_step > 0 else melee_range
 	var takedown := false
 	var hit_any := false
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
 		if enemy == null or enemy.is_dead:
 			continue
-		if not Sight.in_cone(origin, player.facing, enemy.global_position, half, melee_range):
+		if not Sight.in_cone(origin, player.facing, enemy.global_position, half, reach):
 			continue
-		var damage := melee_damage
+		var damage: float = melee_damage if combo_step == 0 else move.damage
 		if enemy.can_be_taken_down_by(player):
 			damage *= takedown_mult
 			takedown = true
-		enemy.take_damage(damage, origin, melee_stagger)
+		enemy.take_damage(damage, origin, move.stagger)
+		enemy.apply_knockback(player.facing, move.knock, move.get("knockdown", false))
 		hit_any = true
-	Sfx.play("knife_hit" if hit_any else "knife_swing", origin)
-	# 小刀也可以割開木箱、木板（安靜，但要割好幾下）
+	match move.name:
+		"slash":
+			Sfx.play("knife_hit" if hit_any else "knife_swing", origin)
+		"punch":
+			Sfx.play("punch_hit" if hit_any else "knife_swing", origin, 0.1, -4.0)
+		"kick":
+			Sfx.play("kick_hit" if hit_any else "knife_swing", origin, 0.1, -2.0)
+	if hit_any:
+		Sfx.rumble(40 if combo_step < 2 else 90, 0.5)
+	# 小刀割得開木箱、木板（安靜，但要割好幾下）；踢一腳直接踢破（比較大聲）
 	if player.level:
 		for item in player.level.get_interactables():
 			if item is Breakable and item.enabled \
-					and Sight.in_cone(origin, player.facing, item.global_position, half, melee_range + 8.0):
-				item.cut()
+					and Sight.in_cone(origin, player.facing, item.global_position, half, reach + 8.0):
+				if move.name == "kick":
+					item.smash(4.0)
+				else:
+					item.cut()
 	# 先結算傷害再發出聲音：不然被偷襲的敵人會在同一瞬間「聽到」揮刀聲而無法偷襲
-	NoiseBus.emit_noise(origin, melee_noise_tiles * Player.TILE, player)
-	last_melee = {"pos": origin, "dir": player.facing, "t": 0.0, "takedown": takedown}
+	NoiseBus.emit_noise(origin, (melee_noise_tiles if combo_step == 0 else move.noise) * Player.TILE, player)
+	last_melee = {"pos": origin, "dir": player.facing, "t": 0.0, "takedown": takedown, "move": move.name}
 	return true
+
+
+# ── 擒拿（CQC）────────────────────────────────────────
+
+## 面前可以抓的敵人：沒察覺、在牠背後，或被踢倒在地上。Boss、睡著的不行。
+func grab_target() -> Enemy:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.is_dead or enemy.is_dormant or enemy.is_boss():
+			continue
+		if not Sight.in_cone(player.global_position, player.facing, enemy.global_position, deg_to_rad(50.0), grab_reach):
+			continue
+		if enemy.can_be_taken_down_by(player) or enemy.knocked_down:
+			return enemy
+	return null
+
+
+func grab() -> bool:
+	if grabbed or player.is_carrying() or player.is_hiding:
+		return false
+	var enemy := grab_target()
+	if enemy == null:
+		return false
+	grabbed = enemy
+	_grab_frame = Engine.get_physics_frames()
+	_grab_timer = grab_hold_human if enemy.faction == "human" else grab_hold_monster
+	enemy.set_grabbed(true)
+	Sfx.play("grab", enemy.global_position)
+	Sfx.rumble(60, 0.6)
+	return true
+
+
+## 抓住時：敵人被拖在面前；攻擊 = 安靜解決、投擲 = 摔在地上、互動 = 放開。時間到敵人會掙脫。
+func _process_grab(delta: float) -> void:
+	if grabbed == null or not is_instance_valid(grabbed) or grabbed.is_dead:
+		_release_grab()
+		return
+	grabbed.global_position = player.global_position + player.facing * 10.0
+	if Engine.get_physics_frames() == _grab_frame:
+		return  # 抓住的這一幀按下的互動鍵不算「放開」
+	_grab_timer -= delta
+	if Input.is_action_just_pressed("fire"):
+		var e := grabbed
+		_release_grab()
+		e.take_damage(e.max_health * 2.0, player.global_position, 0.0)  # 從背後勒住解決，幾乎沒有聲音
+		NoiseBus.emit_noise(player.global_position, 1.0 * Player.TILE, player)
+		Sfx.play("knife_hit", e.global_position, 0.1, -6.0)
+		last_melee = {"pos": player.global_position, "dir": player.facing, "t": 0.0, "takedown": true, "move": "choke"}
+	elif Input.is_action_just_pressed("throw"):
+		slam()
+	elif Input.is_action_just_pressed("interact"):
+		var e := grabbed
+		_release_grab()
+		e.apply_knockback(player.facing, 90.0, false)
+	elif _grab_timer <= 0.0:
+		var e := grabbed
+		_release_grab()
+		e.break_free(player.global_position)
+		player.velocity = -player.facing * 120.0
+
+
+## 摔倒：敵人倒地一段時間（可以補刀或趁機跑掉），會發出聲音
+func slam() -> void:
+	if grabbed == null:
+		return
+	var e := grabbed
+	_release_grab()
+	e.global_position = player.global_position + player.facing * 14.0
+	e.take_damage(slam_damage, player.global_position, slam_down_time)
+	e.apply_knockback(player.facing, 40.0, true)
+	NoiseBus.emit_noise(player.global_position, 4.0 * Player.TILE, player)
+	Sfx.play("body_slam", e.global_position)
+	Sfx.rumble(120, 0.8)
+	last_melee = {"pos": player.global_position, "dir": player.facing, "t": 0.0, "takedown": false, "move": "slam"}
+
+
+func _release_grab() -> void:
+	if grabbed and is_instance_valid(grabbed):
+		grabbed.set_grabbed(false)
+	grabbed = null

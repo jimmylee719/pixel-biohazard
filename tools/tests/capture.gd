@@ -66,10 +66,28 @@ func _run() -> void:
 			locker = item
 	await _frames(5)
 	await _shot("5_locker_prompt")
+	var w0: Enemy = _main.enemies[0]
+	w0.patrol_points = [_tile(17, 4)] as Array[Vector2]
+	w0._spawn = w0.patrol_points[0]
+	w0.reset()
+	w0.facing = Vector2.DOWN
 	_player.enter_hiding(locker)
 	await _frames(20)
 	await _shot("6_hiding")
 	_player.exit_hiding()
+	# 觀察窗：第一人稱看另一邊的實驗室
+	w0.patrol_points = [_tile(27, 3)] as Array[Vector2]
+	w0._spawn = w0.patrol_points[0]
+	w0.reset()
+	w0.facing = Vector2.LEFT
+	_put_player(_tile(18, 3), Vector2.RIGHT, true)
+	await _frames(5)
+	for item in level.get_interactables():
+		if item is WindowPane and item.global_position.distance_to(_tile(19, 3)) < 1.0:
+			_main._on_window_look(item, _player.global_position)
+	await _frames(20)
+	await _shot("6b_window")
+	_main.close_window_view()
 
 	# 戰鬥：舉槍鎖定值班者
 	var watcher: Enemy = _main.enemies[0]
