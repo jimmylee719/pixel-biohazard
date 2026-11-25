@@ -103,4 +103,4 @@
   存在 `user://profile.cfg`（測試改 `profile_path`）。解鎖的「主線補給箱」在主線新遊戲時放進儲物箱（`SurvivalData.STORY_CACHES`）。
 - 動作流暢化：產生器用關鍵影格內插 `kf()`（緩入緩出）、循環動作 `bf()`；走路 8 格、近戰 6 格、撲擊 5 格、`shoot_<武器>` 後座力、`hurt` 受傷。
   開槍／近戰特效在 `debug_overlay.gd` 的 `_draw_shot`、`_draw_melee`（fx/ 圖：muzzle_big、smoke、hit、impact、slash_0~4）。
-  互動物件用 `Interactable.draw_art("名稱")` 畫 props/ 圖；過場對白頭像 `main._speaker_portrait()`（portraits/）。
+  互動物件用 `Interactable.draw_art("名稱")` 畫 props/ 圖；最終 Boss 深井用自己的 AnimatedSprite（well/：idle、charge 依蓄力進度選格、exposed、dead）；過場對白頭像 `main._speaker_portrait()`（portraits/）。

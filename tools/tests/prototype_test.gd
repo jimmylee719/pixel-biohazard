@@ -2274,6 +2274,8 @@ func _test_pixel_art() -> void:
 	cs_p.free()
 	for obj in ["crate", "boards", "generator", "radio", "terminal", "storage_box", "snowcat", "oil_drum"]:
 		_check(Art.tex("props/" + obj) != null, "物件像素圖 %s" % obj)
+	for st in ["idle_0", "charge_5", "exposed_0", "dead_0"]:
+		_check(Art.tex("well/" + st) != null, "深井的像素圖 %s" % st)
 	for por in ["shen_fine", "shen_danger", "kovac", "gate"]:
 		_check(Art.tex("portraits/" + por) != null, "頭像 %s" % por)
 	for fx_id in ["slash_4", "hit_3", "impact_3", "smoke_3", "muzzle_big_2", "nail", "flare"]:

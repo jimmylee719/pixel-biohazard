@@ -153,9 +153,13 @@ MATS = {
     "pus": ["#3a3a10", "#6e6a1c", "#a8a030", "#dcd468"],
     # 詠者：瘦長、灰白、喉嚨的結晶環
     "ash": ["#24262a", "#45484e", "#6e727a", "#9ca0a8"],
+    # 深井的核心（脈衝後裂開露出來的弱點）
+    "core": ["#7a2a10", "#c4501e", "#f08a3a", "#ffd08a"],
+    # 深井的肉塊（被菌落融合的研究員）
+    "mass": ["#14222a", "#24404c", "#3a6070", "#5a8494"],
 }
 MATS = {k: [hexc(c) for c in v] for k, v in MATS.items()}
-EMISSIVE = {"crystal", "goggle", "fire"}
+EMISSIVE = {"crystal", "goggle", "fire", "core"}
 
 # 攝影機：3/4 俯視（往下看 35 度）；光從左上前方來
 PITCH = math.radians(35)
@@ -1527,9 +1531,77 @@ def gen_objects():
     print("objects: ok")
 
 
+# ── 最終 Boss「深井」：最早被感染的研究員，在井底和菌落融合成一整片會共鳴的結晶體（不會移動）──
+
+def well_model(anim, f, n):
+    rnd = random.Random(31)
+    prims = []
+    breathe = bf(f, n) if anim == "idle" else 0.0
+    swell = kf([0.0, 1.0], f, n) if anim == "charge" else 0.0
+    open_ = 1.0 if anim == "exposed" else 0.0
+    dead = anim == "dead"
+    s_ = 1.0 + 0.04 * breathe + 0.12 * swell
+    sink = 4.0 if dead else 0.0
+    # 底座：一大團融合的肉塊
+    for c, r in (((0, 4, 5), (17, 13, 7)), ((-8, 6, 9), (8, 7, 7)), ((8, 7, 9), (8, 7, 6)), ((0, 8, 13), (10, 8, 7))):
+        prims.append(Ell(mul(c, s_) if not dead else (c[0], c[1], c[2] - sink), mul(r, s_), "mass"))
+    # 埋在裡面的臉、伸出來的手（以前的研究員）
+    for (x, y, z), sc in (((-8, -9, 9), 1.0), ((7, -9, 10), 1.1), ((0, -8, 15), 1.2), ((-14, -5, 5), 0.8),
+                          ((14, -5, 5), 0.8)):
+        c = (x * s_, y * s_, z * s_ - sink)
+        prims.append(Ell(c, (3.0 * sc, 2.4 * sc, 3.4 * sc), "pale"))
+        # 黑洞般的眼窩、張開的嘴
+        for ex in (-1.1, 1.1):
+            prims.append(Ell(add(c, (ex * sc, -2.1 * sc, 0.9 * sc)), (0.7 * sc, 0.5, 0.6 * sc), "vent"))
+        mouth_open = 0.5 + 0.6 * swell + 0.3 * open_
+        prims.append(Ell(add(c, (0, -2.1 * sc, -1.3 * sc)), (0.8 * sc, 0.5, mouth_open * sc), "vent"))
+    for (x, y, z), (dx, dz) in (((-14, -2, 5), (-6, 4)), ((14, -1, 6), (6, 5)), ((-4, -9, 4), (-3, 2)), ((5, -9, 4), (4, 3))):
+        reach = 1.0 + 0.25 * breathe + 0.3 * swell
+        a = (x * s_, y * s_, z - sink)
+        b = add(a, (dx * reach, -2.0, dz * reach))
+        prims.append(Cap(a, b, 1.2, "pale", 0.8))
+        prims.append(Ell(b, (1.1, 1.0, 1.0), "pale"))
+    # 結晶：從肉塊往外、往上長；裂開時中間的往兩邊倒，露出核心
+    for i in range(16):
+        ang = rnd.uniform(0, 6.283)
+        rad = rnd.uniform(3, 14)
+        base = (math.cos(ang) * rad * s_, math.sin(ang) * rad * 0.7 * s_ + 4, rnd.uniform(9, 16) * s_ - sink)
+        ln = rnd.uniform(6, 13) * (1.0 + 0.25 * swell) * (0.4 if dead else 1.0)
+        out = (math.cos(ang) * rnd.uniform(0.2, 0.7), math.sin(ang) * 0.4, 1.0)
+        if rad < 8 and open_ > 0:
+            out = (math.cos(ang) * 1.6, math.sin(ang) * 0.6, 0.5)  # 裂開往外倒
+        tip = add(base, mul(norm(out), ln))
+        prims.append(Cap(base, tip, rnd.uniform(1.2, 2.0), "crystal" if not dead else "frost", 0.35))
+    # 核心：裂開時露出來，脈動
+    if open_ > 0:
+        pulse = 1.0 + 0.2 * math.sin(2 * math.pi * f / max(n, 1))
+        prims.append(Ell((0, -1, 17), (4.0 * pulse, 3.4 * pulse, 4.0 * pulse), "core"))
+        prims.append(Ell((0, -1, 17), (6.0, 5.0, 2.0), "flesh"))
+    elif anim == "charge":
+        # 蓄力時核心的光從縫隙透出來
+        prims.append(Ell((0, -2, 17), (2.0 + 2.0 * swell, 1.6 + 1.6 * swell, 2.0 + 2.0 * swell), "core"))
+    return prims
+
+
+def gen_well():
+    folder = os.path.join(OUT, "well")
+    if os.path.isdir(folder):
+        for fn in os.listdir(folder):
+            if fn.endswith(".png") or fn.endswith(".png.import"):
+                os.remove(os.path.join(folder, fn))
+    os.makedirs(folder, exist_ok=True)
+    count = 0
+    for anim, n in (("idle", 6), ("charge", 6), ("exposed", 4), ("dead", 1)):
+        for f in range(n):
+            prims = scale_prims(well_model(anim, f, n), 1.6, (0, 0, 0))
+            write_png(os.path.join(folder, "%s_%d.png" % (anim, f)), 112, 92, render(prims, 112, 92, anchor=(56, 80)))
+            count += 1
+    print("well: %d 張" % count)
+
+
 def main():
     want = sys.argv[1:]
-    jobs = list(CHARACTERS) + ["props", "items", "fx", "tiles", "portraits", "objects"]
+    jobs = list(CHARACTERS) + ["props", "items", "fx", "tiles", "portraits", "objects", "well"]
     for j in jobs:
         if want and j not in want:
             continue
@@ -1547,6 +1619,8 @@ def main():
             gen_portraits()
         elif j == "objects":
             gen_objects()
+        elif j == "well":
+            gen_well()
 
 
 if __name__ == "__main__":

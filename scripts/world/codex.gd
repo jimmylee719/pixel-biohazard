@@ -30,7 +30,7 @@ const ENTRIES := {
 	"tundra_mother": {"group": "infected", "name": "Tundra Mother", "sprite": "bear/walk_right_0",
 		"desc": "A polar bear the colony has made its home. The hangar was hers long before you arrived.",
 		"tip": "Its back is soft where the crystals split."},
-	"deep_well": {"group": "infected", "name": "The Deep Well", "sprite": "",
+	"deep_well": {"group": "infected", "name": "The Deep Well", "sprite": "well/exposed_0",
 		"desc": "What was waiting at the bottom of the drill shaft. Forty thousand years asleep. Awake now.",
 		"tip": "It has to breathe in before it sings."},
 	# ── 人類 ──

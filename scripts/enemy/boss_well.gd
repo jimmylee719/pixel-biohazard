@@ -39,7 +39,10 @@ var pulse_count := 0
 var _phase_time := 0.0
 var _spike_cd := 0.0
 var _ring := 0.0
+var _hit_flash := 0.0
 var _fx: Node2D
+## 像素圖（assets/sprites/well/：idle、charge、exposed、dead，tools/gen_pixel_art.py）；沒有圖就用原本的色塊
+var _art: AnimatedSprite2D
 @onready var _core: Polygon2D = $Body/Core
 
 
@@ -57,6 +60,53 @@ func _ready() -> void:
 	_fx.material = unshaded
 	add_child(_fx)
 	_fx.draw.connect(_draw_fx)
+	_build_art(unshaded)
+
+
+func _build_art(unshaded: Material) -> void:
+	var frames := SpriteFrames.new()
+	frames.remove_animation("default")
+	for anim in ["idle", "charge", "exposed", "dead"]:
+		var i := 0
+		while ResourceLoader.exists("res://assets/sprites/well/%s_%d.png" % [anim, i]):
+			if not frames.has_animation(anim):
+				frames.add_animation(anim)
+				frames.set_animation_speed(anim, {"idle": 5.0, "exposed": 8.0}.get(anim, 1.0))
+				frames.set_animation_loop(anim, anim != "dead")
+			frames.add_frame(anim, load("res://assets/sprites/well/%s_%d.png" % [anim, i]))
+			i += 1
+	if not frames.has_animation("idle"):
+		return
+	_art = AnimatedSprite2D.new()
+	_art.sprite_frames = frames
+	_art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_art.material = unshaded  # 結晶自己會發光：不受黑暗影響
+	_art.position = Vector2(0, -22)
+	_art.play("idle")
+	add_child(_art)
+	_body.visible = false
+
+
+## 依階段換圖：待機（呼吸）、蓄力（依進度一格一格脹大、核心透光）、核心露出（脈動）、死亡
+func _update_art(charge_k: float) -> void:
+	if _art == null:
+		return
+	if is_dead:
+		_art.play("dead")
+		return
+	match phase:
+		Phase.CHARGING:
+			_art.animation = "charge"
+			_art.pause()
+			_art.frame = clampi(int(charge_k * 6.0), 0, _art.sprite_frames.get_frame_count("charge") - 1)
+		Phase.EXPOSED:
+			if _art.animation != "exposed":
+				_art.play("exposed")
+		_:
+			if _art.animation != "idle" or not _art.is_playing():
+				_art.play("idle")
+	# 被打中閃一下（打在結晶上偏白、打在核心上偏紅）
+	_art.modulate = Color(1, 1, 1).lerp(Color(1.6, 0.8, 0.7) if phase == Phase.EXPOSED else Color(1.5, 1.6, 1.7), _hit_flash)
 
 
 func reset() -> void:
@@ -103,8 +153,10 @@ func _physics_process(delta: float) -> void:
 	visible_to_player = true
 	_body.modulate.a = 1.0
 	if is_dead:
+		_update_art(0.0)
 		_fx.queue_redraw()
 		return
+	_hit_flash = maxf(_hit_flash - delta * 6.0, 0.0)
 	in_cold = _level != null and _level.is_cold(global_position)
 	var slow := cold_speed_mult if in_cold else 1.0
 	_phase_time += delta
@@ -137,6 +189,7 @@ func _physics_process(delta: float) -> void:
 	# 蓄力時整團結晶微微脹大
 	var k := clampf(_phase_time / (pulse_windup / slow), 0.0, 1.0) if phase == Phase.CHARGING else 0.0
 	_body.scale = Vector2.ONE * (1.0 + 0.15 * k)
+	_update_art(k)
 	_fx.queue_redraw()
 
 
@@ -200,6 +253,7 @@ func _set_phase(p: Phase) -> void:
 func take_damage(amount: float, from_pos: Vector2, _stagger: float) -> void:
 	if is_dead:
 		return
+	_hit_flash = 1.0
 	if phase != Phase.EXPOSED:
 		amount *= armor_mult
 		_hear(from_pos)  # 打在結晶上：牠知道你在哪
@@ -212,6 +266,7 @@ func _die() -> void:
 	spikes.clear()
 	_core.visible = false
 	super._die()
+	_update_art(0.0)
 	WorldState.set_flag("defeated:" + boss_id)
 	WorldState.emit_event("defeat", boss_id)
 
