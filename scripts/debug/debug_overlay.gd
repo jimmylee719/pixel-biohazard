@@ -94,12 +94,17 @@ func _draw_combat() -> void:
 		draw_line(_player.global_position + _player.facing * 8.0, tip, Color(1, 0.9, 0.3, 0.5), 1.0)
 	# 彈道
 	var shot := combat.last_shot
-	if not shot.is_empty() and shot.t < 0.12:
-		draw_line(shot.from, shot.to, Color(1.0, 0.95, 0.6, 1.0 - shot.t / 0.12), 1.0)
-		draw_circle(shot.from + (shot.to - shot.from).normalized() * 7.0, 2.0, Color(1, 0.9, 0.5, 0.8))
+	if not shot.is_empty():
+		_draw_shot(shot, combat.current_weapon())
 	# 近戰揮擊
 	var swing := combat.last_melee
-	if not swing.is_empty() and swing.t < 0.15:
+	var slash_tex := Art.tex("fx/slash")
+	if not swing.is_empty() and swing.t < 0.12 and swing.move == "slash" and slash_tex:
+		# 刀光（tools/gen_pixel_art.py 的 fx/slash）
+		draw_set_transform(swing.pos + swing.dir * 9.0, swing.dir.angle())
+		draw_texture(slash_tex, -slash_tex.get_size() * 0.5, Color(1, 1, 1, 1.0 - swing.t / 0.12))
+		draw_set_transform(Vector2.ZERO)
+	elif not swing.is_empty() and swing.t < 0.15:
 		var base: float = swing.dir.angle()
 		var color := Color(1, 0.3, 0.3) if swing.takedown else Color(0.9, 0.95, 1.0)
 		draw_arc(swing.pos, combat.melee_range, base - 0.9, base + 0.9, 8, Color(color, 1.0 - swing.t / 0.15), 1.0)
@@ -108,6 +113,39 @@ func _draw_combat() -> void:
 		var p := _player.global_position + Vector2(-6, 9)
 		draw_rect(Rect2(p, Vector2(12, 2)), Color(0, 0, 0, 0.6))
 		draw_rect(Rect2(p, Vector2(12 * combat.reload_progress(), 2)), Color(0.9, 0.85, 0.5))
+
+
+## 開槍：槍口火光（3 格）、飛出去的子彈（曳光）、往旁邊彈出的彈殼
+func _draw_shot(shot: Dictionary, weapon: String) -> void:
+	var t: float = shot.t
+	var dir: Vector2 = (shot.to - shot.from).normalized()
+	var muzzle: Vector2 = shot.from + dir * 9.0 + Vector2(0, -3)
+	var flash := Art.tex("fx/muzzle_%d" % mini(int(t / 0.03), 2))
+	if t < 0.09 and flash:
+		draw_set_transform(muzzle, dir.angle())
+		draw_texture(flash, Vector2(0, -flash.get_height() * 0.5))
+		draw_set_transform(Vector2.ZERO)
+	var travel := 0.1
+	var bullet := Art.tex("fx/pellet" if weapon == "shotgun" else "fx/bullet")
+	if t < travel and bullet:
+		var p: Vector2 = muzzle.lerp(shot.to, t / travel)
+		if weapon == "shotgun":
+			for k in [-0.12, 0.0, 0.12]:
+				var q: Vector2 = muzzle + (p - muzzle).rotated(k)
+				draw_texture(bullet, q - bullet.get_size() * 0.5)
+		else:
+			draw_set_transform(p, dir.angle())
+			draw_texture(bullet, -bullet.get_size() * 0.5)
+			draw_set_transform(Vector2.ZERO)
+	elif t < 0.14:
+		draw_line(muzzle, shot.to, Color(1.0, 0.95, 0.6, 1.0 - t / 0.14), 1.0)
+	# 彈殼：往右後方拋物線彈出，落地停一下
+	var casing := Art.tex("fx/shell_casing" if weapon == "shotgun" else "fx/casing")
+	if casing and t < 0.6:
+		var side := Vector2(-dir.y, dir.x)
+		var k := minf(t / 0.3, 1.0)
+		var p: Vector2 = shot.from + side * (4.0 + 10.0 * k) - dir * 4.0 * k + Vector2(0, -8.0 * k * (1.0 - k) * 4.0 + 3.0 * k)
+		draw_texture(casing, p.floor(), Color(1, 1, 1, clampf((0.6 - t) / 0.2, 0.0, 1.0)))
 
 
 ## 睡著的凍眠體：偶爾閃一下結晶的微光，這是和普通屍體唯一的差別。

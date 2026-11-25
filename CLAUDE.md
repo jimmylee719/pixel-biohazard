@@ -22,7 +22,7 @@
 - 主角的戰鬥在子節點 Combat（`scripts/player/player_combat.gd`）；物品資料在 `scripts/world/items.gd`，物品欄、生命值、感染值存在 WorldState。
 - 遊戲從 `scenes/title.tscn` 開始；存檔只在安全屋的無線電（`WorldState.save_to_disk()`，用 store_var 存 data）。測試會把 `WorldState.save_path` 改成測試用檔名。
 - 無線電頻率在 `scripts/world/frequencies.gd`（頻率用整數百分之一 MHz）；地圖上的頻率線索用區域資料的 `learn`，聽了才出現的物品用 `hidden`。頻段和內容要維持原創，不要用 MGS 的 140.xx 頻段或角色。
-- 敵人種類：patroller（值班者）、listener（鳴骨者）、sleeper（凍眠體，`dormant` 參數）。新種類先試著只用 @export 參數＋新場景做。
+- 敵人種類：patroller（值班者）、listener（鳴骨者）、sleeper（凍眠體，`dormant` 參數）、guard（武裝人員）、hound（獵犬，還沒放進地圖）。新種類先試著只用 @export 參數＋新場景做。
 - Boss：繼承 Enemy、只覆寫行動邏輯，並覆寫 `is_boss()`／`boss_suffix()`（例：`boss_bear.gd`、最終 Boss `boss_well.gd`）；區域資料 `camera: "fixed"` + `boss` 名稱 = Boss 戰鏡頭與血條；Boss 死亡發出任務事件 `defeat`。
 - 門的 `access` 欄位 = 需要的權限卡等級（`WorldState.access_level`）；權限卡、鑰匙類不佔物品欄。
 - 推出方式是「本篇＋資料片」（SERIES_BIBLE 第 5 節）：新內容盡量只加資料和參數化場景，不改核心系統，方便之後做資料片。
@@ -35,9 +35,12 @@
 - 環境互動（P11）：投擲物 `Items.THROWABLES`（物品欄「使用」= 準備丟）、材料 `kind: craft` 的 `recipe`；火 `scripts/fx/fire.gd`（group "fires"）、滅火器白霧 `scripts/fx/smoke_cloud.gd`；
   地圖小寫符號 o 油桶、w 木箱、p 木板、q 滅火器、r 碎石堆（見 areas.gd 開頭）。會擋路的物件用 `Level.add_nav_obstacle()`，拆掉後 `rebake_navigation()`。
 - 失溫依區域氣候：`scripts/world/climates.gd`，區域資料 `climate`（預設 `Areas.DEFAULT_CLIMATE`）；`Level.exposure_at()`。
-- 美術：`art_raw/`（ComfyUI 原圖，不進版本控制）→ `tools/import_art.gd`（清單在檔案裡）→ `assets/sprites/`，之後跑一次 `--import`。
-  執行：`/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tools/import_art.gd`。
-  角色動畫 `scripts/fx/character_sprite.gd`（5 方向＋鏡像），讀圖用 `Art.tex()`，沒有圖時退回色塊。
+- 美術：角色、道具、物品圖示、子彈／槍口火光、地板貼圖都由 `python3 tools/gen_pixel_art.py [項目]` 產生（純標準函式庫）：
+  每個角色用 3D 形狀（橢球、膠囊、方塊）組成，同一台 3/4 攝影機逐像素算圖＋固定調色盤＋描邊，所以每個方向一致、不會破圖。
+  新角色＝在檔案裡加一個 `xxx_model(anim, f, n)` 和 `CHARACTERS` 一行；改完跑 `--import`。調色盤在 `MATS`。
+  舊的 AI 原圖流程（`art_raw/` → `tools/import_art.gd`）已不用於角色／道具，目前只剩頭像 `portraits/` 是 AI 圖。
+  角色動畫 `scripts/fx/character_sprite.gd`（5 方向＋鏡像、腳下影子；動作：idle、walk、sneak、listen、attack、aim、
+  aim_pistol、aim_shotgun、slash、punch、kick），讀圖用 `Art.tex()`，沒有圖時退回色塊。物品圖示 `props/<物品 id>`（手機物品 App 也用）。
 - 聲音：自動載入 `Sfx`（`scripts/autoload/sfx.gd`）＝玩家聽到的聲音；敵人聽到的是 `NoiseBus`，兩者分開，有聲響的動作兩個都要呼叫。
   清單 `scripts/audio/sound_list.gd`（id = 檔名），提示詞 `docs/AUDIO_PROMPTS.md`（測試會檢查兩邊一致、每個 id 都有檔案）。
   正式素材放 `assets/audio/{sfx,music,ambience}/<id>.ogg`（或 _1、_2 多版本），沒有就用 `assets/audio/synth/` 的合成暫代版（`python3 tools/synth_audio.py` 產生）。
@@ -52,7 +55,9 @@
   人類（`faction = "human"`，`scenes/enemy_guard.tscn`）有無線電：通報中被打中就失敗，成功 = 全區域人類趕來＋區域資料 `reinforcements` 增援。
 - 近戰：`PlayerCombat.COMBO`（刀 → 拳 → 踢，踢倒可補刀、撞牆額外傷害）、擒拿（背後按互動抓住；攻擊 = 解決、投擲 = 摔、互動 = 放開）。
 - 敵人離開區域時的位置記在 `WorldState.data.enemies`（`Enemy.snapshot()` / `restore_snapshot()`）。
-- 畫面：牆的正面 `scripts/level/wall_faces.gd`（3/4 高度感）、後製 `assets/shaders/film.gdshader`（顆粒、暗角）。
+- 畫面的高度感：牆頂往上畫 `Level.WALL_RAISE`、牆面 `scripts/level/wall_faces.gd`（一整格高）、牆腳和家具旁的地板陰影
+  （`Level._draw_floor_shadows`）、角色腳下影子。牆畫在角色上面的圖層，角色站在牆／櫃子前面時由 `scripts/level/over_wall.gd`
+  用牆格子當遮罩把角色補畫在上面（前後關係才對）。後製 `assets/shaders/film.gdshader`（顆粒、暗角）。
 - 手機 UI（`scripts/ui/phone.gd`，main 的 `open_phone()`／`set_phone_app()`）：狀態、物品、任務、訊息、地圖、操作說明都在手機裡，
   遊戲畫面只留互動提示、左上角一行通知（`show_message`，長訊息全文在手機「訊息」= `main.message_log`）、警戒狀態。
   物品、任務 App 沿用 InventoryPanel／MissionPanel（擺進手機螢幕）。狀態列平常隱藏，受傷或狀況不好才出現。

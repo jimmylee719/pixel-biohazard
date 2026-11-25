@@ -615,6 +615,14 @@ func _find_focus() -> Interactable:
 func _update_sprite() -> void:
 	if _sprite == null:
 		return
+	# 近戰動作（刀、拳、踢）優先，再來是舉槍瞄準
+	var swing: Dictionary = combat.last_melee
+	if not swing.is_empty() and swing.t < 0.22 and swing.move in ["slash", "punch", "kick"]:
+		_sprite.show_pose(swing.move, swing.dir, true)
+		return
+	if combat.aiming and combat.has_weapon():
+		_sprite.show_pose("aim_" + combat.current_weapon(), facing, true)
+		return
 	match gait:
 		Gait.RUN:
 			_sprite.show_pose("walk", facing, true, 1.8)

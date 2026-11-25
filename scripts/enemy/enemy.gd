@@ -806,14 +806,25 @@ func _update_sprite(tint: Color) -> void:
 		shade = shade.darkened(0.35)
 	_sprite.modulate = Color(shade, _fade)
 	if lying:
+		_sprite.set_shadow_visible(false)
 		# 和地上的屍體（CorpseDecor）完全一樣的姿勢：玩家要自己分辨
 		_sprite.show_pose("walk", Vector2.DOWN, false)
 		_sprite.frame = 0
 		_sprite.position = Vector2.ZERO
 		return
+	_sprite.set_shadow_visible(true)
 	var moving := velocity.length() > 4.0
-	var anim := "walk" if moving or not _sprite.has_anim("listen") else "listen"
-	_sprite.show_pose(anim, facing, moving, velocity.length() / 45.0)
+	# 撲擊（近戰前搖）、舉槍（遠距離前搖或警戒中的人類）優先
+	if (winding_up or _windup > 0.0) and _sprite.has_anim("attack"):
+		_sprite.show_pose("attack", facing, true)
+		return
+	if _sprite.has_anim("aim") and (_ranged_windup > 0.0 or (state == State.ALERT and not moving)):
+		_sprite.show_pose("aim", facing, true)
+		return
+	var anim := "walk"
+	if not moving:
+		anim = "listen" if _sprite.has_anim("listen") else ("idle" if _sprite.has_anim("idle") else "walk")
+	_sprite.show_pose(anim, facing, moving or anim != "walk", maxf(velocity.length() / 45.0, 1.0) if moving else 1.0)
 
 
 func _set_details_visible(on: bool) -> void:

@@ -24,6 +24,8 @@ var app := "items"
 var level: Level
 var player_pos := Vector2.ZERO
 var portrait: Texture2D
+## 物品 App：選到的物品的圖（放大兩倍畫在右上角）
+var item_icon: Texture2D
 
 var _buttons := {}
 var _title: Label
@@ -126,6 +128,12 @@ func _draw() -> void:
 	match app:
 		"map":
 			_draw_map()
+		"items":
+			if item_icon:
+				var sz := item_icon.get_size() * 2.0
+				var at := Vector2(CONTENT.end.x - sz.x - 2, CONTENT.position.y + 2)
+				draw_rect(Rect2(at - Vector2(2, 2), sz + Vector2(4, 4)), Color(0.06, 0.12, 0.13))
+				draw_texture_rect(item_icon, Rect2(at, sz), false)
 		"status":
 			if portrait:
 				draw_texture_rect(portrait, Rect2(CONTENT.position, Vector2(36, 36)), false)

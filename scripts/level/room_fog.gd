@@ -40,4 +40,6 @@ func _draw() -> void:
 		if visible_rooms.has(r):
 			continue
 		for cell in _cells_by_room[r]:
-			draw_rect(Rect2(Vector2(cell) * t, Vector2(t, t)), Color(0.0, 0.0, 0.01))
+			# 牆頂比地板高、蓋住牆後面一點點地板：那一段不要蓋黑，牆才看得到
+			var h := t - Level.WALL_RAISE if level.char_at(cell + Vector2i.DOWN) == "#" else t
+			draw_rect(Rect2(Vector2(cell) * t, Vector2(t, h)), Color(0.0, 0.0, 0.01))

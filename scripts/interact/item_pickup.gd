@@ -48,9 +48,11 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
-	var tex := Art.tex("props/" + pickup_item) if pickup_item in ["med", "antibiotic", "bottle"] else null
+	var tex := Art.tex("props/" + pickup_item)
 	if tex:
-		draw_texture(tex, -tex.get_size() * 0.5)
+		# 地上的小影子＋物品圖（tools/gen_pixel_art.py）
+		draw_rect(Rect2(-tex.get_width() * 0.4, tex.get_height() * 0.5 - 2, tex.get_width() * 0.8, 2), Color(0, 0, 0, 0.35))
+		draw_texture(tex, (-tex.get_size() * 0.5).floor())
 		return
 	var c: Color = COLORS.get(pickup_item, Color.WHITE)
 	match pickup_item:

@@ -17,6 +17,7 @@ const ENEMY_SCENES := {
 	"listener": preload("res://scenes/enemy_listener.tscn"),
 	"sleeper": preload("res://scenes/enemy_sleeper.tscn"),
 	"guard": preload("res://scenes/enemy_guard.tscn"),
+	"hound": preload("res://scenes/enemy_hound.tscn"),
 	"bear": preload("res://scenes/boss_bear.tscn"),
 	"well": preload("res://scenes/boss_well.tscn"),
 }
@@ -1271,6 +1272,8 @@ func _refresh_inventory() -> void:
 	lines.append("")
 	lines.append(tr("[%s] use   [%s] close") % [_key_name("interact"), _key_name("inventory")])
 	_inventory_text.text = "\n".join(lines)
+	phone.item_icon = Art.tex("props/" + selected.id) if not selected.is_empty() else null
+	phone.queue_redraw()
 
 
 func _update_status() -> void:

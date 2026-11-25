@@ -228,6 +228,7 @@ func _test_mission_panel() -> void:
 	await get_tree().process_frame
 	_check(not panel.visible and not get_tree().paused, "再按一次關閉並繼續")
 	await _test_phone()
+	await _test_pixel_art()
 
 
 func _test_supply_crate() -> void:
@@ -2240,3 +2241,47 @@ func _test_touch() -> void:
 	_check(_main._inventory_cursor == cursor + 1, "物品欄裡用搖桿往下選")
 	_main._toggle_inventory_panel()
 	tc.set_enabled(false)
+
+
+## 像素美術（tools/gen_pixel_art.py）：每個角色的動作都在、圖示齊全、站在牆前面時會畫在牆上面
+func _test_pixel_art() -> void:
+	print("[pixel art]")
+	var needs := {
+		"player": ["idle", "walk", "sneak", "aim_pistol", "aim_shotgun", "slash", "punch", "kick"],
+		"watcher": ["walk", "idle", "attack"], "listener": ["walk", "listen", "attack"],
+		"guard": ["walk", "idle", "aim"], "hound": ["walk", "idle", "attack"],
+	}
+	for id in needs:
+		var cs := CharacterSprite.new()
+		var ok := cs.setup(id)
+		for anim in needs[id]:
+			ok = ok and cs.has_anim(anim)
+		_check(ok, "%s 的動作圖都在" % id)
+		cs.free()
+	var missing := []
+	for item_id in Items.DATA:
+		if Art.tex("props/" + item_id) == null:
+			missing.append(item_id)
+	_check(missing.is_empty(), "每個物品都有圖示 %s" % [missing])
+	for fx in ["bullet", "pellet", "muzzle_0", "casing", "slash", "shadow"]:
+		_check(Art.tex("fx/" + fx) != null, "特效圖 %s" % fx)
+	# 找一格「北邊是牆」的地板：站在那裡的角色要畫在牆上面；北邊兩格都不是擋住的東西就不用
+	var level: Level = _main.level
+	var over: OverWall = level.get_node("OverWall").get_child(0)
+	var front := Vector2i(-1, -1)
+	var open_cell := Vector2i(-1, -1)
+	for cell in level._floor_cells:
+		var up := level.char_at(cell + Vector2i.UP)
+		if up == "#" and front.x < 0:
+			front = cell
+		var clear := true
+		for dy in [1, 2]:
+			for dx in [-1, 0, 1]:
+				if Level.OCCLUDER_CHARS.contains(level.char_at(cell + Vector2i(dx, -dy))):
+					clear = false
+		if clear and open_cell.x < 0:
+			open_cell = cell
+	var feet := (Vector2(front) + Vector2(0.5, 0.9)) * Level.TILE
+	_check(front.x >= 0 and not over.mask_rects(feet).is_empty(), "站在牆前面：角色補畫在牆上面")
+	_check(open_cell.x >= 0 and over.mask_rects((Vector2(open_cell) + Vector2(0.5, 0.9)) * Level.TILE).is_empty(),
+		"前面沒有牆：不用補畫")

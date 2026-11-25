@@ -12,6 +12,10 @@ const WALL_LAYER := 1
 const WINDOW_LAYER := 8
 ## 看不穿的格子（第一人稱視角的射線、房間判定用）
 const SOLID_CHARS := "#CH"
+## 牆比地板高：牆頂往上畫 WALL_RAISE 像素（蓋住牆後面一點點地板＝3/4 俯視的高度感），牆面見 WallFaces
+const WALL_RAISE := 8.0
+## 擋住角色的東西（牆、櫃子、置物櫃、窗戶）：地上的陰影、角色在牆前面時的遮擋判定用
+const OCCLUDER_CHARS := "#CH="
 
 const INDOOR_FLOOR_A := Color(0.42, 0.44, 0.48)
 const INDOOR_FLOOR_B := Color(0.38, 0.40, 0.44)
@@ -95,11 +99,16 @@ func _draw() -> void:
 	var concrete := Art.tex("tiles/floor_concrete")
 	var frost := Art.tex("tiles/floor_frost")
 	var lab := Art.tex("tiles/floor_lab")
+	var snow := Art.tex("tiles/floor_snow")
 	for cell in _floor_cells:
 		var even := (cell.x + cell.y) % 2 == 0
 		var rect := Rect2(Vector2(cell) * TILE, Vector2(TILE, TILE))
 		if outdoor and not _is_indoor_cell(cell):
-			draw_rect(rect, SNOW_FLOOR_A if even else SNOW_FLOOR_B)
+			if snow:
+				var snow_src := Rect2(Vector2(posmod(cell.x, 4), posmod(cell.y, 4)) * TILE, Vector2(TILE, TILE))
+				draw_texture_rect_region(snow, rect, snow_src, Color(1.5, 1.5, 1.5))
+			else:
+				draw_rect(rect, SNOW_FLOOR_A if even else SNOW_FLOOR_B)
 			continue
 		# 室內：地板貼圖（64px 一張 = 4x4 格）。安全屋是無菌室的地板；沒暖氣的地方結霜。
 		var cell_safe := is_safe_cell(cell)
@@ -117,9 +126,30 @@ func _draw() -> void:
 			if cold:
 				color = color * COLD_TINT
 		draw_rect(rect, color)
+	_draw_floor_shadows()
 	for door_id in _data.doors:
 		var cell: Vector2i = _data.doors[door_id].cell
 		draw_rect(Rect2(Vector2(cell) * TILE + Vector2(2, 2), Vector2(TILE - 4, TILE - 4)), DOOR_COLOR)
+
+
+## 牆、家具旁邊的地板陰影（光從左上來：右邊、下面的地板影子比較長），讓東西看起來「站」在地上
+func _draw_floor_shadows() -> void:
+	for cell in _floor_cells:
+		var p := Vector2(cell) * TILE
+		var n := OCCLUDER_CHARS.contains(char_at(cell + Vector2i.UP))
+		var w := OCCLUDER_CHARS.contains(char_at(cell + Vector2i.LEFT))
+		var e := OCCLUDER_CHARS.contains(char_at(cell + Vector2i.RIGHT))
+		var nw := OCCLUDER_CHARS.contains(char_at(cell + Vector2i(-1, -1)))
+		if n:
+			for i in 5:
+				draw_rect(Rect2(p + Vector2(0, i), Vector2(TILE, 1)), Color(0, 0, 0.03, 0.42 - i * 0.08))
+		if w:
+			for i in 6:
+				draw_rect(Rect2(p + Vector2(i, 0), Vector2(1, TILE)), Color(0, 0, 0.03, 0.36 - i * 0.06))
+		elif nw and not n:
+			draw_colored_polygon(PackedVector2Array([p, p + Vector2(6, 0), p + Vector2(0, 6)]), Color(0, 0, 0.03, 0.3))
+		if e:
+			draw_rect(Rect2(p + Vector2(TILE - 2, 0), Vector2(2, TILE)), Color(0, 0, 0.03, 0.18))
 
 
 ## 戶外區域裡的室內空間（例如倉庫）：地板畫成室內的樣子
@@ -542,15 +572,16 @@ func _build_solids() -> void:
 	add_child(_structure_layer)
 
 	for rect in _merge_rects("#"):
-		var wall := _add_solid(rect, WALL_COLOR, WALL_EDGE_COLOR)
+		var wall := _add_solid(rect, WALL_COLOR, WALL_EDGE_COLOR, WALL_RAISE)
 		var wall_tex := Art.tex("tiles/wall_concrete")
 		if wall_tex:
 			wall.texture = wall_tex
 			wall.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-			wall.color = Color(0.38, 0.4, 0.47)  # 牆頂比地板暗，地形一眼看得出來
+			wall.color = Color(0.45, 0.47, 0.54)  # 牆頂比地板亮一點，地形一眼看得出來
 	for rect in _merge_rects("C"):
-		if outdoor:
-			_add_solid(rect, ROCK_COLOR, ROCK_EDGE_COLOR)
+		if outdoor and not _is_indoor_cell(rect.position):
+			var base := _add_solid(rect, ROCK_COLOR.darkened(0.3), ROCK_COLOR.darkened(0.5))
+			_add_rocks(rect, base)
 		else:
 			_add_solid(rect, CABINET_COLOR, CABINET_EDGE_COLOR)
 			_add_furniture(rect)
@@ -560,24 +591,56 @@ func _build_solids() -> void:
 	faces.name = "WallFaces"
 	_structure_layer.add_child(faces)
 	faces.setup(self)
+	var front := CanvasLayer.new()
+	front.name = "OverWall"
+	front.layer = 1
+	front.follow_viewport_enabled = true
+	add_child(front)
+	var over := OverWall.new()
+	over.level = self
+	front.add_child(over)
 	for rect in _merge_rects("H"):
 		_add_solid(rect, LOCKER_COLOR, LOCKER_EDGE_COLOR)
 		_add_prop_sprites(rect, Art.tex("props/locker"))
 
 
-## 室內的 C：寬的是實驗桌，窄的是檔案櫃（像素圖，有的話）
+## 室內的 C：寬的是實驗桌（左、中、右三段拼起來），窄的是檔案櫃（像素圖，tools/gen_pixel_art.py）
 func _add_furniture(cell_rect: Rect2i) -> void:
-	if cell_rect.size.x >= 2:
-		var bench := Art.tex("props/bench")
-		if bench:
-			var s := Sprite2D.new()
-			s.texture = bench
-			s.centered = false
-			s.position = Vector2(cell_rect.position) * TILE
-			s.scale = Vector2(cell_rect.size) * TILE / bench.get_size()
-			_structure_layer.add_child(s)
-	else:
+	if cell_rect.size.x < 2:
 		_add_prop_sprites(cell_rect, Art.tex("props/cabinet"))
+		return
+	for y in range(cell_rect.position.y, cell_rect.end.y):
+		for x in range(cell_rect.position.x, cell_rect.end.x):
+			var part := "bench_m"
+			if x == cell_rect.position.x:
+				part = "bench_l"
+			elif x == cell_rect.end.x - 1:
+				part = "bench_r"
+			var tex := Art.tex("props/" + part)
+			if tex == null:
+				return
+			var s := Sprite2D.new()
+			s.texture = tex
+			s.centered = false
+			s.position = Vector2(x * TILE, (y + 1) * TILE - tex.get_height())
+			_structure_layer.add_child(s)
+
+
+## 戶外的 C：每格一顆積雪的岩石（三種隨機，固定亂數），底下的色塊當成岩縫
+func _add_rocks(cell_rect: Rect2i, base: Polygon2D) -> void:
+	if Art.tex("props/rock_0") == null:
+		return
+	base.color = ROCK_COLOR.darkened(0.35)
+	for y in range(cell_rect.position.y, cell_rect.end.y):
+		for x in range(cell_rect.position.x, cell_rect.end.x):
+			var h := absi(hash(Vector2i(x, y)))
+			var tex := Art.tex("props/rock_%d" % (h % 3))
+			var s := Sprite2D.new()
+			s.texture = tex
+			s.centered = false
+			s.flip_h = (h / 3) % 2 == 0
+			s.position = Vector2(x * TILE + (TILE - tex.get_width()) * 0.5 + (h / 7) % 3 - 1, (y + 1) * TILE - tex.get_height() + 3)
+			_structure_layer.add_child(s)
 
 
 ## 每一格放一個直立的道具（置物櫃、檔案櫃），底部對齊格子底部、往上突出一點（俯視 3/4 視角）
@@ -596,7 +659,7 @@ func _add_prop_sprites(cell_rect: Rect2i, tex: Texture2D) -> void:
 			_structure_layer.add_child(s)
 
 
-func _add_solid(cell_rect: Rect2i, fill: Color, edge: Color) -> Polygon2D:
+func _add_solid(cell_rect: Rect2i, fill: Color, edge: Color, raise := 0.0) -> Polygon2D:
 	var rect := Rect2(Vector2(cell_rect.position) * TILE, Vector2(cell_rect.size) * TILE)
 	var points := PackedVector2Array([
 		rect.position,
@@ -625,9 +688,11 @@ func _add_solid(cell_rect: Rect2i, fill: Color, edge: Color) -> Polygon2D:
 
 	var visual := Polygon2D.new()
 	visual.polygon = points
+	visual.position = Vector2(0, -raise)
 	visual.color = fill
 	_structure_layer.add_child(visual)
 	var outline := Line2D.new()
+	outline.position = Vector2(0, -raise)
 	outline.points = points
 	outline.closed = true
 	outline.width = 1.0
@@ -650,14 +715,14 @@ func _add_window(cell_rect: Rect2i) -> void:
 	body.add_child(shape)
 	_nav_region.add_child(body)
 	var frame := ColorRect.new()
-	frame.position = rect.position
-	frame.size = rect.size
+	frame.position = rect.position - Vector2(0, WALL_RAISE)
+	frame.size = rect.size + Vector2(0, WALL_RAISE)
 	frame.color = Color(0.2, 0.22, 0.26)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_structure_layer.add_child(frame)
 	var glass := ColorRect.new()
-	glass.position = rect.position + Vector2(2, 2)
-	glass.size = rect.size - Vector2(4, 4)
+	glass.position = rect.position + Vector2(2, 2 - WALL_RAISE)
+	glass.size = rect.size - Vector2(4, 4 - WALL_RAISE)
 	glass.color = Color(0.55, 0.75, 0.9, 0.35)
 	glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_structure_layer.add_child(glass)
