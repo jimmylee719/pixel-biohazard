@@ -30,6 +30,14 @@ const MOVE_MASK := 41
 ## 卡在牆角時自動往旁邊滑開的最大距離（像素）：撞到柱子邊緣不會卡住
 @export var corner_assist := 7.0
 
+@export_group("閃躲（快速跳開）")
+## 一次跳多遠、多久；跳的過程中不會被打到
+@export var dodge_distance := 50.0
+@export var dodge_time := 0.24
+@export var dodge_cooldown := 0.5
+## 落地的聲音（格）
+@export var dodge_noise_tiles := 3.0
+
 @export_group("視野與光")
 @export var flashlight_range := 150.0
 @export var flashlight_half_angle_deg := 28.0
@@ -82,6 +90,12 @@ const MOVE_MASK := 41
 @export var extinguisher_throw_noise_tiles := 10.0
 
 var facing := Vector2.DOWN
+## 閃躲中剩下的時間（> 0 = 正在跳）
+var dodging := 0.0
+## 這次閃躲是往後跳（瞄準時後退）
+var dodge_back := false
+var _dodge_dir := Vector2.ZERO
+var _dodge_cd := 0.0
 var gait := Gait.IDLE
 var sneaking := false
 var flashlight_on := true
@@ -150,6 +164,8 @@ func _ready() -> void:
 	_sprite = CharacterSprite.new()
 	if _sprite.setup("player"):
 		_body.add_child(_sprite)
+		refresh_outfit()
+		WorldState.gear_changed.connect(refresh_outfit)
 		(_body as Polygon2D).color = Color(0, 0, 0, 0)  # 色塊藏起來，只留像素圖（無敵閃爍仍由 Body 控制）
 		_facing_marker.visible = false
 	else:
@@ -171,6 +187,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_update_infection(delta)
 	_update_body_temp(delta)
+	_update_hazard(delta)
 	_knock_cd = maxf(_knock_cd - delta, 0.0)
 	_spray_cd = maxf(_spray_cd - delta, 0.0)
 	if not last_spray.is_empty():
@@ -190,6 +207,13 @@ func _physics_process(delta: float) -> void:
 	if is_hiding:
 		velocity = Vector2.ZERO
 		gait = Gait.IDLE
+		return
+
+	_dodge_cd = maxf(_dodge_cd - delta, 0.0)
+	if input_enabled and Input.is_action_just_pressed("dodge"):
+		dodge(Input.get_vector("move_left", "move_right", "move_up", "move_down"))
+	if dodging > 0.0:
+		_process_dodge(delta)
 		return
 
 	var move_input := Vector2.ZERO
@@ -255,11 +279,47 @@ func _physics_process(delta: float) -> void:
 	_update_steps(delta)
 
 
+## 閃躲：往推的方向快速跳開（沒推方向 = 往面向跳；瞄準中沒推方向 = 往後跳）。
+## 瞄準中往後推 = 後跳，跳的時候繼續鎖定、可以落地馬上開槍。跳的過程不會被打到，落地有一點聲音。
+func dodge(input_dir: Vector2) -> bool:
+	if _dodge_cd > 0.0 or dodging > 0.0 or is_hiding or is_dead or is_carrying() or combat.grabbed != null:
+		return false
+	var dir := input_dir.normalized() if input_dir.length() > 0.2 else (-facing if combat.aiming else facing)
+	dodging = dodge_time
+	_dodge_dir = dir
+	dodge_back = dir.dot(facing) < -0.3
+	_dodge_cd = dodge_cooldown + dodge_time
+	sneaking = false
+	if not combat.aiming:
+		facing = dir
+	Sfx.play("knife_swing", global_position, 0.15, -8.0)
+	return true
+
+
+func _process_dodge(delta: float) -> void:
+	dodging -= delta
+	velocity = _dodge_dir * (dodge_distance / dodge_time)
+	move_and_slide()
+	gait = Gait.RUN
+	_flashlight.rotation = facing.angle()
+	_facing_marker.rotation = facing.angle()
+	if _sprite:
+		_sprite.show_pose("dodge_back" if dodge_back else "dodge", facing, true)
+	if dodging <= 0.0:
+		dodging = 0.0
+		velocity *= 0.25
+		NoiseBus.emit_noise(global_position, dodge_noise_tiles * TILE, self)
+		Sfx.play(("step_" + level.step_surface(global_position)) if level else "step_concrete", global_position, 0.1, 2.0)
+
+
 func reset_to(spawn: Vector2) -> void:
 	if is_hiding:
 		_leave_locker_state()
 	is_dead = false
 	_invulnerable = 0.0
+	refresh_outfit()
+	dodging = 0.0
+	_dodge_cd = 0.0
 	combat.interrupt()
 	global_position = spawn
 	velocity = Vector2.ZERO
@@ -273,15 +333,15 @@ func reset_to(spawn: Vector2) -> void:
 
 ## 被敵人打到。躲在櫃子裡被打到 = 被拖出來。
 func take_hit(damage: float, infection_amount: float, from_pos: Vector2) -> void:
-	if _invulnerable > 0.0 or is_dead:
+	if _invulnerable > 0.0 or is_dead or dodging > 0.0:
 		return
 	if is_hiding:
 		exit_hiding()
-	WorldState.health -= damage
-	WorldState.infection += infection_amount
+	WorldState.health -= damage * Gear.stat("armor")
+	WorldState.infection += infection_amount * clampf(Gear.stat("armor") * 1.3, 0.0, 1.0)
 	_invulnerable = hurt_invulnerability
 	var away := (global_position - from_pos).normalized()
-	velocity = (away if away != Vector2.ZERO else -facing) * knockback_speed
+	velocity = (away if away != Vector2.ZERO else -facing) * knockback_speed * (0.3 if Gear.full_set() == "eod" else 1.0)
 	combat.interrupt()
 	hurt.emit(damage)
 	Sfx.play("player_hurt")
@@ -317,11 +377,29 @@ func _update_body_temp(delta: float) -> void:
 			rate *= 0.7
 		if gait == Gait.RUN:
 			rate *= 0.8
+		rate *= Gear.stat("warmth")
 	WorldState.body_temp -= rate * delta
 	if WorldState.body_temp <= 0.0 and rate > 0.0:
 		WorldState.health -= freeze_drain * delta
 		if WorldState.health <= 0.0:
 			_die()
+
+
+## 孢子區（區域資料 hazards）：沒穿防護裝備，感染值會一直上升（防護衣整套 = 完全不會）
+@export var spore_infection_rate := 2.2
+var in_spores := false
+
+
+func _update_hazard(delta: float) -> void:
+	in_spores = level != null and level.hazard_at(global_position) == "spores"
+	if in_spores and not is_hiding:
+		WorldState.infection += spore_infection_rate * Gear.stat("hazard") * delta
+
+
+## 外型跟著裝備換（紙娃娃）
+func refresh_outfit() -> void:
+	if _sprite:
+		_sprite.set_outfit(Gear.sprite_sets())
 
 
 func is_shivering() -> bool:
@@ -353,6 +431,7 @@ func get_speed_mult() -> float:
 		mult *= reload_speed_mult
 	if is_shivering():
 		mult *= shiver_speed_mult
+	mult *= Gear.stat("speed")
 	return mult
 
 
@@ -683,6 +762,7 @@ func get_detection_rate_mult() -> float:
 			mult *= 0.55
 		Gait.IDLE:
 			mult *= 0.5 if sneaking else 0.7
+	mult *= Gear.stat("detect")
 	return mult
 
 
@@ -774,4 +854,4 @@ func _update_noise(delta: float) -> void:
 	_noise_timer -= delta
 	if _noise_timer <= 0.0:
 		_noise_timer = interval
-		NoiseBus.emit_noise(global_position, radius, self)
+		NoiseBus.emit_noise(global_position, radius * Gear.stat("noise"), self)

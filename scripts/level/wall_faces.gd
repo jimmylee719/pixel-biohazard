@@ -8,6 +8,15 @@ extends Node2D
 
 ## 牆面的高度（像素）。牆頂往上偏移 WALL_RAISE，所以單格厚的牆看得到 WALL_RAISE 高的牆頂。
 const FACE := 16.0
+## 牆面上的細節（decor/ 的圖，tools/gen_pixel_art.py）
+const WALL_DECOR := {
+	"lab": ["monitor", "sign_bio", "poster", "vent", "alarm", "lamp"],
+	"office": ["board", "poster", "lamp", "monitor"],
+	"dorm": ["poster", "board", "lamp"],
+	"industrial": ["pipe", "vent", "alarm", "lamp"],
+	"military": ["pipe", "board", "alarm", "lamp"],
+	"hut": ["board", "lamp"],
+}
 
 var level: Level
 var _cells: Array[Vector2i] = []
@@ -68,13 +77,13 @@ func _draw() -> void:
 		if c.x % 2 == 0:
 			draw_rect(Rect2(p + Vector2(0, y0 + 2), Vector2(1, FACE - 4)), lo.darkened(0.3))
 		draw_rect(Rect2(p + Vector2(0, t - 3), Vector2(t, 3)), lo.darkened(0.45))
-		# 偶爾有管線、污漬、告示（固定的亂數，每次一樣）
-		var h := absi(hash(c)) % 13
-		if h == 0:
-			draw_rect(Rect2(p + Vector2(0, y0 + 3), Vector2(t, 2)), Color(0.25, 0.27, 0.3))
-			draw_rect(Rect2(p + Vector2(0, y0 + 3), Vector2(t, 1)), Color(0.38, 0.4, 0.44))
-		elif h == 1:
+		# 牆上的細節（依區域主題，固定亂數）：螢幕、海報、生物危害標誌、管線、通風口、警報燈、壁燈……
+		var h := absi(hash(c * 3 + Vector2i(7, level.area_id.length())))
+		var pool: Array = WALL_DECOR.get(level.theme(), [])
+		if not pool.is_empty() and h % 4 == 0:
+			var tex := Art.tex("decor/" + pool[(h / 4) % pool.size()])
+			if tex:
+				var at := p + Vector2(floorf((t - tex.get_width()) * 0.5), y0 + 3)
+				draw_texture(tex, at)
+		elif h % 13 == 1:
 			draw_rect(Rect2(p + Vector2(6, y0 + 4), Vector2(3, FACE - 7)), Color(0.32, 0.26, 0.2, 0.6))
-		elif h == 2 and indoor:
-			draw_rect(Rect2(p + Vector2(4, y0 + 3), Vector2(8, 5)), Color(0.75, 0.62, 0.25))
-			draw_rect(Rect2(p + Vector2(5, y0 + 4), Vector2(6, 1)), Color(0.2, 0.18, 0.12))

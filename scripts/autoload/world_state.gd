@@ -8,6 +8,8 @@ extends Node
 ## 遊戲事件（任務系統監聽）：kind = "enter_area" / "interact" / "collect"，id = 物件或區域名稱
 signal game_event(kind: String, id: String)
 signal changed
+## 換了裝備（外型、能力要更新）
+signal gear_changed
 ## 圖鑑多了一筆（敵人第一次看到、武器第一次拿到）
 signal codex_unlocked(id: String)
 
@@ -179,6 +181,10 @@ func new_game() -> void:
 		"body_temp": MAX_BODY_TEMP,
 		"enemies": {},
 		"codex": {},
+		"quick_item": "light",
+		"gear": Gear.START_EQUIPPED.duplicate(),
+		"gear_owned": Gear.START_OWNED.duplicate(),
+		"explored": {},
 	}
 	if mode == "story":
 		for unlock in SurvivalData.STORY_CACHES:
@@ -186,6 +192,28 @@ func new_game() -> void:
 				for item_id in SurvivalData.STORY_CACHES[unlock]:
 					data.storage[item_id] = data.storage.get(item_id, 0) + SurvivalData.STORY_CACHES[unlock][item_id]
 	_checkpoint = data.duplicate(true)
+
+
+# ── 裝備（紙娃娃，見 Gear）──
+
+func owns_gear(id: String) -> bool:
+	return data.gear_owned.has(id)
+
+
+func add_gear(id: String) -> void:
+	if not owns_gear(id):
+		data.gear_owned.append(id)
+
+
+## 穿上（id = "" 時脫掉這個欄位，身體不能空著）
+func equip_gear(slot: String, id: String) -> bool:
+	if id != "" and (not owns_gear(id) or Gear.DATA[id].slot != slot):
+		return false
+	if id == "" and slot == "body":
+		return false
+	data.gear[slot] = id
+	gear_changed.emit()
+	return true
 
 
 # ── 圖鑑（看過的敵人、拿過的武器）──
@@ -546,6 +574,10 @@ func _migrate(old: Dictionary) -> Dictionary:
 		"body_temp": MAX_BODY_TEMP,
 		"enemies": {},
 		"codex": {},
+		"quick_item": "light",
+		"gear": Gear.START_EQUIPPED.duplicate(),
+		"gear_owned": Gear.START_OWNED.duplicate(),
+		"explored": {},
 	}
 	if old.has("pistol_loaded") and not old.has("loaded"):
 		old["loaded"] = {"pistol": old.pistol_loaded, "shotgun": 0}

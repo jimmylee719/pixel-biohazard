@@ -8,6 +8,8 @@ extends RefCounted
 
 const DATA := {
 	"arctic": {"outdoor_loss": 0.4, "cold_loss": 0.12, "recover": 4.0},
+	# 暴風雪（北港、冰洞）：沒穿保暖裝備很快就失溫
+	"blizzard": {"outdoor_loss": 1.1, "cold_loss": 0.35, "recover": 4.0},
 	"temperate": {"outdoor_loss": 0.0, "cold_loss": 0.0, "recover": 3.0},
 	"tropical": {"outdoor_loss": 0.0, "cold_loss": 0.0, "recover": 3.0},
 }

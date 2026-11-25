@@ -153,6 +153,11 @@ MATS = {
     "pus": ["#3a3a10", "#6e6a1c", "#a8a030", "#dcd468"],
     # 詠者：瘦長、灰白、喉嚨的結晶環
     "ash": ["#24262a", "#45484e", "#6e727a", "#9ca0a8"],
+    # 裝備：防護衣（黃）、防爆裝甲（深綠）、潛行服（深灰藍）、極地套裝（白）、毛帽（紅）
+    "hazmat": ["#4a3a08", "#8a7012", "#c8a42a", "#ecd468"],
+    "eod": ["#121a12", "#243424", "#3a503a", "#56705a"],
+    "sneak": ["#0c1016", "#1a222c", "#2c3846", "#445566"],
+    "knit": ["#3a0c10", "#6e1a20", "#a0303a", "#cc5a5e"],
     # 深井的核心（脈衝後裂開露出來的弱點）
     "core": ["#7a2a10", "#c4501e", "#f08a3a", "#ffd08a"],
     # 深井的肉塊（被菌落融合的研究員）
@@ -195,7 +200,9 @@ class Ell:
         return t, norm(n)
 
     def moved(self, f):
-        return Ell(f(self.c), self.r, self.mat, tuple(f(v, True) for v in self.b))
+        o = Ell(f(self.c), self.r, self.mat, tuple(f(v, True) for v in self.b))
+        o.layer = getattr(self, "layer", False)
+        return o
 
     def lowest(self):
         return self.c[2] - math.sqrt(sum((self.r[i] * self.b[i][2]) ** 2 for i in range(3)))
@@ -272,7 +279,9 @@ class Cap:
         return t, n
 
     def moved(self, f):
-        return Cap(f(self.a), f(self.bp), self.r, self.mat, self.rb)
+        o = Cap(f(self.a), f(self.bp), self.r, self.mat, self.rb)
+        o.layer = getattr(self, "layer", False)
+        return o
 
     def lowest(self):
         return min(self.a[2] - self.r, self.bp[2] - self.rb)
@@ -311,7 +320,9 @@ class Box:
         return tn, n
 
     def moved(self, f):
-        return Box(f(self.c), self.h, self.mat, tuple(f(v, True) for v in self.b))
+        o = Box(f(self.c), self.h, self.mat, tuple(f(v, True) for v in self.b))
+        o.layer = getattr(self, "layer", False)
+        return o
 
     def lowest(self):
         return self.c[2] - sum(abs(self.h[i] * self.b[i][2]) for i in range(3))
@@ -319,7 +330,7 @@ class Box:
 
 # ── 算圖 ──────────────────────────────────────────────────
 
-def render(prims, w, h, pitch=PITCH, anchor=None, outline=True, light=LIGHT, levels=(0.34, 0.58, 0.82)):
+def render(prims, w, h, pitch=PITCH, anchor=None, outline=True, light=LIGHT, levels=(0.34, 0.58, 0.82), layer_only=False):
     ax, ay = anchor if anchor else (w / 2.0, h - 2.0)
     d = (0.0, math.cos(pitch), -math.sin(pitch))
     right = (1.0, 0.0, 0.0)
@@ -328,6 +339,7 @@ def render(prims, w, h, pitch=PITCH, anchor=None, outline=True, light=LIGHT, lev
     depth = [1e9] * n
     nrm = [None] * n
     mats = [None] * n
+    lay = [False] * n
     for p in prims:
         c, rad = p.bound()
         sx = ax + dot(c, right)
@@ -347,6 +359,7 @@ def render(prims, w, h, pitch=PITCH, anchor=None, outline=True, light=LIGHT, lev
                     depth[i] = r[0]
                     nrm[i] = r[1]
                     mats[i] = p.mat
+                    lay[i] = getattr(p, "layer", False)
     out = [(0, 0, 0, 0)] * n
     idx = [0] * n
     for i in range(n):
@@ -380,6 +393,25 @@ def render(prims, w, h, pitch=PITCH, anchor=None, outline=True, light=LIGHT, lev
                         c = MATS[mats[i]][0]
                         res[i] = (c[0], c[1], c[2], 255)
                         break
+    if layer_only:
+        # 裝備圖層：只留裝備贏的像素，外面一圈描邊（疊在角色本體的圖上）
+        final = [(0, 0, 0, 0)] * n
+        for i in range(n):
+            if lay[i]:
+                final[i] = res[i]
+        for y in range(h):
+            for x in range(w):
+                i = y * w + x
+                if lay[i]:
+                    continue
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    xx, yy = x + dx, y + dy
+                    if 0 <= xx < w and 0 <= yy < h and lay[yy * w + xx]:
+                        if mats[i] is None or depth[i] > depth[yy * w + xx] + 1.5:
+                            c = MATS[mats[yy * w + xx]][0]
+                            final[i] = (c[0] // 2, c[1] // 2, c[2] // 2 + 4, 255)
+                        break
+        return final
     # 外描邊：輪廓外面一圈很暗的顏色（跟著旁邊的材質）
     final = list(res)
     for y in range(h):
@@ -598,10 +630,66 @@ def knife(at, d):
 
 # ── 角色 ─────────────────────────────────────────────────
 
+## 主角的服裝（紙娃娃）：body = 本體的套裝；head / feet = 疊在上面的圖層；layer = 這次只輸出哪一層
+OUTFIT = {"body": "parka", "head": "", "feet": "", "layer": ""}
+BODY_STYLE = {
+    "parka": ({"leg": "pants", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "skin"}, {}),
+    "hazmat": ({"leg": "hazmat", "hip": "hazmat", "torso": "hazmat", "arm": "hazmat", "hand": "black"},
+               {"torso_r": (3.7, 4.5, 5.6)}),
+    "eod": ({"leg": "eod", "hip": "eod", "torso": "eod", "arm": "eod", "hand": "black"},
+            {"torso_r": (4.4, 5.2, 6.0), "arm_r": 2.0, "leg_r": 2.4, "leg_r2": 2.0, "sh_w": 4.8}),
+    "sneak": ({"leg": "sneak", "hip": "sneak", "torso": "sneak", "arm": "sneak", "hand": "sneak"},
+              {"torso_r": (3.0, 3.9, 5.2), "arm_r": 1.35}),
+    "arctic": ({"leg": "white", "hip": "white", "torso": "white", "arm": "white", "hand": "black"},
+               {"torso_r": (3.6, 4.4, 5.5)}),
+}
+
+
+def gear_prims(J, slot, gear_id):
+    """頭部、腳部裝備的形狀（標記成圖層）"""
+    p = []
+    hb = J["head_basis"]
+    if slot == "head":
+        if gear_id == "gas_mask":
+            p += [Ell(head_local(J, (-0.8, 0, 0.1)), (4.1, 3.75, 4.4), "hazmat"),
+                  Box(head_local(J, (2.9, 0, 0.3)), (0.5, 2.0, 0.9), "goggle", hb),
+                  Cap(head_local(J, (2.8, 0, -1.4)), head_local(J, (3.9, 0, -2.0)), 1.1, "black", 0.9)]
+        elif gear_id == "eod_helmet":
+            p += [Ell(head_local(J, (-0.6, 0, 0.4)), (4.4, 4.2, 4.6), "eod"),
+                  Box(head_local(J, (3.3, 0, 0.3)), (0.5, 2.6, 1.8), "glass", hb)]
+        elif gear_id == "balaclava":
+            p += [Ell(head_local(J, (0.0, 0, 0.0)), (3.25, 3.15, 3.45), "black")]
+            p += [Box(head_local(J, (3.15, y, 0.2)), (0.3, 0.55, 0.35), "white", hb) for y in (1.1, -1.1)]
+        elif gear_id == "snow_goggles":
+            p += [Ell(head_local(J, (0.0, 0, 0.5)), (3.25, 3.35, 1.0), "black"),
+                  Box(head_local(J, (3.0, 0, 0.4)), (0.4, 2.2, 0.8), "orange", hb)]
+        elif gear_id == "wool_hat":
+            p += [Ell(head_local(J, (-0.3, 0, 1.8)), (3.3, 3.4, 2.2), "knit"),
+                  Ell(head_local(J, (-0.6, 0, 4.1)), (1.0, 1.0, 1.0), "white")]
+    elif slot == "feet":
+        mat = {"hazmat_boots": "hazmat", "eod_boots": "eod", "crampons": "steel", "soft_soles": "sneak"}.get(gear_id, "boot")
+        big = 1.8 if gear_id == "eod_boots" else 1.5
+        for side in (1, -1):
+            foot = J["foot%d" % side]
+            knee = J["knee%d" % side]
+            ankle = add(foot, mul(sub(knee, foot), 0.3))
+            p.append(Cap(add(foot, (-0.7, 0, 0.0)), add(foot, (2.1, 0, -0.1)), big, mat))
+            if gear_id != "soft_soles":
+                p.append(Cap(foot, ankle, big * 0.95, mat))
+            if gear_id == "crampons":
+                p.append(Box(add(foot, (0.6, 0, -1.4)), (1.8, 0.9, 0.25), "gunmetal"))
+    for q in p:
+        q.layer = OUTFIT["layer"] == slot
+    return p
+
+
 def player_model(anim, f, n, pose_only=False):
+    body_mats, body_spec = BODY_STYLE[OUTFIT["body"]]
     mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "skin",
             "skin": "skin"}
+    mats.update(body_mats)
     spec = {"torso_r": (3.4, 4.2, 5.4), "lu": 6.3, "ll": 6.3}
+    spec.update(body_spec)
     weapon = []
     if anim == "idle":
         pose = default_pose()
@@ -631,6 +719,23 @@ def player_model(anim, f, n, pose_only=False):
             a, b, e = pose["arms"][s_]
             pose["arms"][s_] = (a + 0.22 * r * heavy, b, e + 0.3 * r * heavy)
         pose["lean"] = pose.get("lean", 0.0) - 0.1 * r * heavy
+    elif anim == "dodge":
+        # 往前撲：壓低身體往前衝、手往前伸，落地收回
+        pose = default_pose()
+        pose["lean"] = kf([0.25, 0.85, 1.05, 0.6, 0.15], f, n)
+        pose["hip_drop"] = kf([1.0, 3.5, 4.5, 3.0, 0.8], f, n)
+        pose["legs"] = {1: kf([(0.5, 0.9), (0.9, 1.6), (1.0, 1.8), (0.7, 1.2), (0.3, 0.4)], f, n),
+                        -1: kf([(-0.3, 0.6), (-0.9, 0.4), (-1.1, 0.3), (-0.5, 0.8), (-0.1, 0.3)], f, n)}
+        pose["arms"] = {1: kf([(0.6, 0.3, 0.6), (1.2, 0.2, 0.2), (1.4, 0.3, 0.1), (0.9, 0.3, 0.5), (0.3, 0.2, 0.3)], f, n),
+                        -1: kf([(0.4, 0.3, 0.7), (1.1, 0.25, 0.3), (1.3, 0.35, 0.1), (0.8, 0.3, 0.5), (0.3, 0.2, 0.3)], f, n)}
+    elif anim == "dodge_back":
+        # 往後跳：身體後仰、雙腳離地往後，手維持在前面（瞄準中）
+        pose = default_pose()
+        pose["lean"] = kf([-0.1, -0.35, -0.4, -0.2, 0.0], f, n)
+        pose["hip_drop"] = kf([1.5, 0.0, -0.5, 0.5, 1.2], f, n)
+        pose["legs"] = {1: kf([(0.3, 0.6), (0.6, 1.0), (0.5, 0.8), (0.3, 0.5), (0.1, 0.3)], f, n),
+                        -1: kf([(-0.2, 0.4), (-0.6, 0.9), (-0.7, 1.0), (-0.3, 0.5), (0.0, 0.2)], f, n)}
+        pose["arms"] = {1: (1.3, -0.3, 0.3), -1: (1.25, -0.35, 0.3)}
     elif anim == "hurt":
         pose = default_pose()
         r = kf([1.0, 0.6, 0.15], f, n)
@@ -675,8 +780,18 @@ def player_model(anim, f, n, pose_only=False):
     prims.append(Ell(head_local(J, (-1.1, 0, 0.9)), (2.9, 3.25, 2.9), "hair"))
     prims.append(Ell(head_local(J, (-2.8, 0, -1.6)), (1.4, 1.2, 2.4), "hair"))
     prims += face(J)
-    prims.append(Ell(add(J["chest"], (-0.4, 0, 3.6)), (3.2, 4.0, 1.4), "parka_trim"))
-    prims.append(Box(add(J["chest"], (-3.4, 1.6, -1.0)), (1.2, 2.2, 2.6), "strap"))
+    body = OUTFIT["body"]
+    if body in ("parka", "arctic"):
+        prims.append(Ell(add(J["chest"], (-0.4, 0, 3.6)), (3.2, 4.0, 1.4), "parka_trim" if body == "parka" else "fur"))
+    elif body == "eod":
+        prims.append(Box(add(J["chest"], (0.6, 0, 0.5)), (4.4, 4.6, 3.6), "eod", basis_lean(0.0)))
+        prims.append(Ell(add(J["chest"], (-0.2, 0, 4.2)), (3.6, 4.8, 1.6), "eod"))
+    elif body == "hazmat":
+        prims.append(Ell(add(J["chest"], (-0.4, 0, 3.8)), (3.0, 3.8, 1.2), "hazmat"))
+    prims.append(Box(add(J["chest"], (-3.4 - (0.8 if body == "eod" else 0.0), 1.6, -1.0)), (1.2, 2.2, 2.6), "strap"))
+    if OUTFIT["layer"] in ("head", "feet"):
+        gid = OUTFIT[OUTFIT["layer"]]
+        prims += gear_prims(J, OUTFIT["layer"], gid)
     if anim == "aim_pistol":
         hand = mul(add(J["hand1"], J["hand-1"]), 0.5)
         prims += pistol(add(hand, (0.4, 0, 0.3)), basis_along((1, 0, 0)))
@@ -1012,7 +1127,7 @@ def bear_model(anim, f, n):
 
 CHARACTERS = {
     "player": (player_model, dict({"idle": 4, "walk": 8, "sneak": 8, "slash": 6, "slash_axe": 6, "punch": 6, "kick": 6,
-                                   "hurt": 3},
+                                   "hurt": 3, "dodge": 5, "dodge_back": 5},
                                   **{"aim_" + w: 1 for w in ("pistol", "shotgun", "rifle", "nailgun", "flare_gun")},
                                   **{"shoot_" + w: 3 for w in ("pistol", "shotgun", "rifle", "nailgun", "flare_gun")})),
     "watcher": (watcher_model, {"walk": 8, "idle": 4, "attack": 5, "hurt": 3}),
@@ -1028,6 +1143,45 @@ CHARACTERS = {
 HURT_BASE = {"watcher": "idle", "listener": "listen", "guard": "idle", "husk": "idle", "chorister": "listen"}
 CANVAS = {"player": (36, 32), "watcher": (32, 32), "listener": (32, 36), "guard": (32, 32), "hound": (36, 30),
           "crawler": (36, 26), "husk": (36, 34), "chorister": (32, 36), "bear": (64, 48)}
+
+
+# 紙娃娃：本體套裝、頭部圖層、腳部圖層（遊戲裡依裝備組合疊起來）
+OUTFIT_SETS = {
+    "player_hazmat": {"body": "hazmat"}, "player_eod": {"body": "eod"}, "player_sneak": {"body": "sneak"},
+    "player_arctic": {"body": "arctic"},
+    "player_head_gas_mask": {"layer": "head", "head": "gas_mask"},
+    "player_head_eod_helmet": {"layer": "head", "head": "eod_helmet"},
+    "player_head_balaclava": {"layer": "head", "head": "balaclava"},
+    "player_head_snow_goggles": {"layer": "head", "head": "snow_goggles"},
+    "player_head_wool_hat": {"layer": "head", "head": "wool_hat"},
+    "player_feet_hazmat_boots": {"layer": "feet", "feet": "hazmat_boots"},
+    "player_feet_eod_boots": {"layer": "feet", "feet": "eod_boots"},
+    "player_feet_crampons": {"layer": "feet", "feet": "crampons"},
+    "player_feet_soft_soles": {"layer": "feet", "feet": "soft_soles"},
+}
+
+
+def gen_outfit(name):
+    cfg = OUTFIT_SETS[name]
+    OUTFIT.update({"body": "parka", "head": "", "feet": "", "layer": ""})
+    OUTFIT.update(cfg)
+    _model, anims = CHARACTERS["player"]
+    w, h = CANVAS["player"]
+    folder = os.path.join(OUT, name)
+    if os.path.isdir(folder):
+        for fn in os.listdir(folder):
+            if fn.endswith(".png") or fn.endswith(".png.import"):
+                os.remove(os.path.join(folder, fn))
+    count = 0
+    layer = OUTFIT["layer"] != ""
+    for anim, n in anims.items():
+        for d, yaw in DIRS.items():
+            for f in range(n):
+                prims = finish(player_model(anim, f, n), yaw)
+                write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h, render(prims, w, h, layer_only=layer))
+                count += 1
+    OUTFIT.update({"body": "parka", "head": "", "feet": "", "layer": ""})
+    print("%s: %d 張" % (name, count))
 
 
 def gen_character(name):
@@ -1152,6 +1306,9 @@ def gen_items():
     save("ethanol", [Box((0, 0, -0.5), (2.2, 1.6, 3.5), "white"), Box((0, -1.65, -0.5), (1.6, 0.1, 1.6), "orange"),
                      Cap((0, 0, 3.0), (0, 0, 4.4), 0.7, "black")], 10, 14, yaw=0.3)
     save("stone", [Ell((0, 0, 0), (3.2, 2.6, 2.0), "rock")], 10, 8, yaw=0.4)
+    # 手電筒（快捷選單的「光源」）
+    save("flashlight", [Cap((-3.5, 0, 0), (2.5, 0, 0), 1.3, "black"), Cap((2.5, 0, 0), (4.5, 0, 0), 2.1, "gunmetal"),
+                        Ell((4.9, 0, 0), (0.4, 1.7, 1.7), "goggle"), Box((-0.5, -1.3, 0.3), (0.8, 0.2, 0.4), "orange")], 14, 8)
     # 獵槍（栓動、瞄準鏡）、釘槍（工地用，很安靜）、信號槍、消防斧，和它們的彈藥
     save("rifle", [Box((4.0, 0, 0.9), (10.0, 0.55, 0.55), "gunmetal", X), Box((-1.0, 0, 0.0), (6.0, 0.7, 0.8), "wood", X),
                    Box((-8.5, 0, -0.6), (3.0, 0.7, 1.3), "wood", basis_along((1, 0, 0.2))),
@@ -1524,6 +1681,14 @@ def gen_objects():
     save("lift", [Box((0, 2, 0.6), (7.5, 7, 0.6), "gunmetal")] + [Box((x, 2, 0.7), (0.4, 7, 0.4), "brass") for x in (-6, -2, 2, 6)]
          + [Cap((-7, 8, 1), (-7, 8, 14), 0.5, "yellow"), Cap((7, 8, 1), (7, 8, 14), 0.5, "yellow")], 16, 22)
     save("access_card", [Box((0, 0, 0.3), (3.8, 2.5, 0.2), "white"), Box((0, -1.4, 0.5), (3.8, 0.8, 0.1), "goggle")], 10, 8)
+    save("gear_case", [Box((0, 2, 3), (6, 4, 3), "olive"), Box((0, -2.1, 3.5), (4.5, 0.2, 1.2), "white"),
+                       Box((0, 2, 6.4), (3, 1, 0.5), "black")], 16, 14)
+    save("area_map", [Box((0, 0, 0.3), (5.5, 4, 0.2), "cloth"), Box((-2, -1, 0.5), (1.5, 1.5, 0.1), "goggle"),
+                      Box((2, 1, 0.5), (2, 1, 0.1), "glass"), Box((1, -2, 0.5), (0.4, 0.4, 0.15), "red")], 14, 12)
+    save("safe", [Box((0, 3, 5.5), (6, 4.5, 5.5), "gunmetal"), Cap((1.5, -1.6, 6), (1.5, -1.9, 6), 1.8, "steel"),
+                  Box((-4, -1.6, 6), (0.6, 0.3, 2.5), "steel")], 16, 18)
+    save("safe_open", [Box((0, 3, 5.5), (6, 4.5, 5.5), "gunmetal"), Box((0, -1.4, 5.5), (5, 0.1, 4.5), "black"),
+                       Box((-6.5, -4.0, 5.5), (0.6, 3.5, 5.2), "gunmetal", basis_along((0.5, -1, 0)))], 18, 18)
     # 雪地車（寬）
     save("snowcat", [Box((0, 4, 3), (11, 5, 2.2), "black"), Box((0, 4, 7), (10, 4.5, 2.5), "orange"),
                      Box((3, 4, 11), (5, 4, 2.2), "orange"), Box((5.5, -0.5, 11), (2.0, 0.2, 1.6), "glass"),
@@ -1599,14 +1764,123 @@ def gen_well():
     print("well: %d 張" % count)
 
 
+# ── 室內的豐富度：主題家具、地板痕跡、牆上的細節 ─────────────────
+
+def gen_decor():
+    folder = os.path.join(OUT, "decor")
+    os.makedirs(folder, exist_ok=True)
+
+    def save(name, prims, w=16, h=26, anchor=None):
+        write_png(os.path.join(folder, name + ".png"), w, h, render(prims, w, h, anchor=anchor or (w / 2.0, h - 2.0)))
+
+    # 單格家具（底部對齊格子底部，往上突出）
+    save("server_rack", [Box((0, 4.5, 10), (6.5, 4.5, 10), "black")]
+         + [Box((0, -0.1, 4 + i * 3.2), (5.5, 0.2, 1.1), "vent") for i in range(5)]
+         + [Box((4, -0.3, 4 + i * 3.2), (0.5, 0.2, 0.4), "goggle" if i % 2 else "red") for i in range(5)])
+    save("specimen_tank", [Cap((0, 4, 2), (0, 4, 18), 5.2, "glass"), Box((0, 4, 1), (6.5, 5.5, 1.2), "gunmetal"),
+                           Box((0, 4, 20), (6, 5, 1.2), "gunmetal"), Ell((0, 3, 10), (2.0, 1.6, 4.5), "pale"),
+                           Ell((0, 3, 15.5), (1.6, 1.4, 1.6), "pale")])
+    save("fume_hood", [Box((0, 4.5, 4), (6.8, 4.5, 4), "cabinet"), Box((0, 4.5, 14), (6.8, 4.5, 6), "benchtop"),
+                       Box((0, 0.1, 13), (5.5, 0.2, 4), "glass"), Box((0, 4.5, 20.5), (6.8, 4.5, 0.6), "steel")])
+    save("desk_computer", [Box((0, 4, 7.5), (7, 4.5, 0.6), "wood"), Box((-5.5, 4, 3.5), (0.8, 4, 3.5), "wood"),
+                           Box((5.5, 4, 3.5), (0.8, 4, 3.5), "wood"), Box((0, 5.5, 11), (3.5, 0.6, 2.8), "black"),
+                           Box((0, 4.9, 11), (3.0, 0.1, 2.3), "goggle"), Box((0, 2, 8.3), (3, 1.2, 0.2), "steel")], 16, 20)
+    save("bookshelf", [Box((0, 4.5, 11), (7, 4.5, 11), "wood")]
+         + [Box((0, -0.15, 2.6 + i * 5), (6.6, 0.2, 0.35), "black") for i in range(4)]
+         + [Box((x, -0.3, 4.4 + i * 5), (0.75, 0.3, 1.6), ("red", "olive", "white", "goggle", "orange")[(i + j) % 5])
+            for i in range(4) for j, x in enumerate((-5, -3, -1, 1, 3, 5))])
+    save("wardrobe", [Box((0, 4.5, 11), (7, 4.5, 11), "wood"), Box((0, -0.1, 11), (0.2, 0.2, 10), "black"),
+                      Box((-1.2, -0.3, 11), (0.4, 0.3, 1.2), "brass"), Box((1.2, -0.3, 11), (0.4, 0.3, 1.2), "brass")])
+    save("machinery", [Box((0, 4, 6), (7, 5, 6), "olive"), Cap((-4, 4, 12), (-4, 4, 18), 1.4, "gunmetal"),
+                       Cap((3, 2, 12), (3, 8, 12), 1.2, "steel"), Box((2, -1.1, 6), (2.5, 0.2, 2), "vent"),
+                       Box((-3, -1.2, 8), (0.8, 0.2, 0.8), "red")])
+    save("pallet", [Box((0, 4, 0.8), (7, 5, 0.8), "wood"), Box((-2.5, 3, 4.5), (3.2, 3, 3), "cloth"),
+                    Box((3.5, 5, 4.0), (2.6, 2.6, 2.6), "cloth"), Box((0, 4, 9.5), (2.6, 2.6, 2.2), "olive")])
+    save("ammo_crates", [Box((0, 4, 3), (6.5, 4, 3), "olive"), Box((0, 4, 8.6), (6.5, 4, 2.4), "olive"),
+                         Box((0, -0.1, 3), (3.5, 0.2, 1.0), "white"), Box((0, -0.1, 8.6), (3.5, 0.2, 0.9), "white")], 16, 20)
+    save("weapon_rack", [Box((0, 5, 10), (7, 1, 10), "wood")]
+         + [Box((x, 3.5, 10), (0.6, 0.6, 7.5), "gunmetal") for x in (-4.5, -1.5, 1.5, 4.5)])
+    save("sandbags", [Ell((x, 3, 2.2 + z * 3.6), (3.4, 3.4, 2.0), "cloth") for z in range(3)
+                      for x in ((-3.5, 3.5) if z != 1 else (-5.5, 0, 5.5))], 18, 18)
+    save("ice_pillar", [Cap((0, 4, 0), (0, 4, 20), 4.5, "crystal", 2.5), Cap((-3, 3, 0), (-4, 2, 10), 2.4, "frost", 1.0),
+                        Cap((3, 5, 0), (4, 6, 13), 2.2, "crystal", 0.8)], 16, 26)
+    # 寬的家具（左、中、右三段）
+    def wide(name, prims, h=22):
+        img = render(prims, 48, h, anchor=(24, h - 2))
+        for i, part in enumerate(("_l", "_m", "_r")):
+            sub_img = [img[y * 48 + x] for y in range(h) for x in range(i * 16, i * 16 + 16)]
+            write_png(os.path.join(folder, name + part + ".png"), 16, h, sub_img)
+    wide("desk_row", [Box((0, 5, 8), (23.5, 5.5, 0.6), "wood"), Box((0, 8.5, 4), (22.5, 0.6, 4), "wood")]
+         + [Box((x, 7, 11.5), (3.2, 0.6, 2.6), "black") for x in (-16, 0, 16)]
+         + [Box((x, 6.4, 11.5), (2.7, 0.1, 2.1), "goggle") for x in (-16, 0, 16)]
+         + [Box((x, 2.5, 8.8), (2.5, 1.0, 0.2), "steel") for x in (-16, 0, 16)])
+    wide("bunk", [Box((0, 5, 4), (23.5, 5.5, 1.0), "gunmetal"), Box((0, 5, 5.4), (23, 5, 0.6), "white"),
+                  Box((0, 5, 12), (23.5, 5.5, 0.8), "gunmetal"), Box((0, 5, 13.2), (23, 5, 0.6), "white"),
+                  Box((-22, 5, 7), (0.8, 5.5, 7), "gunmetal"), Box((22, 5, 7), (0.8, 5.5, 7), "gunmetal"),
+                  Ell((-17, 5, 6.4), (3, 4, 0.8), "white"), Ell((-17, 5, 14.2), (3, 4, 0.8), "white"),
+                  Box((4, 5, 6.2), (12, 5, 0.5), "olive")], 24)
+    wide("crate_row", [Box((x, 4, 5), (7.4, 5, 5), "wood") for x in (-16, 0, 16)]
+         + [Box((x, -1.1, 5), (5.5, 0.2, 0.5), "cloth") for x in (-16, 0, 16)]
+         + [Box((-8, 4, 12), (6, 4, 2.5), "olive")])
+    # 地板痕跡（16x16，半透明，畫在地板上）
+    rnd = random.Random(5)
+    _ = (0, 0, 0, 0)
+
+    def decal(name, fn):
+        px = [_] * 256
+        for y in range(16):
+            for x in range(16):
+                c = fn(x, y)
+                if c:
+                    px[y * 16 + x] = c
+        write_png(os.path.join(folder, name + ".png"), 16, 16, px)
+    for v in range(3):
+        spots = [(rnd.uniform(3, 13), rnd.uniform(3, 13), rnd.uniform(1.2, 3.5)) for _i in range(4 + v)]
+        decal("blood_%d" % v, lambda x, y, sp=spots: (90, 14, 18, 170) if any((x - a) ** 2 + (y - b) ** 2 < r * r for a, b, r in sp)
+              else ((70, 10, 14, 90) if any((x - a) ** 2 + (y - b) ** 2 < (r + 1) ** 2 for a, b, r in sp) else None))
+    decal("papers", lambda x, y: (200, 200, 190, 220) if (2 <= x <= 7 and 3 <= y <= 9) or (8 <= x <= 13 and 8 <= y <= 13)
+          else ((120, 120, 130, 220) if (x in (3, 9) and y in (5, 7, 10, 11)) else None))
+    decal("cables", lambda x, y: (25, 25, 30, 230) if abs(y - (8 + 3 * math.sin(x * 0.6))) < 0.8 or abs(x - (6 + 2 * math.sin(y * 0.5))) < 0.7 else None)
+    decal("grate", lambda x, y: ((30, 34, 38, 230) if (x % 3 == 0 or y % 3 == 0) else (60, 66, 72, 200)) if 1 <= x <= 14 and 1 <= y <= 14 else None)
+    decal("frost", lambda x, y: (200, 230, 245, 70 + rnd.randrange(60)) if rnd.random() < 0.35 * (1 - ((x - 8) ** 2 + (y - 8) ** 2) / 70) else None)
+    decal("oil", lambda x, y: (10, 10, 14, 150) if ((x - 8) / 6.5) ** 2 + ((y - 9) / 4.0) ** 2 < 1 else None)
+    decal("debris", lambda x, y: (90, 92, 98, 230) if rnd.random() < 0.08 else None)
+    decal("stripes", lambda x, y: ((210, 170, 30, 200) if ((x + y) // 3) % 2 == 0 else (20, 20, 20, 200)) if y >= 12 else None)
+    decal("drag", lambda x, y: (80, 12, 16, 120) if abs(x - 8 - (y - 8) * 0.2) < 1.6 and rnd.random() < 0.8 else None)
+    # 牆上的細節（畫在牆面上）
+    def wall(name, w, h, fn):
+        px = [_] * (w * h)
+        for y in range(h):
+            for x in range(w):
+                c = fn(x, y)
+                if c:
+                    px[y * w + x] = c
+        write_png(os.path.join(folder, name + ".png"), w, h, px)
+    wall("poster", 8, 10, lambda x, y: (20, 20, 24, 255) if x in (0, 7) or y in (0, 9) else
+         ((200, 60, 40, 255) if y < 4 else ((230, 225, 210, 255) if (x + y) % 3 else (60, 60, 70, 255))))
+    wall("monitor", 10, 8, lambda x, y: (15, 15, 18, 255) if x in (0, 9) or y in (0, 7) else
+         ((60, 180, 140, 255) if (y % 2 == 1 and x < 3 + (y * 3) % 6) else (16, 50, 40, 255)))
+    wall("vent", 10, 6, lambda x, y: (20, 22, 26, 255) if x in (0, 9) or y in (0, 5) or y % 2 == 0 else (70, 74, 80, 255))
+    wall("pipe", 16, 4, lambda x, y: [(40, 44, 50, 255), (110, 116, 124, 255), (80, 86, 94, 255), (30, 34, 40, 255)][y]
+         if x % 8 else (20, 22, 26, 255))
+    wall("alarm", 5, 5, lambda x, y: (220, 40, 30, 255) if 0 < x < 4 and 0 < y < 4 else (40, 10, 10, 255))
+    wall("sign_bio", 9, 8, lambda x, y: (230, 190, 30, 255) if 0 < x < 8 and 0 < y < 7 else (30, 25, 10, 255))
+    wall("board", 12, 8, lambda x, y: (60, 40, 25, 255) if x in (0, 11) or y in (0, 7) else
+         ((220, 220, 200, 255) if (x // 3 + y // 3) % 2 == 0 else (150, 110, 70, 255)))
+    wall("lamp", 6, 4, lambda x, y: (255, 230, 160, 255) if y >= 2 else (40, 40, 44, 255))
+    print("decor: ok")
+
+
 def main():
     want = sys.argv[1:]
-    jobs = list(CHARACTERS) + ["props", "items", "fx", "tiles", "portraits", "objects", "well"]
+    jobs = list(CHARACTERS) + list(OUTFIT_SETS) + ["props", "items", "fx", "tiles", "portraits", "objects", "well", "decor"]
     for j in jobs:
         if want and j not in want:
             continue
         if j in CHARACTERS:
             gen_character(j)
+        elif j in OUTFIT_SETS:
+            gen_outfit(j)
         elif j == "props":
             gen_props()
         elif j == "items":
@@ -1621,6 +1895,8 @@ def main():
             gen_objects()
         elif j == "well":
             gen_well()
+        elif j == "decor":
+            gen_decor()
 
 
 if __name__ == "__main__":

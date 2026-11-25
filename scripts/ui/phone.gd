@@ -8,11 +8,11 @@ extends Control
 signal app_pressed(app: String)
 signal close_pressed
 
-const APPS := ["status", "items", "missions", "messages", "codex", "map", "controls"]
+const APPS := ["status", "items", "missions", "messages", "codex", "map", "gear"]
 const APP_LABELS := {"status": "STAT", "items": "ITEM", "missions": "OPS", "messages": "MSG", "codex": "FILE",
-	"map": "MAP", "controls": "KEYS"}
+	"map": "MAP", "gear": "GEAR"}
 const APP_TITLES := {"status": "Status", "items": "Items", "missions": "Operations", "messages": "Messages",
-	"codex": "Field Files", "map": "Map", "controls": "Controls"}
+	"codex": "Field Files", "map": "Map", "gear": "Gear"}
 
 ## 手機外框與螢幕（480x270 的畫面座標）
 const FRAME := Rect2(136, 4, 208, 262)
@@ -30,6 +30,11 @@ var item_icon: Texture2D
 var codex_icon: Texture2D
 var codex_header: Array[String] = []
 var codex_locked := false
+## 裝備 App：紙娃娃（本體＋圖層，畫成兩倍大）、左上的欄位說明
+var gear_doll: Array[Texture2D] = []
+var gear_header: Array[String] = []
+## 地圖 App（惡靈古堡式）：map = {rows, explored, known, player, objective, objective_doors, stars, title, info}
+var map := {}
 
 var _buttons := {}
 var _title: Label
@@ -85,11 +90,11 @@ func set_app(id: String) -> void:
 	for b_id in _buttons:
 		var b: Button = _buttons[b_id]
 		b.add_theme_color_override("font_color", Color(1, 0.85, 0.4) if b_id == id else Color(0.55, 0.62, 0.66))
-	_text.visible = id in ["status", "messages", "controls", "codex"]
+	_text.visible = id in ["status", "messages", "codex", "gear"]
 	if id == "status":
 		_text.position = CONTENT.position + Vector2(0, 40)
 		_text.size = CONTENT.size - Vector2(0, 40)
-	elif id == "codex":
+	elif id == "codex" or id == "gear":
 		_text.position = CONTENT.position + Vector2(0, 70)
 		_text.size = CONTENT.size - Vector2(0, 70)
 	else:
@@ -143,6 +148,8 @@ func _draw() -> void:
 				draw_texture_rect(item_icon, Rect2(at, sz), false)
 		"codex":
 			_draw_codex()
+		"gear":
+			_draw_gear()
 		"status":
 			if portrait:
 				draw_texture_rect(portrait, Rect2(CONTENT.position, Vector2(36, 36)), false)
@@ -167,21 +174,43 @@ func _draw_codex() -> void:
 		draw_string(font, box.get_center() + Vector2(-4, 5), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(0.5, 0.6, 0.6))
 
 
-## 目前區域的地圖：牆、地板、門、安全屋（綠）、主角（閃爍的點）
+## 裝備：左上是三個欄位穿的東西＋套裝，右上是紙娃娃（兩倍大）
+func _draw_gear() -> void:
+	var font := get_theme_default_font()
+	var y := CONTENT.position.y + 12
+	for i in gear_header.size():
+		draw_string(font, Vector2(CONTENT.position.x, y), gear_header[i], HORIZONTAL_ALIGNMENT_LEFT, 112, 12,
+			Color(1, 0.85, 0.4) if i == gear_header.size() - 1 else Color(0.7, 0.85, 0.8))
+		y += 15
+	var box := Rect2(CONTENT.end.x - 68, CONTENT.position.y, 68, 66)
+	draw_rect(box, Color(0.06, 0.12, 0.13))
+	for tex in gear_doll:
+		if tex:
+			var sz := tex.get_size() * 2.0
+			draw_texture_rect(tex, Rect2((box.get_center() - sz * 0.5 + Vector2(0, -2)).floor(), sz), false)
+
+
+## 地圖（惡靈古堡式）：去過的地方亮、只有地圖還沒去過的地方暗藍、完全不知道的地方不畫。
+## 主線方向：金色閃爍（目標在這張地圖 = 目標位置；不在 = 往那邊的門）。藍色星號 = 解鎖情報的隱藏要素。
 func _draw_map() -> void:
-	if level == null:
+	if map.is_empty():
 		return
+	var rows: Array = map.rows
 	var w := 0
-	for row in level._map:
+	for row in rows:
 		w = maxi(w, String(row).length())
-	var h: int = level._map.size()
-	var s := floorf(minf(CONTENT.size.x / w, (CONTENT.size.y - 16) / h))
+	var h: int = rows.size()
+	var s := floorf(minf(CONTENT.size.x / w, (CONTENT.size.y - 30) / h))
 	s = maxf(s, 1.0)
-	var origin := CONTENT.position + Vector2((CONTENT.size.x - w * s) * 0.5, 0)
+	var origin := CONTENT.position + Vector2(floorf((CONTENT.size.x - w * s) * 0.5), 0)
+	var explored: PackedByteArray = map.explored
+	var known: bool = map.known
 	for y in h:
-		var row: String = level._map[y]
+		var row: String = rows[y]
 		for x in row.length():
-			var c := Vector2i(x, y)
+			var seen := explored.size() > y * w + x and explored[y * w + x] > 0
+			if not seen and not known:
+				continue
 			var ch := row[x]
 			var col: Color
 			if ch == "#":
@@ -194,17 +223,39 @@ func _draw_map() -> void:
 				col = Color(0.8, 0.6, 0.3)
 			elif ch == "=":
 				col = Color(0.5, 0.75, 0.9)
-			elif level.is_safe_cell(c):
+			elif map.safe_cells.has(Vector2i(x, y)):
 				col = Color(0.2, 0.42, 0.3)
 			else:
-				col = Color(0.1, 0.15, 0.17)
+				col = Color(0.12, 0.18, 0.2)
+			if not seen:
+				col = col.darkened(0.45).lerp(Color(0.1, 0.16, 0.3), 0.45)  # 還沒去過：暗藍
 			draw_rect(Rect2(origin + Vector2(x, y) * s, Vector2(s, s)), col)
 	var blink := int(Time.get_ticks_msec() / 300) % 2 == 0
-	var p := origin + player_pos / Level.TILE * s
-	draw_rect(Rect2(p - Vector2(2, 2), Vector2(4, 4)), Color(1, 0.3, 0.25) if blink else Color(1, 0.9, 0.5))
-	draw_string(get_theme_default_font(), Vector2(CONTENT.position.x, CONTENT.end.y - 2),
-		tr(level.region_title(level.region_at(player_pos))), HORIZONTAL_ALIGNMENT_LEFT, CONTENT.size.x, 12,
-		Color(0.7, 0.85, 0.8))
+	# 藍色星號：解鎖的隱藏要素
+	for c: Vector2i in map.stars:
+		var p := origin + (Vector2(c) + Vector2(0.5, 0.5)) * s
+		var col := Color(0.4, 0.7, 1.0)
+		draw_line(p + Vector2(-3, 0), p + Vector2(3, 0), col, 1.0)
+		draw_line(p + Vector2(0, -3), p + Vector2(0, 3), col, 1.0)
+		draw_line(p + Vector2(-2, -2), p + Vector2(2, 2), col, 1.0)
+		draw_line(p + Vector2(-2, 2), p + Vector2(2, -2), col, 1.0)
+	# 主線方向
+	var gold := Color(1, 0.85, 0.3) if blink else Color(1, 0.6, 0.2)
+	for c: Vector2i in map.objective_doors:
+		var p := origin + (Vector2(c) + Vector2(0.5, 0.5)) * s
+		draw_arc(p, 4.0, 0.0, TAU, 12, gold, 1.0)
+	if map.objective != null:
+		var p := origin + (Vector2(map.objective) + Vector2(0.5, 0.5)) * s
+		draw_rect(Rect2(p - Vector2(3, 3), Vector2(6, 6)), gold, false, 1.0)
+		draw_rect(Rect2(p - Vector2(1, 1), Vector2(2, 2)), gold)
+	if map.player != null:
+		var pp := origin + Vector2(map.player) / Level.TILE * s
+		draw_rect(Rect2(pp - Vector2(2, 2), Vector2(4, 4)), Color(1, 0.3, 0.25) if blink else Color(1, 0.9, 0.5))
+	var font := get_theme_default_font()
+	draw_string(font, Vector2(CONTENT.position.x, CONTENT.end.y - 15), map.title, HORIZONTAL_ALIGNMENT_LEFT,
+		CONTENT.size.x, 12, Color(0.7, 0.85, 0.8))
+	draw_string(font, Vector2(CONTENT.position.x, CONTENT.end.y - 2), map.info, HORIZONTAL_ALIGNMENT_LEFT,
+		CONTENT.size.x, 12, Color(0.55, 0.65, 0.68))
 
 
 func _process(_delta: float) -> void:

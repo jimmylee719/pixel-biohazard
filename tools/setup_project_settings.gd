@@ -15,11 +15,16 @@ func _init() -> void:
 		"sneak": [_key(KEY_C), _joy(JOY_BUTTON_LEFT_STICK)],
 		"aim": [_mouse(MOUSE_BUTTON_RIGHT), _key(KEY_K), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)],
 		"fire": [_mouse(MOUSE_BUTTON_LEFT), _key(KEY_J), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)],
+		# 少按鍵設計（MGS1 式）：道具鍵、武器鍵「按一下 = 用／換、按住＋方向 = 選」
+		# 瞄準中的武器鍵 = 換鎖定目標；手電筒、投擲都併進道具鍵（不另外佔按鍵）
 		"switch_target": [_key(KEY_Q), _joy(JOY_BUTTON_LEFT_SHOULDER)],
+		"weapon": [_key(KEY_Q), _joy(JOY_BUTTON_LEFT_SHOULDER)],
+		"item": [_key(KEY_F), _joy(JOY_BUTTON_Y)],
+		"dodge": [_key(KEY_SPACE), _joy(JOY_BUTTON_B)],
 		"reload": [_key(KEY_R), _joy(JOY_BUTTON_X)],
 		"interact": [_key(KEY_E), _joy(JOY_BUTTON_A)],
-		"flashlight": [_key(KEY_F), _joy(JOY_BUTTON_Y)],
-		"throw": [_key(KEY_G), _joy(JOY_BUTTON_B)],
+		"flashlight": [],
+		"throw": [],
 		"inventory": [_key(KEY_TAB), _joy(JOY_BUTTON_BACK)],
 		"map": [_key(KEY_M), _joy(JOY_BUTTON_DPAD_UP)],
 		"pause": [_key(KEY_ESCAPE), _joy(JOY_BUTTON_START)],

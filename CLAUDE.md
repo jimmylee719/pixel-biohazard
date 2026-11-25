@@ -104,3 +104,12 @@
 - 動作流暢化：產生器用關鍵影格內插 `kf()`（緩入緩出）、循環動作 `bf()`；走路 8 格、近戰 6 格、撲擊 5 格、`shoot_<武器>` 後座力、`hurt` 受傷。
   開槍／近戰特效在 `debug_overlay.gd` 的 `_draw_shot`、`_draw_melee`（fx/ 圖：muzzle_big、smoke、hit、impact、slash_0~4）。
   互動物件用 `Interactable.draw_art("名稱")` 畫 props/ 圖；最終 Boss 深井用自己的 AnimatedSprite（well/：idle、charge 依蓄力進度選格、exposed、dead）；過場對白頭像 `main._speaker_portrait()`（portraits/）。
+- 操作（少按鍵，MGS1 式）：道具鍵 F／Y、武器鍵 Q／LB「按一下 = 用道具／換武器，按住＋方向 = 選」（`QuickMenu`、main 的 `_process_quick_menu`）；
+  光源、投擲都併進道具鍵。閃躲 Space／B（`Player.dodge()`，瞄準中後退 = 後跳，跳的時候無敵）。瞄準會自動鎖定背後的敵人（`find_targets`）。
+  操作說明在暫停選單。改按鍵：`tools/setup_project_settings.gd` 再執行一次。
+- 裝備（紙娃娃）：`scripts/world/gear.gd`（頭／身／腳、套裝、能力倍率 `Gear.stat()`）；外型 = 本體圖組＋圖層（`Gear.sprite_sets()`，
+  `CharacterSprite.set_outfit()`；產生器 `OUTFIT_SETS`、`render(layer_only=True)`）。地圖符號 t＋區域資料 gear。手機「裝備」App。
+  特殊區域：區域資料 `hazards`（孢子：沒穿防護裝備一直感染）、`climate: "blizzard"`（沒穿保暖裝備失溫很快）。
+- 地圖（惡靈古堡式）：`WorldState.data.explored`（去過的格子）、旗標 `map:<主地圖>`（撿到地圖 l）、主線方向 `main.objective_target()`／
+  `objective_doors()`、藍色星號 = 區域資料 hidden 的旗標已解鎖但還沒拿（保險箱 s，區域資料 safes）。
+- 室內主題：區域資料 `theme`（lab、office、dorm、industrial、military、hut、cave）→ `Level.THEME_*` 家具、地板痕跡、`WallFaces.WALL_DECOR`。

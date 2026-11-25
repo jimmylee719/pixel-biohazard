@@ -33,7 +33,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZUJIowpqru+jknmvyz"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZUJIowpqru+jknmvyztls"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -81,6 +81,11 @@ func _ready() -> void:
 	_spawn_interactables()
 	_build_inner_doors()
 	_build_rooms()
+	if not _data.get("hazards", []).is_empty():
+		var haze := SporeHaze.new()
+		haze.name = "SporeHaze"
+		add_child(haze)
+		haze.setup(self)
 	if room_count > 1:
 		var fog_layer := CanvasLayer.new()
 		fog_layer.name = "RoomFog"
@@ -126,6 +131,7 @@ func _draw() -> void:
 			if cold:
 				color = color * COLD_TINT
 		draw_rect(rect, color)
+	_draw_floor_decals()
 	_draw_floor_shadows()
 	for door_id in _data.doors:
 		var cell: Vector2i = _data.doors[door_id].cell
@@ -276,6 +282,15 @@ func exposure_at(pos: Vector2) -> float:
 
 
 ## 腳步聲的地面：區域資料可以用 step 指定（例如鐵板 "metal"），不然戶外是雪、室內是水泥
+## 這個位置的危險區域（區域資料 hazards）："spores"，沒有就是空字串
+func hazard_at(pos: Vector2) -> String:
+	var c := cell_of(pos)
+	for h in _data.get("hazards", []):
+		if (h.rect as Rect2i).has_point(c):
+			return h.kind
+	return ""
+
+
 func step_surface(pos: Vector2) -> String:
 	if _data.has("step"):
 		return _data.step
@@ -579,7 +594,7 @@ func _build_solids() -> void:
 			wall.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 			wall.color = Color(0.45, 0.47, 0.54)  # 牆頂比地板亮一點，地形一眼看得出來
 	for rect in _merge_rects("C"):
-		if outdoor and not _is_indoor_cell(rect.position):
+		if outdoor and not _is_indoor_cell(rect.position) and theme() != "military":
 			var base := _add_solid(rect, ROCK_COLOR.darkened(0.3), ROCK_COLOR.darkened(0.5))
 			_add_rocks(rect, base)
 		else:
@@ -604,19 +619,56 @@ func _build_solids() -> void:
 		_add_prop_sprites(rect, Art.tex("props/locker"))
 
 
-## 室內的 C：寬的是實驗桌（左、中、右三段拼起來），窄的是檔案櫃（像素圖，tools/gen_pixel_art.py）
+## 室內的主題（區域資料 theme）：決定家具、地板痕跡、牆上的細節
+const THEME_SINGLE := {
+	"lab": ["props/cabinet", "decor/server_rack", "decor/specimen_tank", "decor/fume_hood"],
+	"office": ["decor/desk_computer", "decor/bookshelf", "props/cabinet"],
+	"dorm": ["decor/wardrobe", "decor/bookshelf", "decor/desk_computer"],
+	"industrial": ["decor/machinery", "decor/pallet", "props/cabinet"],
+	"military": ["decor/ammo_crates", "decor/weapon_rack", "decor/pallet", "decor/sandbags"],
+	"hut": ["decor/wardrobe", "decor/pallet", "decor/bookshelf"],
+	"cave": ["decor/ice_pillar"],
+}
+const THEME_WIDE := {"lab": "props/bench", "office": "decor/desk_row", "dorm": "decor/bunk", "industrial": "decor/crate_row",
+	"military": "decor/crate_row", "hut": "decor/crate_row"}
+const THEME_DECALS := {
+	"lab": ["papers", "cables", "blood_0", "blood_1", "grate", "drag"],
+	"office": ["papers", "papers", "blood_2", "debris"],
+	"dorm": ["papers", "blood_0", "debris", "drag"],
+	"industrial": ["oil", "grate", "stripes", "debris", "cables"],
+	"military": ["stripes", "oil", "debris", "grate"],
+	"hut": ["debris", "papers"],
+	"cave": ["frost", "frost", "blood_1"],
+}
+
+
+func theme() -> String:
+	return _data.get("theme", "outdoor" if outdoor else "lab")
+
+
+## 室內的 C：依主題放家具。寬的（兩格以上）是一整排（實驗桌、辦公桌、上下鋪、木箱），窄的每格挑一種（固定亂數）
 func _add_furniture(cell_rect: Rect2i) -> void:
-	if cell_rect.size.x < 2:
-		_add_prop_sprites(cell_rect, Art.tex("props/cabinet"))
+	var t := theme()
+	if t == "cave":
+		for y in range(cell_rect.position.y, cell_rect.end.y):
+			for x in range(cell_rect.position.x, cell_rect.end.x):
+				_add_prop_sprites(Rect2i(x, y, 1, 1), Art.tex("decor/ice_pillar"))
 		return
+	if cell_rect.size.x < 2:
+		var pool: Array = THEME_SINGLE.get(t, THEME_SINGLE.lab)
+		for y in range(cell_rect.position.y, cell_rect.end.y):
+			var pick: String = pool[absi(hash(Vector2i(cell_rect.position.x, y) + Vector2i(area_id.length(), 0))) % pool.size()]
+			_add_prop_sprites(Rect2i(cell_rect.position.x, y, 1, 1), Art.tex(pick))
+		return
+	var base: String = THEME_WIDE.get(t, "props/bench")
 	for y in range(cell_rect.position.y, cell_rect.end.y):
 		for x in range(cell_rect.position.x, cell_rect.end.x):
-			var part := "bench_m"
+			var part := "_m"
 			if x == cell_rect.position.x:
-				part = "bench_l"
+				part = "_l"
 			elif x == cell_rect.end.x - 1:
-				part = "bench_r"
-			var tex := Art.tex("props/" + part)
+				part = "_r"
+			var tex := Art.tex(base + part)
 			if tex == null:
 				return
 			var s := Sprite2D.new()
@@ -624,6 +676,22 @@ func _add_furniture(cell_rect: Rect2i) -> void:
 			s.centered = false
 			s.position = Vector2(x * TILE, (y + 1) * TILE - tex.get_height())
 			_structure_layer.add_child(s)
+
+
+## 地板的痕跡（紙張、血跡、電線、鐵格板、油漬……依主題），畫在地板上、受光影響
+func _draw_floor_decals() -> void:
+	var pool: Array = THEME_DECALS.get(theme(), [])
+	if pool.is_empty():
+		return
+	for cell in _floor_cells:
+		if char_at(cell) != "." or (outdoor and not _is_indoor_cell(cell)) or is_safe_cell(cell):
+			continue
+		var h := absi(hash(cell * 7 + Vector2i(area_id.length() * 13, 3)))
+		if h % 100 >= 10:
+			continue
+		var tex := Art.tex("decor/" + pool[(h / 100) % pool.size()])
+		if tex:
+			draw_texture(tex, Vector2(cell) * TILE)
 
 
 ## 戶外的 C：每格一顆積雪的岩石（三種隨機，固定亂數），底下的色塊當成岩縫
@@ -799,11 +867,25 @@ func _spawn_interactables() -> void:
 					item = StorageBox.new()
 				"N":
 					item = ReadableNote.new()
-				"A", "M", "V", "W", "S", "L", "I", "u":
-					var pickup := ItemPickup.new()
-					pickup.pickup_item = Items.MAP_PICKUPS[row[x]][0]
-					pickup.pickup_count = Items.MAP_PICKUPS[row[x]][1]
-					item = pickup
+				"t":
+					var gear := GearPickup.new()
+					gear.gear_id = _data.get("gear", {}).get("%d,%d" % [x, y], "")
+					item = gear
+				"l":
+					item = AreaMapPickup.new()
+				"s":
+					var safe_box := SafeBox.new()
+					var info: Dictionary = _data.get("safes", {}).get("%d,%d" % [x, y], {})
+					safe_box.reveal = info.get("reveal", "")
+					safe_box.text = info.get("text", "")
+					item = safe_box
+				_:
+					# 一般物品（彈藥、藥品、武器……見 Items.MAP_PICKUPS）
+					if Items.MAP_PICKUPS.has(row[x]):
+						var pickup := ItemPickup.new()
+						pickup.pickup_item = Items.MAP_PICKUPS[row[x]][0]
+						pickup.pickup_count = Items.MAP_PICKUPS[row[x]][1]
+						item = pickup
 			if item == null:
 				continue
 			var key := "%d,%d" % [x, y]

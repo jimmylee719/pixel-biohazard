@@ -40,8 +40,17 @@ var _message_timer := 0.0
 ## 收過的訊息（新的在前），手機「訊息」App 看得到全文
 ## 圖鑑 App 選到哪一筆
 var codex_cursor := 0
+## 裝備 App 的游標、地圖 App 正在看哪一張地圖（主地圖 id）
+var gear_cursor := 0
+var map_view := ""
+var _explore_timer := 0.0
+var _spore_warned := false
 ## 過場（用遊戲畫面演出）
 var cutscene: CutscenePlayer
+## 快捷選單（道具鍵、武器鍵：按一下用／換，按住＋方向選）
+var quick_menu: QuickMenu
+var _qm_key := ""
+var _qm_pressed_ms := 0
 ## 生存模式（WorldState.mode == "survival" 時才有）
 var survival: SurvivalMode
 var survival_results: SurvivalResults
@@ -182,6 +191,9 @@ func _ready() -> void:
 	add_child(touch_controls)
 	_hint.visible = false  # 操作說明在手機「操作」App
 	_build_phone()
+	quick_menu = QuickMenu.new()
+	quick_menu.name = "QuickMenu"
+	$HUD.add_child(quick_menu)
 	cutscene = CutscenePlayer.new()
 	cutscene.name = "Cutscene"
 	$HUD.add_child(cutscene)
@@ -228,7 +240,10 @@ func _process(delta: float) -> void:
 		if Input.is_action_just_pressed("map") or Input.is_action_just_pressed("pause"):
 			_toggle_mission_panel()
 	elif not busy:
-		if Input.is_action_just_pressed("pause"):
+		_process_quick_menu()
+		if quick_menu.visible:
+			pass
+		elif Input.is_action_just_pressed("pause"):
 			_toggle_pause()
 		elif Input.is_action_just_pressed("map"):
 			_toggle_mission_panel()
@@ -289,6 +304,13 @@ func _process(delta: float) -> void:
 	_update_alert_hud()
 	_process_window_view(delta)
 	_update_region()
+	if not _resetting and not _transitioning:
+		_mark_explored(delta)
+		if _player.in_spores and not _spore_warned and Gear.stat("hazard") > 0.0:
+			_spore_warned = true
+			show_message(tr("Spores hang in the air here. Without a sealed suit, you're breathing them in."), true)
+		elif not _player.in_spores:
+			_spore_warned = false
 	# 第一人稱時不顯示鍵盤說明和互動提示（畫面要乾淨）
 	_hint.visible = false  # 操作說明在手機「操作」App
 	if phone.visible:
@@ -521,6 +543,8 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.powered.connect(_on_power_restored)
 		elif item is TapePickup:
 			item.message_shown.connect(show_message)
+		elif item is GearPickup or item is AreaMapPickup or item is SafeBox:
+			item.message_shown.connect(func(text: String): show_message(text, true))
 		elif item is ReadableNote:
 			item.message_shown.connect(show_message)
 		elif item is RadioConsole:
@@ -566,6 +590,306 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	await _check_cutscene(area_id)
 	if _region != area_id:
 		await _check_cutscene(_region)
+
+
+# ── 地圖（惡靈古堡式）、探索紀錄、主線方向 ───────────────────
+
+## 主角周圍的格子記成「去過」（看不到的房間不算）。地圖 App 用來分「去過／還沒去過」。
+func _mark_explored(delta: float) -> void:
+	_explore_timer -= delta
+	if _explore_timer > 0.0 or level == null:
+		return
+	_explore_timer = 0.25
+	var root := level.area_id
+	var w := int(level.bounds.size.x / Level.TILE)
+	var h := int(level.bounds.size.y / Level.TILE)
+	var arr: PackedByteArray = WorldState.data.explored.get(root, PackedByteArray())
+	if arr.size() != w * h:
+		arr = PackedByteArray()
+		arr.resize(w * h)
+	var c := level.cell_of(_player.global_position)
+	for dy in range(-5, 6):
+		for dx in range(-5, 6):
+			var cc := c + Vector2i(dx, dy)
+			if cc.x < 0 or cc.y < 0 or cc.x >= w or cc.y >= h or dx * dx + dy * dy > 30:
+				continue
+			if level.fog and level.fog.is_hidden_cell(cc):
+				continue
+			arr[cc.y * w + cc.x] = 1
+	WorldState.data.explored[root] = arr
+
+
+## 地圖 App 可以翻的地圖：去過的、或撿到地圖的主區域
+func known_map_areas() -> Array[String]:
+	var out: Array[String] = []
+	for id in Areas.DATA:
+		if Areas.root_of(id) != id:
+			continue
+		if WorldState.has_flag("map:" + id) or WorldState.data.explored.has(id):
+			out.append(id)
+	return out
+
+
+## 主線的下一個目的地：{area: 主地圖 id, cell: 格子或 null}
+const BOSS_TYPES := {"tundra_mother": "bear", "deep_well": "well"}
+
+
+func objective_target() -> Dictionary:
+	var m := Missions.tracked_mission()
+	if m.is_empty():
+		return {}
+	var i := Missions.step_index(m.id)
+	if i >= m.steps.size():
+		return {}
+	var step: Dictionary = m.steps[i]
+	match step.type:
+		"enter_area":
+			var root := Areas.root_of(step.target)
+			if Areas.ROOMS.has(step.target):
+				var rows: Array = Areas.DATA[step.target].map
+				return {"area": root, "cell": Areas.room_offset(step.target) + Vector2i(String(rows[0]).length() / 2, rows.size() / 2)}
+			return {"area": root, "cell": null}
+		"interact", "collect":
+			for id in Areas.DATA:
+				if Areas.root_of(id) != id:
+					continue
+				var names: Dictionary = Areas.get_area(id).names
+				for key in names:
+					if names[key] == step.target:
+						var xy := String(key).split(",")
+						return {"area": id, "cell": Vector2i(int(xy[0]), int(xy[1]))}
+		"defeat":
+			for id in Areas.DATA:
+				for e in Areas.DATA[id].get("enemies", []):
+					if e.type == BOSS_TYPES.get(step.target, ""):
+						return {"area": Areas.root_of(id), "cell": null}
+	return {}
+
+
+## 從 from 往 target 走的第一扇門（地圖上標金色）
+func objective_doors(from: String, target: String) -> Array[Vector2i]:
+	var prev := {from: ""}
+	var queue := [from]
+	while not queue.is_empty():
+		var a: String = queue.pop_front()
+		if a == target:
+			break
+		for door in Areas.get_area(a).doors.values():
+			var to := Areas.root_of(door.to)
+			if not prev.has(to):
+				prev[to] = a
+				queue.append(to)
+	if not prev.has(target):
+		return []
+	var hop := target
+	while prev[hop] != from and prev[hop] != "":
+		hop = prev[hop]
+	var cells: Array[Vector2i] = []
+	for door in Areas.get_area(from).doors.values():
+		if Areas.root_of(door.to) == hop:
+			cells.append(door.cell)
+	return cells
+
+
+func _refresh_map() -> void:
+	var areas := known_map_areas()
+	if map_view == "" or not areas.has(map_view):
+		map_view = level.area_id
+	var d := Areas.get_area(map_view)
+	var here := map_view == level.area_id
+	var stars: Array[Vector2i] = []
+	for key in d.get("hidden", {}):
+		var flag: String = d.hidden[key]
+		var item_id: String = d.get("item_keys", {}).get(key, "%s:%s" % [map_view, key])
+		if WorldState.has_flag(flag) and not WorldState.is_taken(item_id):
+			var xy := String(key).split(",")
+			stars.append(Vector2i(int(xy[0]), int(xy[1])))
+	var safe_cells := {}
+	if here:
+		for y in level._map.size():
+			for x in String(level._map[y]).length():
+				if level.is_safe_cell(Vector2i(x, y)):
+					safe_cells[Vector2i(x, y)] = true
+	var t := objective_target()
+	var known := WorldState.has_flag("map:" + map_view)
+	var idx := areas.find(map_view)
+	phone.map = {
+		"rows": d.map, "explored": WorldState.data.explored.get(map_view, PackedByteArray()), "known": known,
+		"player": _player.global_position if here else null,
+		"objective": t.get("cell") if t.get("area", "") == map_view else null,
+		"objective_doors": objective_doors(map_view, t.area) if not t.is_empty() and t.area != map_view else ([] as Array[Vector2i]),
+		"stars": stars, "safe_cells": safe_cells,
+		"title": tr(d.title) + (tr("  (you are here)") if here else ""),
+		"info": "%d/%d [%s]  %s" % [idx + 1, areas.size(), tr("Up/Down"), tr("Floor map") if known else tr("No map - explored only")],
+	}
+	phone.queue_redraw()
+
+
+# ── 裝備 App（紙娃娃）───────────────────────────────────
+
+func _gear_options() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for slot in Gear.SLOTS:
+		if slot != "body":
+			out.append({"slot": slot, "id": ""})
+		for id in WorldState.data.gear_owned:
+			if Gear.DATA.has(id) and Gear.DATA[id].slot == slot:
+				out.append({"slot": slot, "id": id})
+	return out
+
+
+func _refresh_gear() -> void:
+	var opts := _gear_options()
+	gear_cursor = clampi(gear_cursor, 0, opts.size() - 1)
+	var e := Gear.equipped()
+	var doll: Array[Texture2D] = []
+	for set_id in Gear.sprite_sets():
+		doll.append(Art.tex("%s/walk_down_0" % set_id))
+	phone.gear_doll = doll
+	var slot_names := {"head": tr("HEAD"), "body": tr("BODY"), "feet": tr("FEET")}
+	var header: Array[String] = []
+	for slot in Gear.SLOTS:
+		var id: String = e.get(slot, "")
+		header.append("%s %s" % [slot_names[slot], tr(Gear.DATA[id].name) if id != "" else "-"])
+	var full := Gear.full_set()
+	header.append(tr(Gear.SETS[full].name) if full != "" else "")
+	phone.gear_header = header
+	var lines: Array[String] = []
+	var start := clampi(gear_cursor - 2, 0, maxi(opts.size() - 5, 0))
+	for i in range(start, mini(start + 5, opts.size())):
+		var o: Dictionary = opts[i]
+		var worn: bool = e.get(o.slot, "") == o.id
+		var name := tr(Gear.DATA[o.id].name) if o.id != "" else tr("(nothing)")
+		lines.append("%s%s %s%s" % ["> " if i == gear_cursor else "  ", slot_names[o.slot], name, "  *" if worn else ""])
+	var sel: Dictionary = opts[gear_cursor]
+	lines.append("")
+	if sel.id != "":
+		var g: Dictionary = Gear.DATA[sel.id]
+		lines.append(tr(g.desc))
+		if not g.stats.is_empty():
+			lines.append(Gear.describe(g.stats))
+		if g.has("set"):
+			lines.append(tr("Set: %s - %s") % [tr(Gear.SETS[g.set].name), tr(Gear.SETS[g.set].desc)])
+	lines.append(tr("[%s] wear") % _key_name("interact"))
+	phone.set_text("\n".join(lines))
+	phone.queue_redraw()
+
+
+# ── 快捷選單（少按鍵：MGS1 式）─────────────────────────────
+
+## 按住多久算「按住」（毫秒，真實時間：選單打開時遊戲會變慢）
+const QUICK_HOLD_MS := 220
+
+
+func _process_quick_menu() -> void:
+	if _player.is_hiding or not _player.input_enabled and not quick_menu.visible:
+		return
+	for key in ["item", "weapon"]:
+		if Input.is_action_just_pressed(key) and _qm_key == "":
+			if key == "weapon" and _player.combat.aiming:
+				continue  # 瞄準中的武器鍵 = 換鎖定目標
+			_qm_key = key
+			_qm_pressed_ms = Time.get_ticks_msec()
+	if _qm_key == "":
+		return
+	if Input.is_action_pressed(_qm_key):
+		if not quick_menu.visible and Time.get_ticks_msec() - _qm_pressed_ms >= QUICK_HOLD_MS:
+			_open_quick_menu(_qm_key)
+		elif quick_menu.visible:
+			if Input.is_action_just_pressed("move_right") or Input.is_action_just_pressed("move_down") \
+					or Input.is_action_just_pressed("ui_right"):
+				quick_menu.move(1)
+			elif Input.is_action_just_pressed("move_left") or Input.is_action_just_pressed("move_up") \
+					or Input.is_action_just_pressed("ui_left"):
+				quick_menu.move(-1)
+		return
+	# 放開
+	if quick_menu.visible:
+		var id := quick_menu.selected_id()
+		if _qm_key == "item":
+			WorldState.data.quick_item = id
+		elif id != "":
+			_equip_weapon(id)
+		quick_menu.close()
+		Engine.time_scale = 1.0
+		_player.input_enabled = true
+		Sfx.play("ui_confirm")
+	elif _qm_key == "item":
+		use_quick_item()
+	else:
+		_cycle_weapon()
+	_qm_key = ""
+
+
+func _open_quick_menu(key: String) -> void:
+	var list := quick_items() if key == "item" else quick_weapons()
+	if list.is_empty():
+		return
+	quick_menu.open(key, list, WorldState.data.get("quick_item", "light") if key == "item" else WorldState.equipped)
+	Engine.time_scale = 0.2
+	_player.input_enabled = false
+	_player.velocity = Vector2.ZERO
+
+
+## 道具列：光源＋身上可以「用」的東西（投擲物、急救、解藥、暖暖包、材料）
+func quick_items() -> Array[Dictionary]:
+	var out: Array[Dictionary] = [{"id": "light", "name": tr("Light: %s") % tr(_player.light_name()),
+		"icon": Art.tex("props/flashlight"), "count": 0}]
+	var seen := {}
+	for slot in WorldState.inventory():
+		if slot.is_empty() or seen.has(slot.id):
+			continue
+		var kind: String = Items.get_item(slot.id).kind
+		if kind in ["throwable", "heal", "cure", "warm", "craft"]:
+			seen[slot.id] = true
+			out.append({"id": slot.id, "name": Items.display_name(slot.id), "icon": Art.tex("props/" + slot.id),
+				"count": WorldState.inv_count(slot.id)})
+	return out
+
+
+func quick_weapons() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for w in PlayerCombat.WEAPONS:
+		if WorldState.inv_count(w) > 0:
+			out.append({"id": w, "name": "%s  %d/%d" % [Items.display_name(w), WorldState.get_loaded(w),
+				PlayerCombat.WEAPONS[w].mag], "icon": Art.tex("props/" + w), "count": 0})
+	return out
+
+
+## 按一下道具鍵：用選好的道具（光源 = 切換；投擲物 = 丟；其他 = 使用）
+func use_quick_item() -> void:
+	var id: String = WorldState.data.get("quick_item", "light")
+	if id != "light" and WorldState.inv_count(id) <= 0:
+		id = "light"
+		WorldState.data.quick_item = "light"
+	if id == "light":
+		_player.cycle_light()
+		return
+	var kind: String = Items.get_item(id).kind
+	if kind == "throwable":
+		_player.throw_item(id)
+	elif _player.use_item(id):
+		Sfx.play("ui_confirm")
+		show_message(tr("Used %s.") % Items.display_name(id))
+	else:
+		Sfx.play("gun_empty")
+
+
+func _cycle_weapon() -> void:
+	var list := quick_weapons()
+	if list.size() < 2:
+		return
+	var ids := list.map(func(e): return e.id)
+	_equip_weapon(ids[(ids.find(WorldState.equipped) + 1) % ids.size()])
+
+
+func _equip_weapon(id: String) -> void:
+	if id == WorldState.equipped:
+		return
+	_player.combat.interrupt()
+	WorldState.equipped = id
+	Sfx.play("reload", _player.global_position, 0.1, -6.0)
+	show_message(tr("Equipped %s.") % Items.display_name(id))
 
 
 # ── 過場 ──────────────────────────────────────────────
@@ -824,6 +1148,7 @@ func _build_phone() -> void:
 func open_phone(app: String) -> void:
 	if not phone.visible:
 		Sfx.play("ui_confirm")
+		map_view = ""
 	phone.visible = true
 	get_tree().paused = true
 	set_phone_app(app)
@@ -838,6 +1163,8 @@ func close_phone() -> void:
 
 
 func set_phone_app(app: String) -> void:
+	if phone.app != app or not phone.visible:
+		map_view = ""  # 打開地圖時先看目前所在的區域
 	if phone.app != app:
 		Sfx.play("ui_move")
 	phone.set_app(app)
@@ -873,6 +1200,32 @@ func _process_phone_input() -> void:
 			if Input.is_action_just_pressed("inventory") or Input.is_action_just_pressed("map") \
 					or Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel"):
 				close_phone()
+			elif phone.app == "gear":
+				var n := _gear_options().size()
+				if Input.is_action_just_pressed("move_down") or Input.is_action_just_pressed("ui_down"):
+					gear_cursor = (gear_cursor + 1) % n
+					Sfx.play("ui_move")
+					_refresh_phone()
+				elif Input.is_action_just_pressed("move_up") or Input.is_action_just_pressed("ui_up"):
+					gear_cursor = (gear_cursor + n - 1) % n
+					Sfx.play("ui_move")
+					_refresh_phone()
+				elif Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept"):
+					var opt: Dictionary = _gear_options()[gear_cursor]
+					if WorldState.equip_gear(opt.slot, opt.id):
+						Sfx.play("ui_confirm")
+					_refresh_phone()
+			elif phone.app == "map":
+				var areas := known_map_areas()
+				var flip := 0
+				if Input.is_action_just_pressed("move_down") or Input.is_action_just_pressed("ui_down"):
+					flip = 1
+				elif Input.is_action_just_pressed("move_up") or Input.is_action_just_pressed("ui_up"):
+					flip = -1
+				if flip != 0 and areas.size() > 1:
+					map_view = areas[(areas.find(map_view) + flip + areas.size()) % areas.size()]
+					Sfx.play("ui_move")
+					_refresh_phone()
 			elif phone.app == "codex":
 				var n := Codex.ENTRIES.size()
 				if Input.is_action_just_pressed("move_down") or Input.is_action_just_pressed("ui_down"):
@@ -905,10 +1258,12 @@ func _refresh_phone() -> void:
 				phone.set_text(tr("No messages."))
 			else:
 				phone.set_text("%d / %d\n\n%s" % [_message_cursor + 1, message_log.size(), message_log[_message_cursor]])
-		"controls":
-			phone.set_text(_build_hint().replace("  ", "\n"))
 		"codex":
 			_refresh_codex()
+		"gear":
+			_refresh_gear()
+		"map":
+			_refresh_map()
 
 
 ## 圖鑑 App：上下選一筆。沒遇過的只顯示剪影和「???」
@@ -1306,6 +1661,16 @@ func _show_ending() -> void:
 
 func _toggle_pause() -> void:
 	_pause_panel.visible = not _pause_panel.visible
+	# 操作說明放在暫停選單（遊戲畫面、手機都不用一直擺）
+	var box := _pause_panel.get_node("Box")
+	var help: Label = box.get_node_or_null("Controls")
+	if help == null:
+		help = Label.new()
+		help.name = "Controls"
+		help.add_theme_font_size_override("font_size", 12)
+		help.add_theme_color_override("font_color", Color(0.65, 0.75, 0.8))
+		box.add_child(help)
+	help.text = _build_hint().replace("  ", "\n")
 	Sfx.play("ui_confirm" if _pause_panel.visible else "ui_cancel")
 	get_tree().paused = _pause_panel.visible
 	if _pause_panel.visible:
@@ -1510,8 +1875,9 @@ func _build_hint() -> String:
 		"%s %s" % [move, tr("Move")],
 		"%s %s" % [_key_name("run"), tr("Run")],
 		"%s %s" % [_key_name("sneak"), tr("Sneak")],
-		"%s %s" % [_key_name("flashlight"), tr("Light")],
-		"%s %s" % [_key_name("throw"), tr("Throw")],
+		"%s %s" % [_key_name("dodge"), tr("Dodge")],
+		"%s %s" % [_key_name("item"), tr("Item (hold: choose)")],
+		"%s %s" % [_key_name("weapon"), tr("Weapon (hold: choose)")],
 		"%s %s" % [_key_name("interact"), tr("Use")],
 		"%s %s" % [_key_name("aim"), tr("Aim")],
 		"%s %s" % [_key_name("fire"), tr("Fire")],

@@ -85,6 +85,7 @@ func _run() -> void:
 	await _test_title()
 	await _test_save_migration()
 	await _test_expansion()
+	await _test_new_systems()
 	await _test_survival()
 
 	print("")
@@ -2180,8 +2181,8 @@ func _test_phone() -> void:
 	_check(phone.app == "status" and "Condition" in phone.get_text(), "狀態 App")
 	_main.set_phone_app("map")
 	_check(phone.app == "map", "地圖 App")
-	_main.set_phone_app("controls")
-	_check("WASD" in phone.get_text() or "move" in phone.get_text().to_lower(), "操作說明 App")
+	_main.set_phone_app("gear")
+	_check(phone.app == "gear" and "BODY" in "".join(phone.gear_header), "裝備 App（紙娃娃）")
 	await _press("inventory")
 	_check(not phone.visible and not get_tree().paused, "再按物品鍵關掉手機")
 	_check(not _main.get_node("HUD/Objective").visible and not _main.get_node("HUD/Hint").visible, "遊戲畫面上不擺目標和操作說明")
@@ -2219,7 +2220,7 @@ func _test_touch() -> void:
 	_check(not TouchControls.should_show(), "桌面版預設不顯示觸控介面")
 	var tc: TouchControls = _main.touch_controls
 	_check(tc != null, "有觸控介面")
-	for action in ["fire", "aim", "interact", "throw", "reload", "run", "sneak", "flashlight", "inventory", "map", "pause", "switch_target"]:
+	for action in ["fire", "aim", "interact", "item", "weapon", "dodge", "reload", "run", "sneak", "inventory", "map", "pause"]:
 		var b := tc.button_for(action)
 		if b == null:
 			_check(false, "缺少觸控按鈕：" + action)
@@ -2447,3 +2448,110 @@ func _test_survival() -> void:
 	_check(WorldState.storage().get("med", 0) >= 1, "主線新遊戲：儲物箱裡有補給箱的東西")
 	_check(WorldState.mode == "story", "回到主線模式")
 	WorldState.reset_profile()
+
+
+func _first(type: Variant) -> Interactable:
+	for item in _main.level.get_interactables():
+		if is_instance_of(item, type):
+			return item
+	return null
+
+
+## 操作（背對自動瞄準、閃躲、快捷選單）、紙娃娃裝備、孢子區、地圖、保險箱
+func _test_new_systems() -> void:
+	print("[controls / gear / map]")
+	await _main.load_area("station_1f", "front", false)
+	_quiet()
+	_level = _main.level
+	var e: Enemy = _main.enemies[1]
+	e.global_position = _tile(30, 7)
+	e.is_dormant = false
+	WorldState.inv_add("pistol", 1)
+	WorldState.equipped = "pistol"
+	_place_player(_tile(26, 7), true, Vector2.LEFT)
+	await _frames(2)
+	_check(_player.combat.find_targets().has(e), "背對敵人按瞄準也鎖定得到（可以邊後退邊開槍）")
+	# 閃躲
+	var p0 := _player.global_position
+	_check(_player.dodge(Vector2.ZERO), "閃躲")
+	var hp := WorldState.health
+	_player.take_hit(20.0, 0.0, _player.global_position + Vector2(10, 0))
+	_check(WorldState.health == hp, "跳開的時候不會被打到")
+	await _seconds(0.4)
+	_check(_player.global_position.x < p0.x - 25.0, "往面向快速跳開（%.0f px）" % (p0.x - _player.global_position.x))
+	# 快捷選單
+	WorldState.inv_add("med", 1)
+	var ids: Array = _main.quick_items().map(func(x): return x.id)
+	_check(ids.has("light") and ids.has("med"), "道具列：光源＋急救包")
+	WorldState.data.quick_item = "med"
+	WorldState.health = 40.0
+	_main.use_quick_item()
+	_check(WorldState.health > 40.0, "按一下道具鍵：用選好的急救包")
+	WorldState.data.quick_item = "light"
+	var lit := _player.flashlight_on
+	_main.use_quick_item()
+	_check(_player.flashlight_on != lit, "光源也在道具鍵裡（切換手電筒）")
+	_player.flashlight_on = true
+	_player._apply_flashlight()
+	# 紙娃娃
+	for id in ["eod_armor", "eod_helmet", "eod_boots", "hazmat_suit", "gas_mask", "hazmat_boots"]:
+		WorldState.add_gear(id)
+	WorldState.equip_gear("body", "eod_armor")
+	_check(Gear.stat("armor") < 1.0 and Gear.stat("speed") < 1.0, "防爆裝甲：防禦大增、走路變慢")
+	_check(_player._sprite.sprite_frames == CharacterSprite.load_frames("player_eod"), "穿上去外型跟著換")
+	WorldState.equip_gear("head", "gas_mask")
+	_check(_player._sprite._layers.size() == 1, "頭部裝備疊在角色上")
+	_check(not WorldState.equip_gear("body", ""), "身體不能空著")
+	WorldState.equip_gear("body", "hazmat_suit")
+	WorldState.equip_gear("feet", "hazmat_boots")
+	_check(Gear.full_set() == "hazmat" and Gear.stat("hazard") == 0.0, "防護套裝整套：完全不受孢子影響")
+	# 孢子區
+	await _main.load_area("station_east_wing", "east_wing", false)
+	_quiet()
+	_level = _main.level
+	_check(_level.hazard_at(_tile(23, 2)) == "spores", "東翼的實驗室有孢子")
+	_place_player(_tile(23, 2), true, Vector2.UP)
+	WorldState.infection = 0.0
+	await _seconds(1.0)
+	_check(WorldState.infection < 0.01, "穿著防護套裝：孢子沒影響")
+	WorldState.equip_gear("body", "parka")
+	WorldState.equip_gear("head", "")
+	WorldState.equip_gear("feet", "snow_boots")
+	await _seconds(1.0)
+	_check(WorldState.infection > 1.0, "沒穿防護裝備：在孢子裡一直感染（%.1f）" % WorldState.infection)
+	WorldState.infection = 0.0
+	# 地圖：去過的地方、樓層地圖、主線方向
+	_check(WorldState.data.explored.has("station_east_wing"), "走過的地方記在地圖上")
+	var map_item := _first(AreaMapPickup)
+	_check(map_item != null, "每個區域都撿得到地圖")
+	map_item.use(_player)
+	_check(WorldState.has_flag("map:station_east_wing"), "撿到地圖 = 整張地圖顯示")
+	_main.open_phone("map")
+	await _frames(1)
+	_check(_main.phone.map.known and _main.phone.map.title != "", "地圖 App 顯示這張地圖")
+	_main.close_phone()
+	var doors: Array[Vector2i] = _main.objective_doors("south_shore", "station_b1")
+	_check(not doors.is_empty(), "主線方向：標出往目的地的門")
+	# 保險箱 → 藍色星號
+	await _main.load_area("station_b1", "basement", false)
+	_quiet()
+	var safe := _first(SafeBox)
+	_check(safe != null, "地下一樓有保險箱")
+	safe.use(_player)
+	_check(WorldState.has_flag("reveal:cache_caves"), "打開保險箱：解鎖隱藏要素的情報")
+	WorldState.set_flag("map:ice_caves")
+	_main.open_phone("map")
+	_main.map_view = "ice_caves"
+	_main._refresh_map()
+	_check(_main.phone.map.stars.size() == 2, "地圖上出現藍色星號（%d）" % _main.phone.map.stars.size())
+	_main.close_phone()
+	# 新武器真的放在地圖上
+	await _main.load_area("ice_caves", "caves", false)
+	_quiet()
+	var rifle := false
+	for item in _main.level.get_interactables():
+		if item is ItemPickup and item.pickup_item == "rifle":
+			rifle = true
+	_check(rifle, "冰洞撿得到獵槍")
+	for d in ["server_rack", "specimen_tank", "desk_row_m", "bunk_l", "blood_0", "monitor", "pipe"]:
+		_check(Art.tex("decor/" + d) != null, "室內裝潢 %s" % d)

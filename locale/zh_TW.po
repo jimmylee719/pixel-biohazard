@@ -1394,3 +1394,204 @@ msgstr "補給駕駛，沈若寧。你們的研究站裡都是……已經不是
 
 msgid "Then listen carefully. They can't see you. They hear everything. Stay quiet, stay cold - and stay away from the drill shaft."
 msgstr "那就仔細聽好。它們看不見你，但什麼都聽得到。保持安靜、待在冷的地方——還有，離鑽探井遠一點。"
+
+msgid "Dodge"
+msgstr "閃躲"
+
+msgid "Item (hold: choose)"
+msgstr "道具（按住選擇）"
+
+msgid "Weapon (hold: choose)"
+msgstr "武器（按住選擇）"
+
+msgid "GEAR"
+msgstr "裝備"
+
+msgid "Gear"
+msgstr "裝備"
+
+msgid "HEAD"
+msgstr "頭"
+
+msgid "BODY"
+msgstr "身"
+
+msgid "FEET"
+msgstr "腳"
+
+msgid "(nothing)"
+msgstr "（無）"
+
+msgid "Set: %s - %s"
+msgstr "套裝：%s——%s"
+
+msgid "[%s] wear"
+msgstr "［%s］穿上"
+
+msgid "  (you are here)"
+msgstr "（目前位置）"
+
+msgid "Up/Down"
+msgstr "上／下"
+
+msgid "Floor map"
+msgstr "有地圖"
+
+msgid "No map - explored only"
+msgstr "沒有地圖——只顯示去過的地方"
+
+msgid "Spores hang in the air here. Without a sealed suit, you're breathing them in."
+msgstr "這裡的空氣裡飄著孢子。沒穿密封的防護衣，你正在把它們吸進去。"
+
+msgid "Spores"
+msgstr "孢子"
+
+msgid "Damage"
+msgstr "受傷"
+
+msgid "Speed"
+msgstr "速度"
+
+msgid "Noise"
+msgstr "腳步聲"
+
+msgid "Visibility"
+msgstr "被發現"
+
+msgid "Kick"
+msgstr "踢擊"
+
+msgid "Got %s. Wear it from the phone (GEAR)."
+msgstr "取得%s。在手機的「裝備」換穿。"
+
+msgid "Take the floor map"
+msgstr "拿走樓層地圖"
+
+msgid "Map of %s added to your phone."
+msgstr "%s的地圖已加入手機。"
+
+msgid "Open the safe"
+msgstr "打開保險箱"
+
+msgid "A blue star marks the spot on your phone map."
+msgstr "手機地圖上那個位置出現了藍色星號。"
+
+msgid "Expedition parka"
+msgstr "探險外套"
+
+msgid "Your own orange parka. Warm enough, bright enough to be seen."
+msgstr "你自己的橘色外套。夠暖，也夠顯眼。"
+
+msgid "Hazmat suit"
+msgstr "防護衣"
+
+msgid "Sealed biohazard suit. Keeps the spores out. Crinkles when you move."
+msgstr "密封的生化防護衣。孢子進不來，但一動就沙沙作響。"
+
+msgid "EOD armor"
+msgstr "防爆裝甲"
+
+msgid "Bomb disposal armor from the Gatekeeper stores. Shrugs off claws and bullets. Heavy."
+msgstr "守門派倉庫裡的防爆裝甲。爪子和子彈都擋得住。很重。"
+
+msgid "Sneaking suit"
+msgstr "潛行服"
+
+msgid "Dark, close-fitting, quiet. Not made for the Arctic."
+msgstr "深色、貼身、安靜。不是為北極設計的。"
+
+msgid "Arctic suit"
+msgstr "極地套裝"
+
+msgid "Insulated white over-suit. The wind barely gets in."
+msgstr "白色的保暖外罩。風幾乎吹不進來。"
+
+msgid "Wool hat"
+msgstr "毛帽"
+
+msgid "Hand-knitted. Smells of diesel."
+msgstr "手織的，有柴油味。"
+
+msgid "Gas mask"
+msgstr "防毒面罩"
+
+msgid "Filter hood. Your breathing gets loud in your own ears."
+msgstr "附濾罐的頭罩。自己的呼吸聲變得好大。"
+
+msgid "EOD helmet"
+msgstr "防爆頭盔"
+
+msgid "Armored helmet with a blast visor."
+msgstr "附防爆面罩的裝甲頭盔。"
+
+msgid "Balaclava"
+msgstr "黑色面罩"
+
+msgid "Black knit mask. One less pale thing in the dark."
+msgstr "黑色針織面罩。黑暗中少一樣會反光的東西。"
+
+msgid "Snow goggles"
+msgstr "雪地護目鏡"
+
+msgid "Tinted goggles and a face strap. Keeps the blizzard out of your eyes."
+msgstr "有色護目鏡加護臉帶。暴風雪吹不進眼睛。"
+
+msgid "Snow boots"
+msgstr "雪靴"
+
+msgid "Ordinary insulated boots."
+msgstr "普通的保暖靴。"
+
+msgid "Hazmat boots"
+msgstr "防護靴"
+
+msgid "Sealed rubber overboots."
+msgstr "密封的橡膠套靴。"
+
+msgid "EOD boots"
+msgstr "防爆靴"
+
+msgid "Steel-shanked. Your kicks land like a hammer."
+msgstr "鋼製鞋墊。踢起來像鐵鎚。"
+
+msgid "Soft soles"
+msgstr "軟底鞋"
+
+msgid "Felt-soled slippers over your socks. Silent - and cold."
+msgstr "套在襪子外的毛氈軟鞋。無聲——也很冷。"
+
+msgid "Crampon boots"
+msgstr "冰爪靴"
+
+msgid "Spiked boots for ice. Sure footing on the snow."
+msgstr "有鞋釘的冰上靴。在雪地站得很穩。"
+
+msgid "Hazmat set"
+msgstr "防護套裝"
+
+msgid "Full seal: spores can't touch you."
+msgstr "完全密封：孢子碰不到你。"
+
+msgid "EOD set"
+msgstr "防爆套裝"
+
+msgid "Full armor: knockback barely moves you."
+msgstr "全身裝甲：幾乎不會被擊退。"
+
+msgid "Sneaking set"
+msgstr "潛行套裝"
+
+msgid "Full set: quieter still, harder to spot."
+msgstr "整套：更安靜、更難被發現。"
+
+msgid "Arctic set"
+msgstr "極地套裝組"
+
+msgid "Full set: the cold barely reaches you."
+msgstr "整套：寒冷幾乎碰不到你。"
+
+msgid "SAFE (maintenance office): a hunter's ledger. \"Left spare .308 and two flares in the ice caves, east end, below the glowing wall. In case.\""
+msgstr "保險箱（維修辦公室）：一本獵人的帳簿。「在冰洞東邊、發光的冰牆下面留了備用的 .308 子彈和兩發信號彈。以防萬一。」"
+
+msgid "SAFE (harbor office): Gatekeeper supply note. \"Medical cache stashed at the fuel depot, northwest corner of the yard, under the tarp.\""
+msgstr "保險箱（港口辦公室）：守門派的補給紀錄。「醫療物資藏在燃料庫，廣場西北角的防水布底下。」"

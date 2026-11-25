@@ -19,7 +19,7 @@ const ANIMS := {
 	"shoot_pistol": [20.0, false], "shoot_shotgun": [16.0, false], "shoot_rifle": [14.0, false],
 	"shoot_nailgun": [24.0, false], "shoot_flare_gun": [18.0, false],
 	"slash": [22.0, false], "slash_axe": [18.0, false], "punch": [24.0, false], "kick": [20.0, false],
-	"attack": [12.0, false], "hurt": [14.0, false],
+	"attack": [12.0, false], "hurt": [14.0, false], "dodge": [21.0, false], "dodge_back": [21.0, false],
 }
 
 var char_id := ""
@@ -29,8 +29,15 @@ var _kind := ""
 var _shadow: Sprite2D
 
 
-func setup(id: String) -> bool:
-	char_id = id
+## 讀過的圖組（同一套圖只讀一次；換裝時很多圖組會重複用到）
+static var _frames_cache := {}
+## 疊在上面的圖層（紙娃娃：頭部、腳部裝備）
+var _layers: Array[AnimatedSprite2D] = []
+
+
+static func load_frames(id: String) -> SpriteFrames:
+	if _frames_cache.has(id):
+		return _frames_cache[id]
 	var frames := SpriteFrames.new()
 	frames.remove_animation("default")
 	var base := "res://assets/sprites/%s/" % id
@@ -43,13 +50,19 @@ func setup(id: String) -> bool:
 					frames.add_animation(name)
 					frames.set_animation_speed(name, ANIMS[anim][0])
 					frames.set_animation_loop(name, ANIMS[anim][1])
-					if not _anims.has(anim):
-						_anims.append(anim)
 				frames.add_frame(name, load("%s%s_%s_%d.png" % [base, anim, dir, i]))
 				i += 1
-	if _anims.is_empty():
+	var result: SpriteFrames = frames if frames.get_animation_names().size() > 0 else null
+	_frames_cache[id] = result
+	return result
+
+
+func setup(id: String) -> bool:
+	char_id = id
+	var frames := load_frames(id)
+	if frames == null:
 		return false
-	sprite_frames = frames
+	_use_frames(frames)
 	centered = true
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var shadow_tex := Art.tex("fx/shadow")
@@ -59,7 +72,66 @@ func setup(id: String) -> bool:
 		_shadow.show_behind_parent = true
 		_shadow.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		add_child(_shadow)
+	frame_changed.connect(_sync_layers)
+	animation_changed.connect(_sync_layers)
 	return true
+
+
+func _use_frames(frames: SpriteFrames) -> void:
+	_anims.clear()
+	for name in frames.get_animation_names():
+		var kind := String(name).substr(0, String(name).rfind("_"))
+		if not _anims.has(kind):
+			_anims.append(kind)
+	var anim_name := animation
+	var keep := frame
+	sprite_frames = frames
+	if frames.has_animation(anim_name):
+		animation = anim_name
+		frame = keep % maxi(frames.get_frame_count(anim_name), 1)
+
+
+## 換裝：本體圖組＋疊上去的圖層（Gear.sprite_sets()）
+func set_outfit(sets: Array[String]) -> void:
+	if sets.is_empty():
+		return
+	var base := load_frames(sets[0])
+	if base:
+		_use_frames(base)
+	for l in _layers:
+		l.queue_free()
+	_layers.clear()
+	for i in range(1, sets.size()):
+		var lf := load_frames(sets[i])
+		if lf == null:
+			continue
+		var a := AnimatedSprite2D.new()
+		a.sprite_frames = lf
+		a.centered = true
+		a.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		add_child(a)
+		_layers.append(a)
+	_sync_layers()
+
+
+func layer_textures() -> Array[Texture2D]:
+	var out: Array[Texture2D] = []
+	for l in _layers:
+		if l.sprite_frames.has_animation(animation):
+			out.append(l.sprite_frames.get_frame_texture(animation, mini(frame, l.sprite_frames.get_frame_count(animation) - 1)))
+	return out
+
+
+func _sync_layers() -> void:
+	for l in _layers:
+		if l.sprite_frames.has_animation(animation):
+			l.visible = true
+			if l.animation != animation:
+				l.animation = animation
+			l.frame = mini(frame, l.sprite_frames.get_frame_count(animation) - 1)
+			l.flip_h = flip_h
+		else:
+			l.visible = false
 
 
 func has_art() -> bool:
@@ -108,6 +180,7 @@ func show_pose(anim: String, facing: Vector2, playing: bool, speed := 1.0) -> vo
 			play()
 	else:
 		pause()
+	_sync_layers()
 	# 腳底對齊角色中心下方
 	var tex := sprite_frames.get_frame_texture(name, frame)
 	if tex:

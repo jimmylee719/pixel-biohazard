@@ -173,7 +173,9 @@ func _update_aim(delta: float) -> void:
 	if target == null or not targets.has(target):
 		target = targets[0] if not targets.is_empty() else null
 		aim_focus = 0.0
-	if Input.is_action_just_pressed("switch_target") and targets.size() > 1:
+	var switch := Input.is_action_just_pressed("switch_target") \
+		or (Input.is_action_just_pressed("weapon") and not Input.is_action_just_pressed("switch_target"))
+	if switch and targets.size() > 1:
 		target = targets[(targets.find(target) + 1) % targets.size()]
 		aim_focus = 0.0
 	if target:
@@ -189,23 +191,33 @@ func _update_aim(delta: float) -> void:
 			aim_focus = minf(aim_focus, cap)
 
 
-## 主角面前、射程內、沒被牆擋住的活著的敵人，由近到遠。
+## 可以鎖定的敵人：射程內、沒被牆擋住、活著（睡著的凍眠體不算）。
+## 面前的優先（由近到遠），再來是旁邊、背後的——背對敵人時按瞄準也會自動轉過去鎖定，可以邊後退邊開槍。
 func find_targets() -> Array[Enemy]:
-	var result: Array[Enemy] = []
+	var front: Array[Enemy] = []
+	var other: Array[Enemy] = []
 	var half := deg_to_rad(aim_half_angle_deg)
+	var reach: float = stats().get("range", 0.0)
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
 		# 睡著的凍眠體不會被鎖定：玩家要自己分辨牠和真正的屍體
 		if enemy == null or enemy.is_dead or enemy.is_dormant:
 			continue
-		if not Sight.in_cone(player.global_position, player.facing, enemy.global_position, half, stats().get("range", 0.0)):
+		if player.global_position.distance_to(enemy.global_position) > reach:
 			continue
-		if Sight.is_clear(player, player.global_position, enemy.global_position):
-			result.append(enemy)
-	result.sort_custom(func(a, b):
+		if not Sight.is_clear(player, player.global_position, enemy.global_position):
+			continue
+		if Sight.in_cone(player.global_position, player.facing, enemy.global_position, half, reach):
+			front.append(enemy)
+		else:
+			other.append(enemy)
+	var by_dist := func(a, b):
 		return player.global_position.distance_squared_to(a.global_position) \
-			< player.global_position.distance_squared_to(b.global_position))
-	return result
+			< player.global_position.distance_squared_to(b.global_position)
+	front.sort_custom(by_dist)
+	other.sort_custom(by_dist)
+	front.append_array(other)
+	return front
 
 
 # ── 開槍、裝填 ────────────────────────────────────────
@@ -311,6 +323,8 @@ func melee() -> bool:
 		if not Sight.in_cone(origin, player.facing, enemy.global_position, half, reach):
 			continue
 		var damage: float = melee_damage if combo_step == 0 else move.damage
+		if move.name == "kick":
+			damage *= Gear.stat("kick")
 		if combo_step == 0 and melee_weapon() != "":
 			damage *= MELEE_WEAPONS[melee_weapon()].mult
 		if enemy.can_be_taken_down_by(player):
