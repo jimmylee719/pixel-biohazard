@@ -47,6 +47,28 @@ def hexc(s):
 IDENT = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
 
 
+def _lerp_any(a, b, k):
+    if isinstance(a, (tuple, list)):
+        return tuple(_lerp_any(x, y, k) for x, y in zip(a, b))
+    return a + (b - a) * k
+
+
+def bf(f, n):
+    """呼吸、搖晃這類循環動作：0 → 1 → 0（首尾相接，循環播放不會跳）"""
+    return 0.5 - 0.5 * math.cos(2 * math.pi * f / max(n, 1))
+
+
+def kf(keys, f, n):
+    """關鍵影格內插：n 格平均分佈在 keys 之間（smoothstep 緩入緩出），格數再多都流暢"""
+    if n <= 1 or len(keys) == 1:
+        return keys[min(f, len(keys) - 1)]
+    t = f / (n - 1) * (len(keys) - 1)
+    i = min(int(t), len(keys) - 2)
+    k = t - i
+    k = k * k * (3 - 2 * k)
+    return _lerp_any(keys[i], keys[i + 1], k)
+
+
 def basis_along(x_dir, up=(0, 0, 1)):
     """x 軸對準 x_dir 的座標系（給武器、刀子對齊手臂方向）"""
     x = norm(x_dir)
@@ -423,8 +445,28 @@ def walk_pose(f, n, stride=0.5, knee=0.9, arm=0.45, lean=0.05):
     return pose
 
 
+HURT = [0.0]
+
+
+def hurt_of(model, base_anim):
+    """受傷動作：拿某個動作的第一格，整個人往後仰、手甩開（三格衰減）"""
+    def m(anim, f, n):
+        HURT[0] = kf([1.0, 0.6, 0.15], f, n)
+        try:
+            return model(base_anim, 0, 2)
+        finally:
+            HURT[0] = 0.0
+    return m
+
+
 def build_human(spec, pose, mats, extras=None):
     """回傳區域座標的形狀清單與關節位置"""
+    if HURT[0] > 0:
+        h = HURT[0]
+        pose = dict(pose)
+        pose["lean"] = pose.get("lean", 0.0) - 0.45 * h
+        pose["head_pitch"] = pose.get("head_pitch", 0.0) - 0.5 * h
+        pose["arms"] = {1: (0.5 * h, 0.7 * h + 0.1, 0.5), -1: (0.4 * h, 0.8 * h + 0.1, 0.6)}
     P = dict(HUMAN)
     P.update(spec)
     hip_z = P["lu"] + P["ll"] - pose.get("hip_drop", 0.0)
@@ -552,16 +594,16 @@ def knife(at, d):
 
 # ── 角色 ─────────────────────────────────────────────────
 
-def player_model(anim, f, n):
+def player_model(anim, f, n, pose_only=False):
     mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "skin",
             "skin": "skin"}
     spec = {"torso_r": (3.4, 4.2, 5.4), "lu": 6.3, "ll": 6.3}
     weapon = []
     if anim == "idle":
         pose = default_pose()
-        pose["arms"][1] = (0.05, 0.14 + 0.03 * f, 0.25)
-        pose["arms"][-1] = (0.05, 0.14 + 0.03 * f, 0.25)
-        pose["hip_drop"] = 0.3 * f
+        pose["arms"][1] = (0.05, 0.14 + 0.03 * bf(f, n), 0.25)
+        pose["arms"][-1] = (0.05, 0.14 + 0.03 * bf(f, n), 0.25)
+        pose["hip_drop"] = 0.3 * bf(f, n)
     elif anim == "walk":
         pose = walk_pose(f, n)
     elif anim == "sneak":
@@ -575,6 +617,23 @@ def player_model(anim, f, n):
         pose = default_pose()
         pose["legs"] = {1: (0.2, 0.15), -1: (-0.2, 0.15)}
         pose["arms"] = {1: (1.5, -0.42, 0.0), -1: (1.5, -0.45, 0.0)}
+    elif anim.startswith("shoot_"):
+        # 開槍：從瞄準姿勢往上、往後彈（後座力），再回到瞄準
+        base = player_model("aim_" + anim[6:], 0, 1, pose_only=True)
+        pose = base
+        r = kf([1.0, 0.55, 0.15], f, n)
+        heavy = 1.6 if anim[6:] in ("shotgun", "rifle") else 1.0
+        for s_ in (1, -1):
+            a, b, e = pose["arms"][s_]
+            pose["arms"][s_] = (a + 0.22 * r * heavy, b, e + 0.3 * r * heavy)
+        pose["lean"] = pose.get("lean", 0.0) - 0.1 * r * heavy
+    elif anim == "hurt":
+        pose = default_pose()
+        r = kf([1.0, 0.6, 0.15], f, n)
+        pose["lean"] = -0.4 * r
+        pose["arms"] = {1: (0.6 * r, 0.5 * r + 0.1, 0.6), -1: (0.5 * r, 0.6 * r + 0.1, 0.7)}
+        pose["head_pitch"] = -0.4 * r
+        pose["legs"] = {1: (-0.2 * r, 0.2), -1: (0.15 * r, 0.3)}
     elif anim in ("aim_nailgun", "aim_flare_gun"):
         pose = default_pose()
         pose["legs"] = {1: (0.2, 0.15), -1: (-0.2, 0.15)}
@@ -587,23 +646,27 @@ def player_model(anim, f, n):
         pose = default_pose()
         pose["legs"] = {1: (0.35, 0.2), -1: (-0.3, 0.2)}
         keys = [(0.3, 1.0, 1.6), (1.35, -0.2, 0.15), (0.9, -0.85, 0.1)]
-        pose["arms"] = {1: (0.4, 0.2, 0.9), -1: keys[f]}
-        pose["lean"] = [0.0, 0.18, 0.12][f]
+        pose["arms"] = {1: (0.4, 0.2, 0.9), -1: kf(keys, f, n)}
+        pose["lean"] = kf([0.0, 0.18, 0.12], f, n)
     elif anim == "punch":
         pose = default_pose()
         pose["legs"] = {1: (0.35, 0.2), -1: (-0.3, 0.2)}
         keys = [(0.9, 0.1, 1.7), (1.5, -0.2, 0.0), (1.1, 0.0, 1.1)]
-        pose["arms"] = {1: (0.9, 0.15, 1.6), -1: keys[f]}
-        pose["lean"] = [0.0, 0.2, 0.1][f]
+        pose["arms"] = {1: (0.9, 0.15, 1.6), -1: kf(keys, f, n)}
+        pose["lean"] = kf([0.0, 0.2, 0.1], f, n)
     elif anim == "kick":
         pose = default_pose()
         keys = [(1.1, 1.6), (1.55, 0.05), (0.8, 1.3)]
-        pose["legs"] = {1: (-0.05, 0.1), -1: keys[f]}
+        pose["legs"] = {1: (-0.05, 0.1), -1: kf(keys, f, n)}
         pose["arms"] = {1: (0.6, 0.5, 0.9), -1: (0.4, 0.6, 0.9)}
-        pose["lean"] = [-0.1, -0.28, -0.12][f]
+        pose["lean"] = kf([-0.1, -0.28, -0.12], f, n)
     else:
         raise ValueError(anim)
+    if pose_only:
+        return pose
     prims, J = build_human(spec, pose, mats)
+    gun = anim[6:] if anim.startswith("shoot_") else (anim[4:] if anim.startswith("aim_") else "")
+    anim = ("aim_" + gun) if gun else anim
     # 頭髮（後腦的馬尾）、外套的毛領、斜背包
     prims.append(Ell(head_local(J, (-1.1, 0, 0.9)), (2.9, 3.25, 2.9), "hair"))
     prims.append(Ell(head_local(J, (-2.8, 0, -1.6)), (1.4, 1.2, 2.4), "hair"))
@@ -644,13 +707,13 @@ def watcher_model(anim, f, n):
         pose = default_pose()
         pose["lean"] = 0.42
         pose["arms"] = {1: (0.25, 0.15, 0.1), -1: (0.3, 0.12, 0.15)}
-        pose["head_roll"] = 0.25 + 0.08 * f
+        pose["head_roll"] = 0.25 + 0.08 * bf(f, n)
     elif anim == "attack":
         pose = default_pose()
         pose["legs"] = {1: (0.4, 0.3), -1: (-0.35, 0.2)}
-        k = [(1.0, 0.25, 0.9), (1.55, 0.1, 0.05), (1.3, -0.05, 0.3)][f]
+        k = kf([(1.0, 0.25, 0.9), (1.55, 0.1, 0.05), (1.3, -0.05, 0.3)], f, n)
         pose["arms"] = {1: k, -1: k}
-        pose["lean"] = [0.3, 0.55, 0.45][f]
+        pose["lean"] = kf([0.3, 0.55, 0.45], f, n)
     else:
         raise ValueError(anim)
     pose["head_pitch"] = pose.get("head_pitch", 0.0) + 0.45
@@ -683,15 +746,15 @@ def listener_model(anim, f, n):
     elif anim == "listen":
         pose = default_pose()
         pose["lean"] = 0.12
-        pose["arms"] = {1: (0.35, 0.75 + 0.05 * f, 0.3), -1: (0.3, 0.7 + 0.05 * f, 0.35)}
-        pose["head_roll"] = 0.55 + 0.1 * f
+        pose["arms"] = {1: (0.35, 0.75 + 0.05 * bf(f, n), 0.3), -1: (0.3, 0.7 + 0.05 * bf(f, n), 0.35)}
+        pose["head_roll"] = 0.55 + 0.1 * bf(f, n)
         pose["head_pitch"] = -0.35
     elif anim == "attack":
         pose = default_pose()
         pose["legs"] = {1: (0.45, 0.35), -1: (-0.4, 0.25)}
-        k = [(0.6, 0.9, 1.2), (1.5, 0.2, 0.05), (1.2, -0.1, 0.2)][f]
+        k = kf([(0.6, 0.9, 1.2), (1.5, 0.2, 0.05), (1.2, -0.1, 0.2)], f, n)
         pose["arms"] = {1: k, -1: k}
-        pose["lean"] = [0.15, 0.45, 0.35][f]
+        pose["lean"] = kf([0.15, 0.45, 0.35], f, n)
     else:
         raise ValueError(anim)
     prims, J = build_human(spec, pose, mats)
@@ -716,7 +779,7 @@ def guard_model(anim, f, n):
         aim = False
     elif anim == "idle":
         pose = default_pose()
-        pose["arms"] = {1: (0.9, -0.25, 0.75 + 0.05 * f), -1: (0.5, 0.05, 1.05 + 0.05 * f)}
+        pose["arms"] = {1: (0.9, -0.25, 0.75 + 0.05 * bf(f, n)), -1: (0.5, 0.05, 1.05 + 0.05 * bf(f, n))}
         aim = False
     elif anim == "aim":
         pose = default_pose()
@@ -754,11 +817,11 @@ def hound_model(anim, f, n):
             legs[name] = (0.55 * s, 0.2 + 0.9 * max(0, math.cos(p + ph)))
     elif anim == "idle":
         legs = {k: (0.0, 0.15) for k in ("fl", "fr", "bl", "br")}
-        head_drop = 0.6 * f
+        head_drop = 0.6 * bf(f, n)
     elif anim == "attack":
-        k = [((-0.3, 0.2), (0.35, 0.5)), ((0.9, 0.6), (0.6, 0.3)), ((0.5, 0.3), (0.2, 0.2))][f]
+        k = kf([((-0.3, 0.2), (0.35, 0.5)), ((0.9, 0.6), (0.6, 0.3)), ((0.5, 0.3), (0.2, 0.2))], f, n)
         legs = {"fl": k[0], "fr": k[0], "bl": k[1], "br": k[1]}
-        lean = [-0.15, 0.25, 0.1][f]
+        lean = kf([-0.15, 0.25, 0.1], f, n)
     else:
         raise ValueError(anim)
     L = lean_fn((0, 0, bz), lean)
@@ -799,11 +862,11 @@ def crawler_model(anim, f, n):
         legs = {k: (0.6 * math.sin(p + v), 0.3 + 0.8 * max(0, math.cos(p + v))) for k, v in ph.items()}
     elif anim == "idle":
         legs = {k: (0.1, 0.4) for k in ("fl", "fr", "bl", "br")}
-        lift = 0.5 * f
+        lift = 0.5 * bf(f, n)
     elif anim == "attack":
-        k = [((-0.4, 0.6), (0.3, 0.8)), ((1.2, 0.2), (0.5, 0.4)), ((0.7, 0.4), (0.3, 0.5))][f]
+        k = kf([((-0.4, 0.6), (0.3, 0.8)), ((1.2, 0.2), (0.5, 0.4)), ((0.7, 0.4), (0.3, 0.5))], f, n)
         legs = {"fl": k[0], "fr": k[0], "bl": k[1], "br": k[1]}
-        lift = [0.0, 2.0, 1.0][f]
+        lift = kf([0.0, 2.0, 1.0], f, n)
     else:
         raise ValueError(anim)
     # 身體（拉長的人形軀幹，背上冰晶）
@@ -841,12 +904,12 @@ def husk_model(anim, f, n):
     elif anim == "idle":
         pose = default_pose()
         pose["arms"] = {1: (0.1, 0.45, 0.3), -1: (0.1, 0.45, 0.3)}
-        pose["hip_drop"] = 0.4 * f
+        pose["hip_drop"] = 0.4 * bf(f, n)
     elif anim == "attack":
         pose = default_pose()
-        k = [(1.0, 0.6, 0.8), (1.5, 0.1, 0.1), (1.2, 0.2, 0.4)][f]
+        k = kf([(1.0, 0.6, 0.8), (1.5, 0.1, 0.1), (1.2, 0.2, 0.4)], f, n)
         pose["arms"] = {1: k, -1: k}
-        pose["lean"] = [0.1, 0.35, 0.25][f]
+        pose["lean"] = kf([0.1, 0.35, 0.25], f, n)
     else:
         raise ValueError(anim)
     pose["head_fwd"] = 1.5
@@ -870,14 +933,14 @@ def chorister_model(anim, f, n):
     elif anim == "listen":
         # 仰頭呼喚、雙手張開
         pose = default_pose()
-        pose["arms"] = {1: (0.6 + 0.15 * f, 1.0, 0.3), -1: (0.6 + 0.15 * f, 1.0, 0.3)}
+        pose["arms"] = {1: (0.6 + 0.15 * bf(f, n), 1.0, 0.3), -1: (0.6 + 0.15 * bf(f, n), 1.0, 0.3)}
         pose["head_pitch"] = -0.7
         pose["lean"] = -0.12
     elif anim == "attack":
         pose = default_pose()
-        k = [(0.8, 0.7, 1.0), (1.5, 0.15, 0.05), (1.2, 0.0, 0.3)][f]
+        k = kf([(0.8, 0.7, 1.0), (1.5, 0.15, 0.05), (1.2, 0.0, 0.3)], f, n)
         pose["arms"] = {1: k, -1: k}
-        pose["lean"] = [0.1, 0.4, 0.3][f]
+        pose["lean"] = kf([0.1, 0.4, 0.3], f, n)
     else:
         raise ValueError(anim)
     prims, J = build_human(spec, pose, mats)
@@ -890,23 +953,82 @@ def chorister_model(anim, f, n):
     return prims
 
 
+def bear_model(anim, f, n):
+    """苔原之母：被感染的北極熊。背上長滿冰晶，結晶裂開的背部是弱點"""
+    prims = []
+    bz = 13.0
+    lean = 0.0
+    head_drop = 0.0
+    rear = 0.0
+    if anim == "walk":
+        p = 2 * math.pi * f / n
+        legs = {}
+        for name, ph in (("fl", 0), ("br", 0), ("fr", math.pi), ("bl", math.pi)):
+            legs[name] = (0.45 * math.sin(p + ph), 0.2 + 0.7 * max(0, math.cos(p + ph)))
+        head_drop = 1.0 + 0.8 * math.sin(2 * p)
+    elif anim == "idle":
+        legs = {k: (0.0, 0.15) for k in ("fl", "fr", "bl", "br")}
+        head_drop = 1.5 * bf(f, n)
+    elif anim == "attack":
+        # 站起來往前撲
+        rear = kf([0.0, 0.55, 0.6, -0.15, 0.0], f, n)
+        k = kf([(0.0, 0.2), (1.0, 1.2), (1.2, 1.0), (0.6, 0.2), (0.1, 0.2)], f, n)
+        legs = {"fl": k, "fr": k, "bl": (0.2, 0.2), "br": (0.2, 0.2)}
+        lean = -rear
+    elif anim == "hurt":
+        legs = {k: (0.0, 0.3) for k in ("fl", "fr", "bl", "br")}
+        lean = kf([0.25, 0.12, 0.0], f, n)
+        head_drop = -2.0 * kf([1.0, 0.5, 0.0], f, n)
+    else:
+        raise ValueError(anim)
+    L = lean_fn((-8.0, 0, bz), lean)
+    prims.append(Ell(L((-2.0, 0, bz + 2.0)), (14.0, 7.0, 7.5), "white"))
+    prims.append(Ell(L((8.0, 0, bz + 2.5)), (7.0, 7.0, 8.0), "white"))
+    hc = L((16.0, 0, bz + 4.0 - head_drop))
+    prims.append(Ell(hc, (4.5, 4.0, 4.0), "white"))
+    prims.append(Ell(add(hc, (4.0, 0, -1.2)), (2.6, 2.2, 1.8), "white"))
+    prims.append(Ell(add(hc, (6.3, 0, -0.8)), (0.8, 1.2, 0.8), "black"))
+    prims.append(Ell(add(hc, (0.5, 2.6, 3.0)), (1.2, 0.8, 1.2), "white"))
+    prims.append(Ell(add(hc, (0.5, -2.6, 3.0)), (1.2, 0.8, 1.2), "white"))
+    prims.append(Box(add(hc, (2.4, 0, -2.4)), (1.4, 1.8, 0.4), "flesh"))
+    # 背上的冰晶、裂開的弱點
+    for x, y, ln in ((-10, 1.5, 6.0), (-5, -2.0, 7.5), (0, 2.0, 8.0), (5, -1.0, 6.5), (-7, 3.5, 4.5), (2, -3.5, 5.0)):
+        base = L((x, y, bz + 8.0))
+        prims.append(Cap(base, add(base, (-1.5, y * 0.3, ln)), 1.5, "crystal", 0.5))
+    prims.append(Ell(L((-3.0, 0, bz + 8.6)), (3.5, 2.0, 1.0), "flesh"))
+    for name, x, y in (("fl", 9.0, 4.0), ("fr", 9.0, -4.0), ("bl", -11.0, 4.0), ("br", -11.0, -4.0)):
+        a, k = legs[name]
+        hip = L((x, y, bz))
+        kn, ft = leg_points(hip, a, k if name[0] == "b" else -k, 6.5, 6.5)
+        prims.append(Cap(hip, kn, 3.0, "white", 2.6))
+        prims.append(Cap(kn, ft, 2.4, "white", 2.2))
+        prims.append(Ell(add(ft, (1.0, 0, 0)), (2.6, 2.2, 1.2), "white"))
+    return prims
+
+
 CHARACTERS = {
-    "player": (player_model, {"idle": 2, "walk": 6, "sneak": 6, "aim_pistol": 1, "aim_shotgun": 1, "aim_rifle": 1,
-                              "aim_nailgun": 1, "aim_flare_gun": 1, "slash": 3, "slash_axe": 3, "punch": 3, "kick": 3}),
-    "watcher": (watcher_model, {"walk": 6, "idle": 2, "attack": 3}),
-    "listener": (listener_model, {"walk": 6, "listen": 2, "attack": 3}),
-    "guard": (guard_model, {"walk": 6, "idle": 2, "aim": 1}),
-    "hound": (hound_model, {"walk": 6, "idle": 2, "attack": 3}),
-    "crawler": (crawler_model, {"walk": 6, "idle": 2, "attack": 3}),
-    "husk": (husk_model, {"walk": 6, "idle": 2, "attack": 3}),
-    "chorister": (chorister_model, {"walk": 6, "listen": 2, "attack": 3}),
+    "player": (player_model, dict({"idle": 4, "walk": 8, "sneak": 8, "slash": 6, "slash_axe": 6, "punch": 6, "kick": 6,
+                                   "hurt": 3},
+                                  **{"aim_" + w: 1 for w in ("pistol", "shotgun", "rifle", "nailgun", "flare_gun")},
+                                  **{"shoot_" + w: 3 for w in ("pistol", "shotgun", "rifle", "nailgun", "flare_gun")})),
+    "watcher": (watcher_model, {"walk": 8, "idle": 4, "attack": 5, "hurt": 3}),
+    "listener": (listener_model, {"walk": 8, "listen": 4, "attack": 5, "hurt": 3}),
+    "guard": (guard_model, {"walk": 8, "idle": 4, "aim": 1, "hurt": 3}),
+    "hound": (hound_model, {"walk": 8, "idle": 4, "attack": 5}),
+    "crawler": (crawler_model, {"walk": 8, "idle": 4, "attack": 5}),
+    "husk": (husk_model, {"walk": 8, "idle": 4, "attack": 5, "hurt": 3}),
+    "chorister": (chorister_model, {"walk": 8, "listen": 4, "attack": 5, "hurt": 3}),
+    "bear": (bear_model, {"walk": 8, "idle": 4, "attack": 5, "hurt": 3}),
 }
+# 人形敵人的受傷動作（共用姿勢修正）
+HURT_BASE = {"watcher": "idle", "listener": "listen", "guard": "idle", "husk": "idle", "chorister": "listen"}
 CANVAS = {"player": (36, 32), "watcher": (32, 32), "listener": (32, 36), "guard": (32, 32), "hound": (36, 30),
-          "crawler": (36, 26), "husk": (36, 34), "chorister": (32, 36)}
+          "crawler": (36, 26), "husk": (36, 34), "chorister": (32, 36), "bear": (64, 48)}
 
 
 def gen_character(name):
     model, anims = CHARACTERS[name]
+    base_model = model
     w, h = CANVAS[name]
     folder = os.path.join(OUT, name)
     if os.path.isdir(folder):
@@ -917,7 +1039,8 @@ def gen_character(name):
     for anim, n in anims.items():
         for d, yaw in DIRS.items():
             for f in range(n):
-                prims = finish(model(anim, f, n), yaw)
+                m = hurt_of(base_model, HURT_BASE[name]) if anim == "hurt" and name in HURT_BASE else base_model
+                prims = finish(m(anim, f, n), yaw)
                 write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h, render(prims, w, h))
                 count += 1
     print("%s: %d 張" % (name, count))
@@ -1104,6 +1227,84 @@ def gen_fx():
             if 0 <= x < w and 0 <= y < h and px[y * w + x][3] < col[3]:
                 px[y * w + x] = col
     write_png(os.path.join(folder, "slash.png"), w, h, px)
+
+    # ── 多格特效（流暢的動作感）──
+    # 刀光 5 格：弧線從後往前掃、最後淡出
+    for f in range(5):
+        w, h = 22, 22
+        px = [_] * (w * h)
+        head = -1.2 + 2.6 * min(1.0, (f + 1) / 3.5)
+        tail = -1.2 + 2.6 * max(0.0, (f - 1) / 3.5)
+        fade = 1.0 if f < 3 else (0.6 if f == 3 else 0.3)
+        for i in range(60):
+            a = tail + (head - tail) * i / 59
+            k = i / 59
+            for rr, col in ((10.0, (255, 255, 255)), (9.0, (210, 235, 255)), (8.0, (150, 200, 255))):
+                x = int(11 + math.cos(a) * rr)
+                y = int(11 + math.sin(a) * rr)
+                al = int(255 * fade * (0.35 + 0.65 * k) * (1.0 if rr == 10.0 else 0.6 if rr == 9.0 else 0.3))
+                if 0 <= x < w and 0 <= y < h and px[y * w + x][3] < al:
+                    px[y * w + x] = col + (al,)
+        write_png(os.path.join(folder, "slash_%d.png" % f), w, h, px)
+    # 命中：冰晶碎片＋暗紅飛濺（感染體被打中）4 格
+    rnd = random.Random(11)
+    shards = [(rnd.uniform(0, 6.28), rnd.uniform(0.6, 1.0), rnd.random() < 0.6) for _ in range(10)]
+    for f in range(4):
+        w, h = 15, 15
+        px = [_] * (w * h)
+        r = 1.5 + f * 1.8
+        for a, sp, ice in shards:
+            x = int(7 + math.cos(a) * r * sp)
+            y = int(7 + math.sin(a) * r * sp)
+            col = (200, 245, 255) if ice else (150, 30, 40)
+            if 0 <= x < w and 0 <= y < h:
+                px[y * w + x] = col + (255 - f * 50,)
+        if f == 0:
+            for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+                px[(7 + dy) * w + 7 + dx] = (255, 255, 255, 255)
+        write_png(os.path.join(folder, "hit_%d.png" % f), w, h, px)
+    # 拳腳的衝擊圈 4 格
+    for f in range(4):
+        w, h = 17, 17
+        px = [_] * (w * h)
+        r = 2.5 + f * 2.0
+        for i in range(48):
+            a = i / 48 * 6.283
+            x = int(8 + math.cos(a) * r)
+            y = int(8 + math.sin(a) * r * 0.75)
+            if 0 <= x < w and 0 <= y < h:
+                px[y * w + x] = (255, 240, 200, 230 - f * 55)
+        write_png(os.path.join(folder, "impact_%d.png" % f), w, h, px)
+    # 槍口白煙 4 格
+    for f in range(4):
+        w, h = 12, 12
+        px = [_] * (w * h)
+        r = 2 + f * 1.3
+        for y in range(h):
+            for x in range(w):
+                d = math.hypot(x - 6, (y - 6 + f * 0.8) * 1.1)
+                if d < r and rnd.random() < 0.85:
+                    px[y * w + x] = (200, 205, 210, int(150 - f * 35 - d * 6))
+        write_png(os.path.join(folder, "smoke_%d.png" % f), w, h, px)
+    # 散彈槍的大火光 3 格（扇形）
+    for f in range(3):
+        w, h = 16, 15
+        px = [_] * (w * h)
+        length = [15, 12, 7][f]
+        for x in range(length):
+            half = int(x * [0.55, 0.45, 0.35][f] + 1.5 + (rnd.random() * 1.5 if x > 2 else 0))
+            for dy in range(-half, half + 1):
+                y = 7 + dy
+                if 0 <= y < h:
+                    core = abs(dy) <= half * 0.45 and x < length * 0.7
+                    px[y * w + x] = Y if core else (O if abs(dy) < half else R)
+        write_png(os.path.join(folder, "muzzle_big_%d.png" % f), w, h, px)
+    # 釘子、信號彈
+    write_png(os.path.join(folder, "nail.png"), 5, 1, [(120, 128, 140, 255), (160, 168, 180, 255), (160, 168, 180, 255),
+                                                    (200, 208, 220, 255), (230, 235, 240, 255)])
+    flare = [[_, (255, 120, 80, 120), _], [(255, 120, 80, 120), (255, 230, 200, 255), (255, 120, 80, 120)],
+             [_, (255, 120, 80, 120), _]]
+    write_png(os.path.join(folder, "flare.png"), 3, 3, [c for row in flare for c in row])
     # 角色腳下的影子（橢圓、半透明）
     w, h = 16, 6
     px = []
@@ -1197,9 +1398,138 @@ def gen_tiles():
     print("tiles: ok")
 
 
+# ── 頭像（同一個角色模型拉近算圖：狀態 App、過場對白用）────────────────
+
+def scale_prims(prims, k, origin):
+    out = []
+    for p in prims:
+        if isinstance(p, Ell):
+            out.append(Ell(mul(sub(p.c, origin), k), mul(p.r, k), p.mat, p.b))
+        elif isinstance(p, Cap):
+            out.append(Cap(mul(sub(p.a, origin), k), mul(sub(p.bp, origin), k), p.r * k, p.mat, p.rb * k))
+        elif isinstance(p, Box):
+            out.append(Box(mul(sub(p.c, origin), k), mul(p.h, k), p.mat, p.b))
+    return out
+
+
+def portrait_human(spec, mats, extra, yaw=-math.pi / 2 + 0.45):
+    pose = default_pose()
+    pose["arms"] = {1: (0.05, 0.15, 0.2), -1: (0.05, 0.15, 0.2)}
+    prims, J = build_human(spec, pose, mats)
+    prims += extra(J)
+    head = J["head"]
+    prims = [p.moved(lambda v, d=False: v) for p in prims]
+    prims = scale_prims(prims, 3.4, add(head, (0, 0, -1.5)))
+    return [p.moved(lambda v, d=False: rot_z(v, yaw)) for p in prims]
+
+
+def gen_portraits():
+    folder = os.path.join(OUT, "portraits")
+    os.makedirs(folder, exist_ok=True)
+
+    def save(name, prims):
+        write_png(os.path.join(folder, name + ".png"), 48, 48,
+                  render(prims, 48, 48, pitch=math.radians(8), anchor=(24, 26)))
+
+    def mouth(J, mat="flesh", w=0.9):
+        return [Box(head_local(J, (2.9, 0, -1.5)), (0.25, w, 0.22), mat, J["head_basis"])]
+
+    def shen(state):
+        skin = "pale" if state == "danger" else "skin"
+        mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka", "arm": "parka", "hand": skin, "skin": skin}
+
+        def extra(J):
+            p = [Ell(head_local(J, (-1.1, 0, 0.9)), (2.9, 3.25, 2.9), "hair"),
+                 Ell(head_local(J, (-2.8, 0, -1.6)), (1.4, 1.2, 2.4), "hair"),
+                 Ell(head_local(J, (1.4, 0, 2.1)), (1.6, 3.1, 0.9), "hair")]
+            p += face(J)
+            p += [Box(head_local(J, (2.8, y, 0.75)), (0.2, 0.7, 0.18), "hair", J["head_basis"]) for y in (1.15, -1.15)]
+            p += mouth(J, "flesh", 0.7 if state != "fine" else 0.9)
+            p.append(Ell(add(J["chest"], (-0.4, 0, 3.6)), (3.2, 4.0, 1.4), "parka_trim"))
+            if state == "danger":
+                p += [Cap(head_local(J, (2.2, -2.0, -0.8)), head_local(J, (1.6, -2.8, 0.4)), 0.45, "crystal", 0.15),
+                      Cap(head_local(J, (1.0, -2.6, 1.2)), head_local(J, (0.4, -3.1, 2.2)), 0.4, "crystal", 0.12),
+                      Ell(head_local(J, (-0.5, -0.5, 2.6)), (1.8, 2.0, 0.6), "frost")]
+            elif state == "caution":
+                p.append(Ell(head_local(J, (-0.8, 0.8, 2.6)), (1.6, 1.6, 0.5), "frost"))
+            return p
+        return portrait_human({"torso_r": (3.4, 4.2, 5.4)}, mats, extra)
+
+    for st in ("fine", "caution", "danger"):
+        save("shen_" + st, shen(st))
+
+    # 科瓦契：灰色短髮、眼鏡、白袍
+    def kovac_extra(J):
+        p = [Ell(head_local(J, (-1.0, 0, 1.2)), (2.8, 3.2, 2.6), "ash"), Ell(head_local(J, (0.8, 0, 2.2)), (1.8, 3.0, 0.8), "ash")]
+        p += face(J)
+        p += [Box(head_local(J, (2.95, y, 0.1)), (0.15, 0.85, 0.7), "steel", J["head_basis"]) for y in (1.15, -1.15)]
+        p.append(Box(head_local(J, (2.95, 0, 0.3)), (0.15, 0.4, 0.12), "steel", J["head_basis"]))
+        p += mouth(J)
+        return p
+    save("kovac", portrait_human({}, {"leg": "white", "boot": "boot", "hip": "white", "torso": "white", "arm": "white",
+                                     "hand": "skin", "skin": "skin"}, kovac_extra))
+
+    # 守門派：頭盔、護目鏡、黑色面罩
+    def gate_extra(J):
+        return [Ell(head_local(J, (-0.2, 0, 1.0)), (3.4, 3.3, 2.6), "helmet"),
+                Box(head_local(J, (2.7, 0, 0.5)), (0.5, 2.0, 0.7), "goggle", J["head_basis"]),
+                Ell(add(J["chest"], (0.2, 0, -0.2)), (3.7, 4.5, 4.0), "vest")]
+    save("gate", portrait_human({"torso_r": (3.5, 4.4, 5.4)}, {"leg": "olive", "boot": "boot", "hip": "olive",
+                                 "torso": "olive", "arm": "olive", "hand": "black", "skin": "black"}, gate_extra))
+    print("portraits: ok")
+
+
+# ── 互動物件（取代程式畫的色塊）──────────────────────────────
+
+def gen_objects():
+    folder = os.path.join(OUT, "props")
+    os.makedirs(folder, exist_ok=True)
+
+    def save(name, prims, w=16, h=18):
+        write_png(os.path.join(folder, name + ".png"), w, h, render(prims, w, h, anchor=(w / 2.0, h - 3.0)))
+
+    save("crate", [Box((0, 3, 5.5), (6, 5.5, 5.5), "wood"), Box((0, -2.6, 5.5), (5.6, 0.2, 0.6), "cloth"),
+                   Box((0, -2.6, 5.5), (0.6, 0.2, 5.0), "cloth"), Box((-5.8, -2.6, 5.5), (0.4, 0.3, 5.4), "wood")])
+    save("boards", [Box((0, 1, 7 + z * 4.2 - 4), (7.4, 0.8, 1.6), "wood", basis_along((1, 0, 0.08 * (z - 1))))
+                    for z in range(3)] + [Box((x, 0.2, 6), (0.3, 0.3, 0.3), "steel") for x in (-5, 5)], 16, 20)
+    save("extinguisher", [Cap((0, 1, 1.5), (0, 1, 8.5), 2.2, "red"), Box((0, 1, 10.0), (0.8, 0.8, 1.0), "black"),
+                          Cap((0.5, 1, 10.5), (2.8, 0, 8.0), 0.4, "black")], 12, 16)
+    save("generator", [Box((0, 4, 5), (7, 5, 5), "olive"), Box((0, -1.05, 6), (4.5, 0.1, 2.5), "vent"),
+                       Cap((4.5, 4, 10.5), (4.5, 4, 13), 0.7, "gunmetal"), Box((-5, -1.1, 3), (1.2, 0.2, 1.2), "steel")], 16, 20)
+    save("fuel_can", [Box((0, 2, 4.5), (4.5, 3, 4.5), "red"), Box((-2.0, 2, 9.6), (1.0, 1.0, 0.8), "black"),
+                      Box((1.5, 2, 9.8), (2.0, 0.6, 0.5), "red")], 12, 16)
+    save("oil_drum", [Cap((0, 3, 1.0), (0, 3, 10.0), 5.5, "olive"), Cap((0, 3, 4.0), (0, 3, 4.4), 5.7, "gunmetal"),
+                      Cap((0, 3, 7.5), (0, 3, 7.9), 5.7, "gunmetal")], 16, 20)
+    save("note", [Box((0, 0, 0.3), (5, 3.8, 0.2), "white"), Box((0, 0, 0.5), (3.5, 0.3, 0.1), "vent"),
+                  Box((0, 1.2, 0.5), (3.5, 0.3, 0.1), "vent"), Box((-0.5, -1.2, 0.5), (3.0, 0.3, 0.1), "vent")], 14, 12)
+    save("tape", [Box((0, 0, 1.0), (4.5, 2.8, 1.0), "black"), Cap((-1.8, -1.0, 2.1), (-1.8, -1.0, 2.2), 0.9, "white"),
+                  Cap((1.8, -1.0, 2.1), (1.8, -1.0, 2.2), 0.9, "white")], 12, 10)
+    save("radio", [Box((0, 2, 4), (6.5, 3.5, 4), "olive"), Box((-2.5, -1.6, 4.5), (2.5, 0.2, 2.0), "brass"),
+                   Cap((3.5, -1.7, 4.5), (3.5, -2.0, 4.5), 1.4, "black"), Cap((5, 3, 8), (6.5, 4, 14), 0.3, "steel")], 16, 18)
+    save("storage_box", [Box((0, 3, 4.5), (7, 4.5, 4.5), "steel"), Box((0, -1.6, 5.5), (6.8, 0.2, 0.4), "gunmetal"),
+                         Box((0, -1.7, 3.5), (1.4, 0.3, 0.8), "brass")], 16, 16)
+    save("stone_pile", [Ell((x, y, 1.2), (2.2, 1.8, 1.4), "rock") for x, y in ((-3, 1), (2, 2), (-0.5, -1.5), (3.5, -1))]
+         + [Ell((0, 0.5, 2.8), (1.8, 1.6, 1.2), "rock")], 14, 10)
+    save("supply_crate", [Box((0, 3, 4.5), (7, 4.5, 4.5), "olive"), Box((0, -1.6, 4.5), (1.0, 0.2, 4.4), "red"),
+                          Box((0, 3, 9.1), (7, 4.5, 0.2), "olive"), Box((-4, -1.6, 6.5), (1.8, 0.2, 1.2), "white")], 16, 16)
+    save("terminal", [Box((0, 3, 2.5), (6, 3.5, 2.5), "cabinet"), Box((0, 4, 8), (5.5, 1.5, 4), "cabinet",
+                      basis_along((1, 0, 0), (0, -0.4, 1))), Box((0, 2.4, 8.2), (4.5, 0.2, 3.0), "goggle",
+                      basis_along((1, 0, 0), (0, -0.4, 1)))], 16, 18)
+    save("uplink", [Box((0, 3, 4), (7, 4, 4), "cabinet"), Box((0, -1.1, 5), (5, 0.2, 2.2), "goggle"),
+                    Cap((5, 3, 8), (7.5, 4, 15), 0.35, "steel"), Ell((7.5, 4, 15.5), (2.5, 0.5, 2.5), "steel")], 16, 22)
+    save("lift", [Box((0, 2, 0.6), (7.5, 7, 0.6), "gunmetal")] + [Box((x, 2, 0.7), (0.4, 7, 0.4), "brass") for x in (-6, -2, 2, 6)]
+         + [Cap((-7, 8, 1), (-7, 8, 14), 0.5, "yellow"), Cap((7, 8, 1), (7, 8, 14), 0.5, "yellow")], 16, 22)
+    save("access_card", [Box((0, 0, 0.3), (3.8, 2.5, 0.2), "white"), Box((0, -1.4, 0.5), (3.8, 0.8, 0.1), "goggle")], 10, 8)
+    # 雪地車（寬）
+    save("snowcat", [Box((0, 4, 3), (11, 5, 2.2), "black"), Box((0, 4, 7), (10, 4.5, 2.5), "orange"),
+                     Box((3, 4, 11), (5, 4, 2.2), "orange"), Box((5.5, -0.5, 11), (2.0, 0.2, 1.6), "glass"),
+                     Box((0.5, -0.5, 11), (2.0, 0.2, 1.6), "glass"), Cap((-8, 4, 10), (-8, 4, 13), 0.5, "gunmetal")], 28, 22)
+    print("objects: ok")
+
+
 def main():
     want = sys.argv[1:]
-    jobs = list(CHARACTERS) + ["props", "items", "fx", "tiles"]
+    jobs = list(CHARACTERS) + ["props", "items", "fx", "tiles", "portraits", "objects"]
     for j in jobs:
         if want and j not in want:
             continue
@@ -1213,6 +1543,10 @@ def main():
             gen_fx()
         elif j == "tiles":
             gen_tiles()
+        elif j == "portraits":
+            gen_portraits()
+        elif j == "objects":
+            gen_objects()
 
 
 if __name__ == "__main__":

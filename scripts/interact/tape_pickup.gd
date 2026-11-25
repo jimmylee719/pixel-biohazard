@@ -27,6 +27,8 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	if draw_art("tape"):
+		return
 	draw_rect(Rect2(-5, -3, 10, 6), Color(0.2, 0.2, 0.22))
 	draw_rect(Rect2(-3, -1, 2, 2), Color(0.8, 0.8, 0.8))
 	draw_rect(Rect2(1, -1, 2, 2), Color(0.8, 0.8, 0.8))

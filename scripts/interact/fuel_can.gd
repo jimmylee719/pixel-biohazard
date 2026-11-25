@@ -23,6 +23,8 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	if draw_art("fuel_can"):
+		return
 	draw_rect(Rect2(-5, -6, 10, 12), Color(0.7, 0.2, 0.15))
 	draw_rect(Rect2(-5, -6, 10, 12), Color(0.9, 0.4, 0.3), false, 1.0)
 	draw_rect(Rect2(-2, -8, 4, 2), Color(0.3, 0.3, 0.3))

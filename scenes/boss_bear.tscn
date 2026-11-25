@@ -12,6 +12,7 @@ motion_mode = 1
 script = ExtResource("1_bear")
 display_name = "Tundra Mother"
 species = "tundra_mother"
+sprite_set = "bear"
 has_sight = false
 reacts_to_light = false
 hearing_mult = 1.5

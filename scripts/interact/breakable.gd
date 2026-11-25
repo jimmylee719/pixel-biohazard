@@ -92,6 +92,10 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	if draw_art("crate" if kind == "crate" else "boards"):
+		for i in _hits:
+			draw_line(Vector2(-4 + i * 3, -9), Vector2(-1 + i * 3, 1), Color(0.95, 0.9, 0.75), 1.0)
+		return
 	if kind == "crate":
 		draw_rect(Rect2(-7, -7, 14, 14), Color(0.5, 0.36, 0.2))
 		draw_rect(Rect2(-7, -7, 14, 14), Color(0.68, 0.5, 0.3), false, 1.0)

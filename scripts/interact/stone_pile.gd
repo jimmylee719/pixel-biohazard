@@ -19,5 +19,7 @@ func interact(_player: Player) -> void:
 
 
 func _draw() -> void:
+	if draw_art("stone_pile"):
+		return
 	for p in [Vector2(-4, 2), Vector2(2, 3), Vector2(-1, -2), Vector2(4, -1)]:
 		draw_rect(Rect2(p - Vector2(2, 1.5), Vector2(4, 3)), Color(0.45, 0.46, 0.5))

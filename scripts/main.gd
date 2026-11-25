@@ -596,7 +596,7 @@ func play_cutscene(id: String) -> void:
 		if step.has("caption"):
 			await cutscene.caption(tr(step.caption), step.get("time", 2.0))
 		elif step.has("say"):
-			await cutscene.say(tr(step.say), tr(step.text), step.get("auto", 0.0))
+			await cutscene.say(tr(step.say), tr(step.text), step.get("auto", 0.0), _speaker_portrait(step.say))
 		elif step.has("pan"):
 			var at := (Vector2(step.pan) + Vector2(0.5, 0.5)) * Level.TILE
 			if step.has("light"):
@@ -621,6 +621,17 @@ func play_cutscene(id: String) -> void:
 	_camera.snap_to_target()
 	await cutscene.close()
 	get_tree().paused = was_paused
+
+
+## 對白的頭像：沈若寧依目前狀況（受傷、感染）換表情；守門派是頭盔；無線電另外的人用科瓦契
+func _speaker_portrait(speaker: String) -> Texture2D:
+	if speaker == Cutscenes.SHEN:
+		return Art.tex("portraits/shen_" + _player.get_condition().to_lower())
+	if speaker.begins_with("[GATE"):
+		return Art.tex("portraits/gate")
+	if speaker.begins_with("[KOVAC"):
+		return Art.tex("portraits/kovac")
+	return null
 
 
 func _pan_camera(to: Vector2, time: float) -> void:

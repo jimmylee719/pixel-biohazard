@@ -480,4 +480,8 @@ T = [
 ("Story cache II", "主線補給箱 II"),
 ("New story games: a nail gun and nails wait in the safe room box.", "主線新遊戲時，安全屋的儲物箱裡會有釘槍和釘條。"),
 ("[owned] ", "［已有］"),
+("[KOVAC]", "［科瓦契］"),
+("...anyone at North Latitude? This is Ana Kovac, on the mainland relay. Is anyone still alive up there?", "……北緯站還有人嗎？我是艾娜．科瓦契，在本土的中繼站。那邊還有人活著嗎？"),
+("Supply pilot. Shen Ruoning. Your station is full of people who aren't people anymore.", "補給駕駛，沈若寧。你們的研究站裡都是……已經不是人的人。"),
+("Then listen carefully. They can't see you. They hear everything. Stay quiet, stay cold - and stay away from the drill shaft.", "那就仔細聽好。它們看不見你，但什麼都聽得到。保持安靜、待在冷的地方——還有，離鑽探井遠一點。"),
 ]

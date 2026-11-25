@@ -2263,8 +2263,21 @@ func _test_pixel_art() -> void:
 	var needs := {
 		"player": ["idle", "walk", "sneak", "aim_pistol", "aim_shotgun", "slash", "punch", "kick"],
 		"watcher": ["walk", "idle", "attack"], "listener": ["walk", "listen", "attack"],
-		"guard": ["walk", "idle", "aim"], "hound": ["walk", "idle", "attack"],
+		"guard": ["walk", "idle", "aim", "hurt"], "hound": ["walk", "idle", "attack"],
+		"crawler": ["walk", "attack"], "husk": ["walk", "attack", "hurt"], "chorister": ["walk", "listen", "attack"],
+		"bear": ["walk", "idle", "attack", "hurt"],
 	}
+	var cs_p := CharacterSprite.new()
+	cs_p.setup("player")
+	_check(cs_p.sprite_frames.get_frame_count("walk_down") >= 8 and cs_p.sprite_frames.get_frame_count("kick_right") >= 6
+		and cs_p.has_anim("shoot_shotgun") and cs_p.has_anim("hurt"), "動作格數夠多（走路 8 格、踢 6 格、開槍後座力、受傷）")
+	cs_p.free()
+	for obj in ["crate", "boards", "generator", "radio", "terminal", "storage_box", "snowcat", "oil_drum"]:
+		_check(Art.tex("props/" + obj) != null, "物件像素圖 %s" % obj)
+	for por in ["shen_fine", "shen_danger", "kovac", "gate"]:
+		_check(Art.tex("portraits/" + por) != null, "頭像 %s" % por)
+	for fx_id in ["slash_4", "hit_3", "impact_3", "smoke_3", "muzzle_big_2", "nail", "flare"]:
+		_check(Art.tex("fx/" + fx_id) != null, "特效 %s" % fx_id)
 	for id in needs:
 		var cs := CharacterSprite.new()
 		var ok := cs.setup(id)

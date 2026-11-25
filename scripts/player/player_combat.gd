@@ -247,6 +247,14 @@ func shoot() -> bool:
 	else:
 		end = Sight.cast(player, origin, origin + player.facing * s.range)
 	last_shot = {"from": origin, "to": end, "t": 0.0, "hit": hit}
+	if weapon == "shotgun":
+		# 散彈的彈丸（畫面表現）：往前扇形散開，各自打到牆或飛到射程
+		var base_dir := (end - origin).normalized()
+		var pellets: Array[Vector2] = [end]
+		for i in 6:
+			var d := base_dir.rotated(randf_range(-0.22, 0.22))
+			pellets.append(Sight.cast(player, origin, origin + d * s.range * randf_range(0.6, 1.0)))
+		last_shot["pellets"] = pellets
 	if s.get("fire", false) and player.level:
 		# 信號彈落點起火：燒幾秒、照亮一大片
 		var fire := Fire.new()
@@ -331,7 +339,7 @@ func melee() -> bool:
 					item.cut()
 	# 先結算傷害再發出聲音：不然被偷襲的敵人會在同一瞬間「聽到」揮刀聲而無法偷襲
 	NoiseBus.emit_noise(origin, (melee_noise_tiles if combo_step == 0 else move.noise) * Player.TILE, player)
-	last_melee = {"pos": origin, "dir": player.facing, "t": 0.0, "takedown": takedown, "move": move.name}
+	last_melee = {"pos": origin, "dir": player.facing, "t": 0.0, "takedown": takedown, "move": move.name, "hit": hit_any}
 	return true
 
 

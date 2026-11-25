@@ -30,6 +30,8 @@ func interact(_player: Player) -> void:
 
 
 func _draw() -> void:
+	if draw_art("radio"):
+		return
 	draw_rect(Rect2(-7, -5, 14, 9), Color(0.25, 0.27, 0.22))
 	draw_rect(Rect2(-7, -5, 14, 9), Color(0.5, 0.52, 0.42), false, 1.0)
 	draw_rect(Rect2(-5, -3, 6, 4), Color(0.9, 0.7, 0.3))

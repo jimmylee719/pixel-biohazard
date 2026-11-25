@@ -33,6 +33,8 @@ func _ready_to_go() -> bool:
 
 
 func _draw() -> void:
+	if draw_art("snowcat"):
+		return
 	draw_rect(Rect2(-12, -7, 24, 12), Color(0.85, 0.55, 0.15))
 	draw_rect(Rect2(-12, 5, 24, 3), Color(0.2, 0.2, 0.22))
 	draw_rect(Rect2(-4, -10, 12, 5), Color(0.6, 0.8, 0.9))

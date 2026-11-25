@@ -25,6 +25,9 @@ var _speaker: Label
 var _text: Label
 var _caption: Label
 var _hint: Label
+## 說話的人的頭像（衛星電話的視訊畫面風格：小框＋掃描線）
+var _portrait: TextureRect
+var _portrait_frame: ColorRect
 var _typing := 0.0
 var _full := ""
 var _waiting := false
@@ -44,6 +47,21 @@ func _ready() -> void:
 	_text.position = Vector2(16, H - BAR_LOW + 14)
 	_text.size = Vector2(W - 32, 28)
 	_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_portrait_frame = ColorRect.new()
+	_portrait_frame.color = Color(0.12, 0.2, 0.22)
+	_portrait_frame.size = Vector2(40, 40)
+	_portrait_frame.position = Vector2(8, H - BAR_LOW + 2)
+	_portrait_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_portrait_frame.visible = false
+	add_child(_portrait_frame)
+	_portrait = TextureRect.new()
+	_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_portrait.size = Vector2(38, 38)
+	_portrait.position = Vector2(1, 1)
+	_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_portrait_frame.add_child(_portrait)
 	_caption = _label(12, Color(0.85, 0.88, 0.92))
 	_caption.position = Vector2(0, 5)
 	_caption.size = Vector2(W, 14)
@@ -88,6 +106,7 @@ func open() -> void:
 
 
 func close() -> void:
+	_portrait_frame.visible = false
 	_speaker.text = ""
 	_text.text = ""
 	_caption.text = ""
@@ -101,7 +120,14 @@ func close() -> void:
 
 
 ## 一句對白：打字機效果打完後等玩家按鍵（或 auto 秒後自動下一句）
-func say(speaker: String, text: String, auto := 0.0) -> void:
+func say(speaker: String, text: String, auto := 0.0, portrait: Texture2D = null) -> void:
+	_portrait.texture = portrait
+	_portrait_frame.visible = portrait != null
+	_portrait_frame.position.y = _bottom.position.y + 2
+	var left := 54.0 if portrait else 16.0
+	_speaker.position.x = left
+	_text.position.x = left
+	_text.size.x = W - left - 16
 	_speaker.text = speaker
 	_speaker.add_theme_color_override("font_color",
 		Color(0.55, 0.95, 0.7) if speaker.begins_with("[") else Color(1.0, 0.8, 0.4))

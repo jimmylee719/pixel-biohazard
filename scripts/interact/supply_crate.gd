@@ -24,6 +24,8 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	if draw_art("supply_crate"):
+		return
 	draw_rect(Rect2(-7, -5, 14, 10), Color(0.55, 0.42, 0.25))
 	draw_rect(Rect2(-7, -5, 14, 10), Color(0.75, 0.6, 0.35), false, 1.0)
 	draw_rect(Rect2(-1, -5, 2, 10), Color(0.85, 0.3, 0.25))

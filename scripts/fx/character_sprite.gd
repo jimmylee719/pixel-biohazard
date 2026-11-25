@@ -11,11 +11,15 @@ const FLIP := [false, false, false, true, true, true, false, false]
 ## 腳底離角色中心多遠（像素）
 const FEET := 6.0
 ## 每種動作的播放速度（格／秒）、會不會循環。沒列出來的用 6、循環。
+## 格數多（走路 8 格、近戰 6 格、撲擊 5 格），播放速度跟著提高 → 動作流暢
 const ANIMS := {
-	"idle": [2.0, true], "walk": [9.0, true], "sneak": [7.0, true], "listen": [2.5, true],
+	"idle": [3.0, true], "walk": [12.0, true], "sneak": [10.0, true], "listen": [3.0, true],
 	"aim": [1.0, true], "aim_pistol": [1.0, true], "aim_shotgun": [1.0, true], "aim_rifle": [1.0, true],
 	"aim_nailgun": [1.0, true], "aim_flare_gun": [1.0, true],
-	"slash": [14.0, false], "slash_axe": [12.0, false], "punch": [14.0, false], "kick": [12.0, false], "attack": [8.0, false],
+	"shoot_pistol": [20.0, false], "shoot_shotgun": [16.0, false], "shoot_rifle": [14.0, false],
+	"shoot_nailgun": [24.0, false], "shoot_flare_gun": [18.0, false],
+	"slash": [22.0, false], "slash_axe": [18.0, false], "punch": [24.0, false], "kick": [20.0, false],
+	"attack": [12.0, false], "hurt": [14.0, false],
 }
 
 var char_id := ""
@@ -74,6 +78,10 @@ func show_pose(anim: String, facing: Vector2, playing: bool, speed := 1.0) -> vo
 	if not has_anim(anim):
 		if anim.begins_with("aim_") and has_anim("aim_pistol"):
 			anim = "aim_pistol"
+		elif anim.begins_with("shoot_") and has_anim("aim_" + anim.substr(6)):
+			anim = "aim_" + anim.substr(6)
+		elif anim == "hurt" and has_anim("idle"):
+			anim = "idle"
 		elif anim.begins_with("slash") and has_anim("slash"):
 			anim = "slash"
 		else:

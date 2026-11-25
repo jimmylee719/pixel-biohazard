@@ -19,6 +19,8 @@ func interact(_player: Player) -> void:
 
 
 func _draw() -> void:
+	if draw_art("storage_box"):
+		return
 	draw_rect(Rect2(-7, -5, 14, 10), Color(0.35, 0.4, 0.45))
 	draw_rect(Rect2(-7, -5, 14, 10), Color(0.6, 0.66, 0.72), false, 1.0)
 	draw_line(Vector2(-7, -1), Vector2(7, -1), Color(0.6, 0.66, 0.72), 1.0)

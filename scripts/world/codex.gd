@@ -27,7 +27,7 @@ const ENTRIES := {
 	"hound": {"group": "infected", "name": "Hound", "sprite": "hound/walk_right_0",
 		"desc": "One of the station's sled dogs. Fast, and its nose still works. It hunts in the open snow.",
 		"tip": "You can't outrun it. Get indoors and shut a door between you."},
-	"tundra_mother": {"group": "infected", "name": "Tundra Mother", "sprite": "",
+	"tundra_mother": {"group": "infected", "name": "Tundra Mother", "sprite": "bear/walk_right_0",
 		"desc": "A polar bear the colony has made its home. The hangar was hers long before you arrived.",
 		"tip": "Its back is soft where the crystals split."},
 	"deep_well": {"group": "infected", "name": "The Deep Well", "sprite": "",

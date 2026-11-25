@@ -36,6 +36,10 @@ const DATA := {
 	"clean_room": [
 		{"say": SHEN, "text": "A clean room. Sealed door, its own air. Nothing followed me in."},
 		{"say": SHEN, "text": "And a radio. I can save what I know here - and listen. Somebody might be talking."},
+		{"sfx": "radio_static"},
+		{"say": "[KOVAC]", "text": "...anyone at North Latitude? This is Ana Kovac, on the mainland relay. Is anyone still alive up there?"},
+		{"say": SHEN, "text": "Supply pilot. Shen Ruoning. Your station is full of people who aren't people anymore."},
+		{"say": "[KOVAC]", "text": "Then listen carefully. They can't see you. They hear everything. Stay quiet, stay cold - and stay away from the drill shaft."},
 	],
 	"hangar": [
 		{"pan_enemy": 0, "time": 1.8},

@@ -52,6 +52,9 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	if draw_art("generator"):
+		draw_rect(Rect2(3, -9, 2, 2), Color(0.4, 1.0, 0.5) if WorldState.power_on else Color(1.0, 0.3, 0.2))
+		return
 	draw_rect(Rect2(-6, -6, 12, 12), Color(0.3, 0.32, 0.3))
 	draw_rect(Rect2(-6, -6, 12, 12), Color(0.55, 0.58, 0.5), false, 1.0)
 	var led := Color(0.4, 1.0, 0.5) if WorldState.power_on else Color(1.0, 0.3, 0.2)

@@ -98,16 +98,8 @@ func _draw_combat() -> void:
 		_draw_shot(shot, combat.current_weapon())
 	# 近戰揮擊
 	var swing := combat.last_melee
-	var slash_tex := Art.tex("fx/slash")
-	if not swing.is_empty() and swing.t < 0.12 and swing.move == "slash" and slash_tex:
-		# 刀光（tools/gen_pixel_art.py 的 fx/slash）
-		draw_set_transform(swing.pos + swing.dir * 9.0, swing.dir.angle())
-		draw_texture(slash_tex, -slash_tex.get_size() * 0.5, Color(1, 1, 1, 1.0 - swing.t / 0.12))
-		draw_set_transform(Vector2.ZERO)
-	elif not swing.is_empty() and swing.t < 0.15:
-		var base: float = swing.dir.angle()
-		var color := Color(1, 0.3, 0.3) if swing.takedown else Color(0.9, 0.95, 1.0)
-		draw_arc(swing.pos, combat.melee_range, base - 0.9, base + 0.9, 8, Color(color, 1.0 - swing.t / 0.15), 1.0)
+	if not swing.is_empty():
+		_draw_melee(swing)
 	# 裝填進度
 	if combat.reloading:
 		var p := _player.global_position + Vector2(-6, 9)
@@ -115,30 +107,53 @@ func _draw_combat() -> void:
 		draw_rect(Rect2(p, Vector2(12 * combat.reload_progress(), 2)), Color(0.9, 0.85, 0.5))
 
 
-## 開槍：槍口火光（3 格）、飛出去的子彈（曳光）、往旁邊彈出的彈殼
+## 開槍：槍口火光（散彈槍、獵槍是大火光）、白煙、彈道（彈頭＋拖尾，散彈呈扇形）、命中的碎片、彈殼
+const SHOT_TRAVEL := {"pistol": 0.07, "rifle": 0.05, "shotgun": 0.08, "nailgun": 0.14, "flare_gun": 0.22}
+
+
 func _draw_shot(shot: Dictionary, weapon: String) -> void:
 	var t: float = shot.t
 	var dir: Vector2 = (shot.to - shot.from).normalized()
 	var muzzle: Vector2 = shot.from + dir * 9.0 + Vector2(0, -3)
-	var flash := Art.tex("fx/muzzle_%d" % mini(int(t / 0.03), 2))
-	if t < 0.09 and flash:
+	var big := weapon in ["shotgun", "rifle"]
+	var flash := Art.tex(("fx/muzzle_big_%d" if big else "fx/muzzle_%d") % mini(int(t / 0.025), 2))
+	if weapon != "nailgun" and t < 0.075 and flash:
 		draw_set_transform(muzzle, dir.angle())
 		draw_texture(flash, Vector2(0, -flash.get_height() * 0.5))
 		draw_set_transform(Vector2.ZERO)
-	var travel := 0.1
-	var bullet := Art.tex("fx/pellet" if weapon == "shotgun" else "fx/bullet")
-	if t < travel and bullet:
-		var p: Vector2 = muzzle.lerp(shot.to, t / travel)
-		if weapon == "shotgun":
-			for k in [-0.12, 0.0, 0.12]:
-				var q: Vector2 = muzzle + (p - muzzle).rotated(k)
-				draw_texture(bullet, q - bullet.get_size() * 0.5)
-		else:
-			draw_set_transform(p, dir.angle())
-			draw_texture(bullet, -bullet.get_size() * 0.5)
-			draw_set_transform(Vector2.ZERO)
-	elif t < 0.14:
-		draw_line(muzzle, shot.to, Color(1.0, 0.95, 0.6, 1.0 - t / 0.14), 1.0)
+	var smoke := Art.tex("fx/smoke_%d" % mini(int(t / 0.1), 3))
+	if weapon != "nailgun" and t < 0.4 and smoke:
+		draw_texture(smoke, (muzzle + dir * 3.0 + Vector2(0, -t * 18.0) - smoke.get_size() * 0.5).floor())
+	var travel: float = SHOT_TRAVEL.get(weapon, 0.07)
+	var head_tex := Art.tex({"shotgun": "fx/pellet", "nailgun": "fx/nail", "flare_gun": "fx/flare"}.get(weapon, "fx/bullet"))
+	var tail_color := Color(1.0, 0.35, 0.25) if weapon == "flare_gun" else Color(1.0, 0.88, 0.55)
+	if weapon == "nailgun":
+		tail_color = Color(0.75, 0.8, 0.85)
+	var width := 2.0 if weapon == "rifle" else 1.0
+	var ends: Array = shot.get("pellets", [shot.to])
+	if t < travel + 0.1:
+		var fade := 1.0 - clampf((t - travel) / 0.1, 0.0, 1.0)
+		for end: Vector2 in ends:
+			var k := clampf(t / travel, 0.0, 1.0)
+			var head: Vector2 = muzzle.lerp(end, k)
+			var tail: Vector2 = muzzle.lerp(end, maxf(0.0, k - (0.6 if weapon == "rifle" else 0.35)))
+			draw_line(tail, head, Color(tail_color, 0.6 * fade), width)
+			if k < 1.0 and head_tex:
+				draw_set_transform(head, (end - muzzle).angle())
+				draw_texture(head_tex, -head_tex.get_size() * 0.5)
+				draw_set_transform(Vector2.ZERO)
+	# 命中：冰晶碎片和血；沒打中的彈丸在牆上濺出小火花
+	if t > travel * 0.8 and t < travel + 0.2:
+		var f := mini(int((t - travel * 0.8) / 0.05), 3)
+		var hit_tex := Art.tex("fx/hit_%d" % f)
+		if shot.hit and hit_tex:
+			draw_texture(hit_tex, (shot.to - hit_tex.get_size() * 0.5).floor())
+		var spark := Art.tex("fx/impact_%d" % f)
+		if spark:
+			for end: Vector2 in ends:
+				if not shot.hit or end != shot.to:
+					draw_texture_rect(spark, Rect2(end - spark.get_size() * 0.25, spark.get_size() * 0.5), false,
+						Color(1, 1, 1, 0.8))
 	# 彈殼：往右後方拋物線彈出，落地停一下
 	var casing := Art.tex("fx/shell_casing" if weapon == "shotgun" else "fx/casing")
 	if casing and t < 0.6 and weapon in ["pistol", "shotgun", "rifle"]:
@@ -146,6 +161,27 @@ func _draw_shot(shot: Dictionary, weapon: String) -> void:
 		var k := minf(t / 0.3, 1.0)
 		var p: Vector2 = shot.from + side * (4.0 + 10.0 * k) - dir * 4.0 * k + Vector2(0, -8.0 * k * (1.0 - k) * 4.0 + 3.0 * k)
 		draw_texture(casing, p.floor(), Color(1, 1, 1, clampf((0.6 - t) / 0.2, 0.0, 1.0)))
+
+
+## 近戰：刀光（5 格掃過去）、拳腳打中的衝擊圈＋碎片
+func _draw_melee(swing: Dictionary) -> void:
+	var t: float = swing.t
+	var dir: Vector2 = swing.dir
+	if swing.move == "slash" and t < 0.125:
+		var tex := Art.tex("fx/slash_%d" % mini(int(t / 0.025), 4))
+		if tex:
+			draw_set_transform(swing.pos + dir * 9.0 + Vector2(0, -6), dir.angle())
+			draw_texture(tex, -tex.get_size() * 0.5, Color(1.0, 0.75, 0.7) if swing.takedown else Color.WHITE)
+			draw_set_transform(Vector2.ZERO)
+	if swing.get("hit", false) and t < 0.2:
+		var f := mini(int(t / 0.05), 3)
+		var at: Vector2 = swing.pos + dir * 13.0 + Vector2(0, -6)
+		var ring := Art.tex("fx/impact_%d" % f)
+		if ring and swing.move in ["punch", "kick"]:
+			draw_texture(ring, (at - ring.get_size() * 0.5).floor())
+		var hit := Art.tex("fx/hit_%d" % f)
+		if hit:
+			draw_texture(hit, (at - hit.get_size() * 0.5).floor())
 
 
 ## 睡著的凍眠體：偶爾閃一下結晶的微光，這是和普通屍體唯一的差別。

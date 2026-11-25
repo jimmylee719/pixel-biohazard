@@ -24,6 +24,8 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	if draw_art("extinguisher"):
+		return
 	draw_rect(Rect2(-3, -6, 6, 11), Color(0.8, 0.12, 0.1))
 	draw_rect(Rect2(-2, -8, 4, 2), Color(0.25, 0.25, 0.25))
 	draw_line(Vector2(2, -7), Vector2(5, -4), Color(0.25, 0.25, 0.25), 1.0)

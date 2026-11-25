@@ -24,5 +24,7 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	if draw_art("access_card"):
+		return
 	draw_rect(Rect2(-4, -3, 8, 6), Color(0.85, 0.85, 0.9))
 	draw_rect(Rect2(-4, -3, 8, 2), Color(0.3, 0.6, 0.95))

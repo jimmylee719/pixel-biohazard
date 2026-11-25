@@ -617,11 +617,15 @@ func _update_sprite() -> void:
 		return
 	# 近戰動作（刀、拳、踢）優先，再來是舉槍瞄準
 	var swing: Dictionary = combat.last_melee
-	if not swing.is_empty() and swing.t < 0.22 and swing.move in ["slash", "punch", "kick"]:
+	if not swing.is_empty() and swing.t < 0.3 and swing.move in ["slash", "punch", "kick"]:
 		var move: String = swing.move
 		if move == "slash" and combat.melee_weapon() == "fire_axe":
 			move = "slash_axe"
 		_sprite.show_pose(move, swing.dir, true)
+		return
+	var shot: Dictionary = combat.last_shot
+	if combat.aiming and combat.has_weapon() and not shot.is_empty() and shot.t < 0.18:
+		_sprite.show_pose("shoot_" + combat.current_weapon(), facing, true)
 		return
 	if combat.aiming and combat.has_weapon():
 		_sprite.show_pose("aim_" + combat.current_weapon(), facing, true)

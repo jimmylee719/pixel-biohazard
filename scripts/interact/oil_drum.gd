@@ -51,6 +51,8 @@ func _refresh() -> void:
 
 
 func _draw() -> void:
+	if draw_art("oil_drum"):
+		return
 	draw_rect(Rect2(-6, -7, 12, 13), Color(0.3, 0.32, 0.28))
 	draw_rect(Rect2(-6, -3, 12, 2), Color(0.45, 0.47, 0.4))
 	draw_rect(Rect2(-6, 2, 12, 2), Color(0.45, 0.47, 0.4))

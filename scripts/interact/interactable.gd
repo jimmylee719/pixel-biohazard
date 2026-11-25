@@ -69,3 +69,14 @@ func learn_frequency() -> int:
 	if freq != 0 and WorldState.learn_freq(freq):
 		return freq
 	return 0
+
+
+## 有像素圖（props/<name>，tools/gen_pixel_art.py）就畫出來：底部對齊、加一點地上的影子，回傳 true；
+## 沒有圖就回傳 false，呼叫端照舊畫色塊。
+func draw_art(art_name: String) -> bool:
+	var tex := Art.tex("props/" + art_name)
+	if tex == null:
+		return false
+	draw_rect(Rect2(-tex.get_width() * 0.4, 4, tex.get_width() * 0.8, 2), Color(0, 0, 0.02, 0.3))
+	draw_texture(tex, Vector2(-tex.get_width() * 0.5, 7 - tex.get_height()).floor())
+	return true

@@ -65,6 +65,8 @@ func _refresh() -> void:
 
 
 func _draw() -> void:
+	if draw_art("uplink"):
+		return
 	draw_rect(Rect2(-8, -7, 16, 12), Color(0.2, 0.22, 0.25))
 	draw_rect(Rect2(-6, -5, 12, 6), Color(0.25, 0.6, 0.4) if dish_ready() else Color(0.6, 0.35, 0.2))
 	draw_line(Vector2(5, -7), Vector2(8, -12), Color(0.7, 0.72, 0.75), 1.0)

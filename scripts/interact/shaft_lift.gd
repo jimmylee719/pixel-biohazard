@@ -30,6 +30,8 @@ func _ready_to_go() -> bool:
 
 
 func _draw() -> void:
+	if draw_art("lift"):
+		return
 	draw_rect(Rect2(-8, -8, 16, 16), Color(0.25, 0.27, 0.3))
 	draw_rect(Rect2(-8, -8, 16, 16), Color(0.75, 0.65, 0.3), false, 1.0)
 	draw_line(Vector2(-8, -8), Vector2(8, 8), Color(0.75, 0.65, 0.3), 1.0)

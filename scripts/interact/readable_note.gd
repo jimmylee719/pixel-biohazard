@@ -28,6 +28,8 @@ func sync_from_state() -> void:
 
 
 func _draw() -> void:
+	if draw_art("note"):
+		return
 	draw_rect(Rect2(-6, -5, 12, 9), Color(0.85, 0.87, 0.82))
 	for i in 3:
 		draw_line(Vector2(-4, -3 + i * 2.5), Vector2(3, -3 + i * 2.5), Color(0.3, 0.35, 0.5), 1.0)

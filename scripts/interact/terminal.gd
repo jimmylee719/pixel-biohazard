@@ -30,5 +30,7 @@ func interact(_player: Player) -> void:
 
 
 func _draw() -> void:
+	if draw_art("terminal"):
+		return
 	draw_rect(Rect2(-7, -6, 14, 10), Color(0.2, 0.22, 0.25))
 	draw_rect(Rect2(-5, -4, 10, 6), Color(0.3, 0.75, 0.9))

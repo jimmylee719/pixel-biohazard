@@ -854,7 +854,10 @@ func _update_sprite(tint: Color) -> void:
 		return
 	_sprite.set_shadow_visible(true)
 	var moving := velocity.length() > 4.0
-	# 撲擊（近戰前搖）、舉槍（遠距離前搖或警戒中的人類）優先
+	# 被打中的硬直、撲擊（近戰前搖）、舉槍（遠距離前搖或警戒中的人類）優先
+	if _stagger > 0.0 and _sprite.has_anim("hurt"):
+		_sprite.show_pose("hurt", facing, true)
+		return
 	if (winding_up or _windup > 0.0) and _sprite.has_anim("attack"):
 		_sprite.show_pose("attack", facing, true)
 		return
