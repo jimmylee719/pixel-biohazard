@@ -53,6 +53,9 @@
 - 近戰：`PlayerCombat.COMBO`（刀 → 拳 → 踢，踢倒可補刀、撞牆額外傷害）、擒拿（背後按互動抓住；攻擊 = 解決、投擲 = 摔、互動 = 放開）。
 - 敵人離開區域時的位置記在 `WorldState.data.enemies`（`Enemy.snapshot()` / `restore_snapshot()`）。
 - 畫面：牆的正面 `scripts/level/wall_faces.gd`（3/4 高度感）、後製 `assets/shaders/film.gdshader`（顆粒、暗角）。
+- 手機 UI（`scripts/ui/phone.gd`，main 的 `open_phone()`／`set_phone_app()`）：狀態、物品、任務、訊息、地圖、操作說明都在手機裡，
+  遊戲畫面只留互動提示、左上角一行通知（`show_message`，長訊息全文在手機「訊息」= `main.message_log`）、警戒狀態。
+  物品、任務 App 沿用 InventoryPanel／MissionPanel（擺進手機螢幕）。狀態列平常隱藏，受傷或狀況不好才出現。
 - 操作手感：類比搖桿輕推（< `analog_sneak_tilt`）自動潛行；撞到牆角邊緣會自動滑開（`Player._assist_corner`）。
 - 觸控：`scripts/ui/touch_controls.gd`、`touch_stick.gd`（全部轉成 InputMap 動作）。注意 Godot 4.7 內建 `VirtualJoystick` 類別，自己的類別不要取這個名字。
 - 多語系：介面與劇情文字一律寫英文原文，顯示時用 `tr()`（資料裡的整句在 `show_message`、面板顯示處翻譯）。

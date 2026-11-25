@@ -112,6 +112,11 @@ func _run() -> void:
 	_main._toggle_inventory_panel()
 	await _frames(3)
 	await _shot("8_inventory")
+	for app in ["status", "messages", "map"]:
+		_main.set_phone_app(app)
+		await _frames(3)
+		await _shot("8_phone_" + app)
+	_main.set_phone_app("items")
 	_main._toggle_inventory_panel()
 
 	# 感染症狀

@@ -227,6 +227,7 @@ func _test_mission_panel() -> void:
 	Input.action_release("map")
 	await get_tree().process_frame
 	_check(not panel.visible and not get_tree().paused, "再按一次關閉並繼續")
+	await _test_phone()
 
 
 func _test_supply_crate() -> void:
@@ -2141,6 +2142,34 @@ func _test_first_person() -> void:
 	_check(not fp.active, "往後退就離開")
 	await _reset_world()
 	_enable_all()
+
+
+func _test_phone() -> void:
+	print("[phone]")
+	var phone: Phone = _main.phone
+	_main.show_message("TAPE (test): a very long message that should only show its beginning in the notification.")
+	await _frames(2)
+	_check(_main.message_log[0].begins_with("TAPE (test)"), "訊息記在手機裡")
+	_check(_main._message_more.visible, "長訊息提示到手機看全文")
+	await _press("inventory")
+	_check(phone.visible and phone.app == "items" and _main.get_node("HUD/InventoryPanel").visible, "物品鍵 = 打開手機的物品 App")
+	_check(get_tree().paused, "看手機時遊戲暫停")
+	await _press("move_right")
+	_check(phone.app == "missions" and _main.get_node("HUD/MissionPanel").visible, "左右切換 App（任務）")
+	_check(not _main.get_node("HUD/InventoryPanel").visible, "切換後物品面板收起來")
+	await _press("move_right")
+	_check(phone.app == "messages" and "very long message" in phone.get_text(), "訊息 App 看得到全文")
+	await _press("move_left")
+	await _press("move_left")
+	await _press("move_left")
+	_check(phone.app == "status" and "Condition" in phone.get_text(), "狀態 App")
+	_main.set_phone_app("map")
+	_check(phone.app == "map", "地圖 App")
+	_main.set_phone_app("controls")
+	_check("WASD" in phone.get_text() or "move" in phone.get_text().to_lower(), "操作說明 App")
+	await _press("inventory")
+	_check(not phone.visible and not get_tree().paused, "再按物品鍵關掉手機")
+	_check(not _main.get_node("HUD/Objective").visible and not _main.get_node("HUD/Hint").visible, "遊戲畫面上不擺目標和操作說明")
 
 
 func _test_audio() -> void:

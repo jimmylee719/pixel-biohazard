@@ -495,6 +495,63 @@ msgstr "出來"
 msgid "Hide"
 msgstr "躲進去"
 
+msgid "Status"
+msgstr "狀態"
+
+msgid "STAT"
+msgstr "狀態"
+
+msgid "ITEM"
+msgstr "物品"
+
+msgid "MSG"
+msgstr "訊息"
+
+msgid "MAP"
+msgstr "地圖"
+
+msgid "KEYS"
+msgstr "操作"
+
+msgid "Items"
+msgstr "物品"
+
+msgid "Operations"
+msgstr "任務"
+
+msgid "Messages"
+msgstr "訊息"
+
+msgid "Map"
+msgstr "地圖"
+
+msgid "Controls"
+msgstr "操作"
+
+msgid "No messages."
+msgstr "沒有訊息。"
+
+msgid "New objective: %s"
+msgstr "新目標：%s"
+
+msgid "Infection: %s"
+msgstr "感染：%s"
+
+msgid "None"
+msgstr "無"
+
+msgid "Mild"
+msgstr "輕微"
+
+msgid "Severe"
+msgstr "嚴重"
+
+msgid "Critical"
+msgstr "危急"
+
+msgid "[%s] Phone"
+msgstr "[%s] 手機"
+
 msgid "[%s] Leave the locker"
 msgstr "[%s] 離開櫃子"
 
@@ -755,9 +812,6 @@ msgstr "舉槍"
 
 msgid "Fire"
 msgstr "開火"
-
-msgid "Items"
-msgstr "物品"
 
 msgid "Ops"
 msgstr "任務"

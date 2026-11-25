@@ -32,6 +32,15 @@ var enemies: Array[Enemy] = []
 var _resetting := false
 var _transitioning := false
 var _message_timer := 0.0
+## 收過的訊息（新的在前），手機「訊息」App 看得到全文
+var message_log: Array[String] = []
+var _message_more: Label
+var _hurt_timer := 0.0
+var _last_objective := ""
+var phone: Phone
+var _message_cursor := 0
+## 超過這個長度的訊息，通知只顯示開頭（提示到手機看全文）
+const MESSAGE_SHORT := 34
 var _message_queue: Array[String] = []
 var _inventory_cursor := 0
 var _storage_cursor := 0
@@ -99,6 +108,7 @@ func _ready() -> void:
 	_player.died.connect(func(): _end_attempt(tr("YOU DIED"), Color(0.9, 0.2, 0.2)))
 	_player.hurt.connect(func(_d):
 		_hurt_flash.color.a = 0.45
+		_hurt_timer = 4.0
 		close_window_view())
 	_banner.visible = false
 	_hint.text = _build_hint()
@@ -149,7 +159,8 @@ func _ready() -> void:
 	$HUD.add_child(_alert_label)
 	touch_controls = TouchControls.new()
 	add_child(touch_controls)
-	_hint.visible = not touch_controls.visible  # 觸控時不顯示鍵盤說明
+	_hint.visible = false  # 操作說明在手機「操作」App
+	_build_phone()
 	_portrait = TextureRect.new()
 	_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_portrait.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -175,6 +186,8 @@ func _process(delta: float) -> void:
 	elif _pause_panel.visible:
 		if Input.is_action_just_pressed("pause"):
 			_toggle_pause()
+	elif phone.visible:
+		_process_phone_input()
 	elif _inventory_panel.visible:
 		_process_inventory_input()
 	elif _storage_panel.visible:
@@ -203,6 +216,7 @@ func _process(delta: float) -> void:
 	if _message_timer <= 0.0:
 		if _message_queue.is_empty():
 			_message.visible = false
+			_message_more.visible = false
 		else:
 			_show_next_message()
 
@@ -214,6 +228,7 @@ func _process(delta: float) -> void:
 	else:
 		_prompt.text = ""
 	_items.text = _build_items_text()
+	_hurt_timer = maxf(_hurt_timer - delta, 0.0)
 	var body := ""
 	if level and Climates.has_exposure(level.climate_id()):
 		body = tr("  Body: %s") % tr(_player.get_body_temp_state())
@@ -224,8 +239,22 @@ func _process(delta: float) -> void:
 	_condition.add_theme_color_override("font_color", {
 		"Fine": Color(0.6, 1, 0.6), "Caution": Color(1, 0.85, 0.3), "Danger": Color(1, 0.35, 0.3)
 	}[_player.get_condition()])
+	# 狀態（頭像＋文字）平常不顯示：受傷、狀況不好、快凍僵時才出現。完整資訊在手機「狀態」
+	var body_state := _player.get_body_temp_state()
+	var show_condition := _hurt_timer > 0.0 or _player.get_condition() != "Fine" \
+		or _player.infection >= WorldState.MAX_INFECTION \
+		or (body != "" and (body_state == "Freezing" or body_state == "Hypothermic"))
+	_condition.visible = show_condition and not phone.visible
+	_portrait.visible = _condition.visible
+	# 目標：畫面上不顯示，換新目標時跳一則通知
 	var tracked := Missions.tracked_mission()
 	_objective.text = "> %s" % tr(tracked.title) if not tracked.is_empty() else ""
+	_objective.visible = false
+	var tracked_id: String = tracked.get("id", "")
+	if tracked_id != _last_objective:
+		if _last_objective != "" and tracked_id != "":
+			show_message(tr("New objective: %s") % tr(tracked.title))
+		_last_objective = tracked_id
 	_update_status()
 	_update_boss_bar()
 	_update_music(delta)
@@ -233,7 +262,9 @@ func _process(delta: float) -> void:
 	_process_window_view(delta)
 	_update_region()
 	# 第一人稱時不顯示鍵盤說明和互動提示（畫面要乾淨）
-	_hint.visible = not first_person.active and not touch_controls.visible
+	_hint.visible = false  # 操作說明在手機「操作」App
+	if phone.visible:
+		_refresh_phone()
 	if first_person.active:
 		_prompt.text = ""
 
@@ -617,6 +648,170 @@ func _show_next_message() -> void:
 	_message.text = _message_queue.pop_front()
 	_message.visible = true
 	_message_timer = MESSAGE_TIME
+	# 長的訊息（錄音、文件、無線電）在通知裡只看得到開頭：完整內容在手機「訊息」
+	_message_more.visible = _message.text.length() > MESSAGE_SHORT
+	_message_more.text = tr("[%s] Phone") % _key_name("inventory")
+	if message_log.is_empty() or message_log[0] != _message.text:
+		message_log.push_front(_message.text)
+		if message_log.size() > 60:
+			message_log.pop_back()
+
+
+# ── 手機 ──────────────────────────────────────────────
+
+func _build_phone() -> void:
+	phone = Phone.new()
+	phone.name = "Phone"
+	$HUD.add_child(phone)
+	$HUD.move_child(phone, _mission_panel.get_index())
+	phone.app_pressed.connect(set_phone_app)
+	phone.close_pressed.connect(close_phone)
+	# 物品、任務沿用原本的面板，擺進手機螢幕裡
+	for p in [_inventory_panel, _mission_panel]:
+		p.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		p.position = Phone.CONTENT.position
+		p.size = Phone.CONTENT.size
+		p.custom_minimum_size = Vector2.ZERO
+		p.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	for t in [_inventory_text, _mission_text]:
+		t.clip_text = true
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		t.custom_minimum_size = Phone.CONTENT.size  # clip_text 的 Label 最小高度是 0，要自己給
+	# 通知：畫面左上角一行（手機跳出來的通知），不擋遊戲畫面
+	_message.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_message.position = Vector2(6, 4)
+	_message.size = Vector2(268, 14)
+	_message.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_message.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_message.clip_text = true
+	_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_message.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_message_more = Label.new()
+	_message_more.add_theme_font_size_override("font_size", 12)
+	_message_more.add_theme_color_override("font_color", Color(0.6, 0.95, 0.85))
+	_message_more.add_theme_color_override("font_outline_color", Color.BLACK)
+	_message_more.add_theme_constant_override("outline_size", 3)
+	_message_more.position = Vector2(6, 17)
+	_message_more.visible = false
+	$HUD.add_child(_message_more)
+	# 武器資訊：只有舉槍、裝填、搬東西時出現在右下角
+	_items.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_items.offset_left = -260
+	_items.offset_right = -4
+	_items.offset_top = -30
+	_items.offset_bottom = -16
+
+
+func open_phone(app: String) -> void:
+	if not phone.visible:
+		Sfx.play("ui_confirm")
+	phone.visible = true
+	get_tree().paused = true
+	set_phone_app(app)
+
+
+func close_phone() -> void:
+	phone.visible = false
+	_inventory_panel.visible = false
+	_mission_panel.visible = false
+	get_tree().paused = false
+	Sfx.play("ui_cancel")
+
+
+func set_phone_app(app: String) -> void:
+	if phone.app != app:
+		Sfx.play("ui_move")
+	phone.set_app(app)
+	_inventory_panel.visible = app == "items"
+	_mission_panel.visible = app == "missions"
+	if app == "items":
+		_inventory_cursor = 0
+		_refresh_inventory()
+	elif app == "missions":
+		_mission_text.text = _build_mission_text()
+	elif app == "messages":
+		_message_cursor = 0
+	_refresh_phone()
+
+
+func _process_phone_input() -> void:
+	var step := 0
+	if Input.is_action_just_pressed("move_right") or Input.is_action_just_pressed("ui_right"):
+		step = 1
+	elif Input.is_action_just_pressed("move_left") or Input.is_action_just_pressed("ui_left"):
+		step = -1
+	if step != 0:
+		set_phone_app(phone.next_app(step))
+		return
+	match phone.app:
+		"items":
+			_process_inventory_input()
+		"missions":
+			if Input.is_action_just_pressed("map") or Input.is_action_just_pressed("pause") \
+					or Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("inventory"):
+				close_phone()
+		_:
+			if Input.is_action_just_pressed("inventory") or Input.is_action_just_pressed("map") \
+					or Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel"):
+				close_phone()
+			elif phone.app == "messages" and not message_log.is_empty():
+				if Input.is_action_just_pressed("move_down") or Input.is_action_just_pressed("ui_down"):
+					_message_cursor = mini(_message_cursor + 1, message_log.size() - 1)
+					Sfx.play("ui_move")
+				elif Input.is_action_just_pressed("move_up") or Input.is_action_just_pressed("ui_up"):
+					_message_cursor = maxi(_message_cursor - 1, 0)
+					Sfx.play("ui_move")
+
+
+## 手機各 App 的內容
+func _refresh_phone() -> void:
+	phone.level = level
+	phone.player_pos = _player.global_position
+	phone.portrait = Art.tex("portraits/shen_" + _player.get_condition().to_lower())
+	match phone.app:
+		"status":
+			phone.set_text(_build_status_text())
+		"messages":
+			if message_log.is_empty():
+				phone.set_text(tr("No messages."))
+			else:
+				phone.set_text("%d / %d\n\n%s" % [_message_cursor + 1, message_log.size(), message_log[_message_cursor]])
+		"controls":
+			phone.set_text(_build_hint().replace("  ", "\n"))
+
+
+func _build_status_text() -> String:
+	var lines: Array[String] = []
+	lines.append(tr("Condition: %s%s%s") % [tr(_player.get_condition()),
+		tr("  (infected)") if _player.infection >= WorldState.MAX_INFECTION else "", ""])
+	lines.append(tr("Infection: %s") % tr(_infection_word()))
+	if level and Climates.has_exposure(level.climate_id()):
+		lines.append(tr("  Body: %s").replace("\u3000", "").strip_edges() % tr(_player.get_body_temp_state()))
+	lines.append(tr("Light: %s") % tr(_player.light_name()))
+	var weapon := _player.combat.current_weapon()
+	if weapon != "":
+		lines.append("%s %d/%d (+%d)" % [Items.display_name(weapon), WorldState.get_loaded(weapon),
+			_player.combat.magazine_size, WorldState.inv_count(_player.combat.stats().ammo)])
+	var throwable := _player.current_throwable()
+	if throwable != "":
+		lines.append(tr("Throw: %s x%d") % [Items.display_name(throwable), WorldState.inv_count(throwable)])
+	if WorldState.access_level > 0:
+		lines.append(tr("Card Lv%d") % WorldState.access_level)
+	if level:
+		lines.append("")
+		lines.append(tr(level.region_title(current_area_id())))
+	return "\n".join(lines)
+
+
+func _infection_word() -> String:
+	var v := _player.infection
+	if v >= WorldState.MAX_INFECTION:
+		return "Critical"
+	if v >= 60.0:
+		return "Severe"
+	if v >= 25.0:
+		return "Mild"
+	return "None"
 
 
 # ── 安全屋：無線電、儲物箱 ──────────────────────────────
@@ -968,11 +1163,10 @@ func _quit_to_title() -> void:
 
 
 func _toggle_mission_panel() -> void:
-	_mission_panel.visible = not _mission_panel.visible
-	Sfx.play("ui_confirm" if _mission_panel.visible else "ui_cancel")
-	get_tree().paused = _mission_panel.visible
-	if _mission_panel.visible:
-		_mission_text.text = _build_mission_text()
+	if phone.visible and phone.app == "missions":
+		close_phone()
+	else:
+		open_phone("missions")
 
 
 func _build_mission_text() -> String:
@@ -995,6 +1189,9 @@ func _build_mission_text() -> String:
 
 func _build_items_text() -> String:
 	var parts: Array[String] = []
+	# 平常不顯示（在手機「狀態」看得到）；舉槍、裝填、搬東西時才在右下角出現
+	if not (_player.combat.aiming or _player.combat.reloading or WorldState.carrying != ""):
+		return ""
 	var combat := _player.combat
 	var weapon := combat.current_weapon()
 	if weapon != "":
@@ -1006,9 +1203,6 @@ func _build_items_text() -> String:
 	var throwable := _player.current_throwable()
 	if throwable != "":
 		parts.append(tr("Throw: %s x%d") % [Items.display_name(throwable), WorldState.inv_count(throwable)])
-	parts.append(tr("Light: %s") % tr(_player.light_name()))
-	if WorldState.access_level > 0:
-		parts.append(tr("Card Lv%d") % WorldState.access_level)
 	if WorldState.carrying == "fuel":
 		parts.append(tr("CARRYING FUEL"))
 	elif WorldState.carrying == "extinguisher":
@@ -1020,11 +1214,10 @@ func _build_items_text() -> String:
 # ── 物品欄 ────────────────────────────────────────────
 
 func _toggle_inventory_panel() -> void:
-	_inventory_panel.visible = not _inventory_panel.visible
-	Sfx.play("ui_confirm" if _inventory_panel.visible else "ui_cancel")
-	get_tree().paused = _inventory_panel.visible
-	_inventory_cursor = 0
-	_refresh_inventory()
+	if phone.visible and phone.app == "items":
+		close_phone()
+	else:
+		open_phone("items")
 
 
 func _process_inventory_input() -> void:
