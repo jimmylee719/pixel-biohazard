@@ -165,12 +165,15 @@ func shoot() -> bool:
 		return false
 	var s: Dictionary = WEAPONS[weapon]
 	if WorldState.get_loaded(weapon) <= 0:
-		start_reload()
+		if not start_reload():
+			Sfx.play("gun_empty")
 		return false
 	WorldState.set_loaded(weapon, WorldState.get_loaded(weapon) - 1)
 	_cooldown = s.cooldown
 	var origin := player.global_position
 	NoiseBus.emit_noise(origin, s.noise_tiles * Player.TILE, player)
+	Sfx.play("shotgun_shot" if weapon == "shotgun" else "pistol_shot", origin, 0.04)
+	Sfx.rumble(60 if weapon == "pistol" else 110, 0.6)
 	var hit := false
 	var end: Vector2
 	if target and not target.is_dead:
@@ -179,6 +182,7 @@ func shoot() -> bool:
 			var dist := origin.distance_to(target.global_position)
 			damage *= clampf(1.3 - dist / s.range, 0.3, 1.0)
 		target.take_damage(damage, origin, s.stagger)
+		Sfx.play("bullet_hit_flesh", target.global_position)
 		end = target.global_position
 		hit = true
 	else:
@@ -197,6 +201,7 @@ func start_reload() -> bool:
 		return false
 	reloading = true
 	_reload_timer = s.reload
+	Sfx.play("reload")
 	return true
 
 
@@ -219,6 +224,7 @@ func melee() -> bool:
 	var origin := player.global_position
 	var half := deg_to_rad(melee_half_angle_deg)
 	var takedown := false
+	var hit_any := false
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
 		if enemy == null or enemy.is_dead:
@@ -230,6 +236,8 @@ func melee() -> bool:
 			damage *= takedown_mult
 			takedown = true
 		enemy.take_damage(damage, origin, melee_stagger)
+		hit_any = true
+	Sfx.play("knife_hit" if hit_any else "knife_swing", origin)
 	# 小刀也可以割開木箱、木板（安靜，但要割好幾下）
 	if player.level:
 		for item in player.level.get_interactables():

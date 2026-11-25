@@ -12,6 +12,8 @@ var _language: Button
 
 func _ready() -> void:
 	get_tree().paused = false
+	Sfx.play_music("title")
+	Sfx.play_ambience("amb_blizzard")
 	_continue.disabled = not WorldState.has_save()
 	# 網頁版和 iOS 不需要「離開」
 	_quit.visible = not (OS.has_feature("web") or OS.has_feature("ios"))

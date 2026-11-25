@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 NoiseBus="*res://scripts/autoload/noise_bus.gd"
 WorldState="*res://scripts/autoload/world_state.gd"
 Missions="*res://scripts/autoload/missions.gd"
+Sfx="*res://scripts/autoload/sfx.gd"
 
 [display]
 

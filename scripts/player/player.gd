@@ -23,6 +23,10 @@ const WALL_MASK := 1
 @export var turn_smoothing := 14.0
 ## 舉槍時邊走邊射（可以後退、橫移，面向不變）
 @export var aim_move_speed := 40.0
+## 類比搖桿輕推（小於這個力道）= 自動潛行（安靜），推到底才是走路。鍵盤永遠是 1。
+@export var analog_sneak_tilt := 0.6
+## 卡在牆角時自動往旁邊滑開的最大距離（像素）：撞到柱子邊緣不會卡住
+@export var corner_assist := 7.0
 
 @export_group("視野與光")
 @export var flashlight_range := 150.0
@@ -109,6 +113,8 @@ var level: Level
 var focus: Interactable = null
 
 var _noise_timer := 0.0
+var _step_timer := 0.0
+var _shiver_timer := 0.0
 var _hide_return := Vector2.ZERO
 var _flashlight_before_hide := true
 var _lighter_before_hide := false
@@ -205,16 +211,25 @@ func _physics_process(delta: float) -> void:
 	if running:
 		sneaking = false
 
+	# 類比輕推 = 潛行：手機上不用另外按潛行鍵，手指放輕就安靜
+	var tilt := minf(move_input.length(), 1.0)
+	var light_tilt := tilt > 0.0 and tilt < analog_sneak_tilt and not running
 	var speed := walk_speed
 	if running:
 		speed = run_speed
-	elif sneaking:
+	elif sneaking or light_tilt:
 		speed = sneak_speed
 	if aim_moving:
 		speed = minf(speed, aim_move_speed)
 	speed *= get_speed_mult()
-	velocity = velocity.move_toward(move_input * speed, acceleration * delta)
+	var move_dir := move_input.normalized() if tilt > 0.0 else Vector2.ZERO
+	# 輕推的範圍內速度還是跟著力道（推越少走越慢），潛行速度以上就固定
+	var drive := clampf(tilt / analog_sneak_tilt, 0.35, 1.0) if light_tilt else 1.0
+	velocity = velocity.move_toward(move_dir * speed * drive, acceleration * delta)
+	var wanted := velocity
 	move_and_slide()
+	if move_dir != Vector2.ZERO:
+		_assist_corner(move_dir, wanted, delta)
 
 	if move_input.length() > 0.1 and not aim_moving:
 		facing = facing.slerp(move_input.normalized(), 1.0 - exp(-turn_smoothing * delta)).normalized()
@@ -223,7 +238,7 @@ func _physics_process(delta: float) -> void:
 		gait = Gait.IDLE
 	elif running:
 		gait = Gait.RUN
-	elif sneaking:
+	elif sneaking or light_tilt:
 		gait = Gait.SNEAK
 	else:
 		gait = Gait.WALK
@@ -232,6 +247,7 @@ func _physics_process(delta: float) -> void:
 	_facing_marker.rotation = facing.angle()
 	_update_sprite()
 	_update_noise(delta)
+	_update_steps(delta)
 
 
 func reset_to(spawn: Vector2) -> void:
@@ -263,11 +279,14 @@ func take_hit(damage: float, infection_amount: float, from_pos: Vector2) -> void
 	velocity = (away if away != Vector2.ZERO else -facing) * knockback_speed
 	combat.interrupt()
 	hurt.emit(damage)
+	Sfx.play("player_hurt")
+	Sfx.rumble(120, 0.7)
 	if WorldState.health <= 0.0:
 		_die()
 
 
 func _die() -> void:
+	Sfx.play("player_death")
 	is_dead = true
 	input_enabled = false
 	died.emit()
@@ -397,6 +416,7 @@ func enter_hiding(locker: Locker) -> void:
 		if enemy.is_watching_player():
 			hide_spotted = true
 	NoiseBus.emit_noise(global_position, locker_noise_tiles * TILE, self)
+	Sfx.play("locker_close", global_position)
 
 	is_hiding = true
 	hiding_in = locker
@@ -425,6 +445,7 @@ func exit_hiding() -> void:
 	lighter_on = _lighter_before_hide and not flashlight_on
 	_apply_flashlight()
 	NoiseBus.emit_noise(global_position, locker_noise_tiles * TILE, self)
+	Sfx.play("locker_open", global_position)
 
 
 func _leave_locker_state() -> void:
@@ -461,6 +482,8 @@ func throw_item(item_id := "") -> bool:
 	var stats: Dictionary = Items.THROWABLES[item_id]
 	var thrown := ThrownObject.new()
 	thrown.setup(item_id, stats.noise_tiles, stats.fire, stats.color)
+	if stats.fire:
+		Sfx.play("lighter_flick")
 	_launch(thrown)
 	return true
 
@@ -474,6 +497,7 @@ func _launch(thrown: ThrownObject) -> void:
 	target -= facing * 4.0  # 不要落在牆裡
 	get_parent().add_child(thrown)
 	thrown.launch(global_position, target)
+	Sfx.play("throw_whoosh", global_position)
 
 
 # ── 光源：手電筒、打火機 ─────────────────────────────────
@@ -490,6 +514,9 @@ func cycle_light() -> void:
 	_apply_flashlight()
 	if lighter_on:
 		NoiseBus.emit_noise(global_position, 0.5 * TILE, self)  # 打火機「喀」一聲
+		Sfx.play("lighter_flick")
+	else:
+		Sfx.play("flashlight_click")
 
 
 # ── 敲牆 ──────────────────────────────────────────────
@@ -513,6 +540,7 @@ func knock() -> bool:
 		return false
 	_knock_cd = 0.6
 	NoiseBus.emit_noise(p, knock_noise_tiles * TILE, self)
+	Sfx.play("knock", p)
 	return true
 
 
@@ -525,6 +553,7 @@ func spray() -> bool:
 	_spray_cd = 0.4
 	WorldState.extinguisher_charge -= 1
 	NoiseBus.emit_noise(global_position, 3.0 * TILE, self)  # 噴射聲（先發出，噴到的敵人才不會循著聲音找到你）
+	Sfx.play("extinguisher_spray", global_position)
 	var half := deg_to_rad(spray_half_angle_deg)
 	for f in get_tree().get_nodes_in_group(Fire.GROUP):
 		if Sight.in_cone(global_position, facing, f.global_position, half, spray_range + f.radius):
@@ -661,6 +690,52 @@ func light_name() -> String:
 	if flashlight_on:
 		return "Flashlight"
 	return "Lighter" if lighter_on else "Dark"
+
+
+## 撞到牆角：如果往旁邊挪一點點就能繼續往前走，就自動滑過去（不用很準地對齊門口、柱子）
+func _assist_corner(dir: Vector2, wanted: Vector2, delta: float) -> void:
+	if get_slide_collision_count() == 0 or wanted.length() < 1.0:
+		return
+	var normal := get_slide_collision(0).get_normal()
+	if normal.dot(dir) > -0.7:
+		return  # 斜著撞牆，move_and_slide 本來就會沿牆滑
+	var side := Vector2(-dir.y, dir.x)
+	var step := minf(wanted.length() * delta, corner_assist)
+	for k in range(1, int(corner_assist) + 1):
+		for s in [side, -side]:
+			var offset: Vector2 = s * float(k)
+			if not test_move(global_transform, offset) \
+					and not test_move(global_transform.translated(offset), dir * 2.0):
+				move_and_collide(s * step)
+				return
+
+
+## 腳步聲（玩家聽到的，跟敵人聽到的 NoiseBus 分開：潛行也有很輕的腳步聲）
+func _update_steps(delta: float) -> void:
+	var interval := 0.0
+	var quiet := 0.0
+	match gait:
+		Gait.SNEAK:
+			interval = 0.62
+			quiet = -8.0
+		Gait.WALK:
+			interval = 0.42
+		Gait.RUN:
+			interval = 0.28
+			quiet = 3.0
+		_:
+			_step_timer = 0.12  # 一起步很快就有第一步
+			return
+	_step_timer -= delta
+	if _step_timer <= 0.0:
+		_step_timer = interval
+		var surface := level.step_surface(global_position) if level else "concrete"
+		Sfx.play("step_" + surface, global_position, 0.1, quiet)
+	if is_shivering():
+		_shiver_timer -= delta
+		if _shiver_timer <= 0.0:
+			_shiver_timer = 3.5
+			Sfx.play("shiver_breath")
 
 
 func _update_noise(delta: float) -> void:

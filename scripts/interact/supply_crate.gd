@@ -14,6 +14,7 @@ func get_prompt(_player: Player) -> String:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("pickup_item", global_position)
 	WorldState.inv_add("bottle", bottles)  # 放不下的就留在箱子裡浪費掉（之後可改成留在原地）
 	take()
 

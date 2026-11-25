@@ -142,6 +142,8 @@ func _physics_process(delta: float) -> void:
 
 ## 共鳴脈衝：沒被柱子擋住、沒躲起來就會被震到。
 func _pulse() -> void:
+	Sfx.play("well_pulse_blast", global_position, 0.0)
+	Sfx.rumble(250, 0.9)
 	pulse_count += 1
 	_ring = 0.4
 	last_pulse_hit = false
@@ -188,6 +190,11 @@ func _hear(pos: Vector2) -> void:
 func _set_phase(p: Phase) -> void:
 	phase = p
 	_phase_time = 0.0
+	match p:
+		Phase.CHARGING:
+			Sfx.play("well_pulse_charge", global_position, 0.0)
+		Phase.EXPOSED:
+			Sfx.play("well_crystal_crack", global_position)
 
 
 func take_damage(amount: float, from_pos: Vector2, _stagger: float) -> void:

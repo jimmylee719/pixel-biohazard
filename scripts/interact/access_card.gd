@@ -14,6 +14,7 @@ func get_prompt(_player: Player) -> String:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("pickup_key", global_position)
 	WorldState.access_level = level_granted
 	take()
 

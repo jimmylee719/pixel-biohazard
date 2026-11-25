@@ -34,6 +34,7 @@ func get_prompt(_player: Player) -> String:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("pickup_item", global_position)
 	if WorldState.inv_space_for(pickup_item) < pickup_count:
 		return
 	WorldState.inv_add(pickup_item, pickup_count)

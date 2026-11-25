@@ -33,6 +33,7 @@ func _run() -> void:
 	await _frames(10)
 
 	await _test_world_start()
+	await _test_audio()
 	await _test_mission_panel()
 	await _test_supply_crate()
 	await _test_door_into_station()
@@ -333,6 +334,43 @@ func _test_player_movement() -> void:
 	Input.action_release("run")
 	Input.action_release("move_right")
 	await _frames(10)
+	# 類比輕推 = 自動潛行（安靜）
+	_place_player(_tile(20, 18), false)
+	Input.action_press("move_right", 0.4)
+	await _seconds(0.5)
+	_check(_player.gait == Player.Gait.SNEAK, "搖桿輕推 = 潛行（%s）" % _player.get_gait_name())
+	Input.action_press("move_right", 1.0)
+	await _seconds(0.3)
+	_check(_player.gait == Player.Gait.WALK, "推到底 = 走路")
+	Input.action_release("move_right")
+	await _frames(10)
+	# 走路有腳步聲（玩家聽到的）
+	Sfx.history.clear()
+	Input.action_press("move_right")
+	await _seconds(0.6)
+	Input.action_release("move_right")
+	_check(Sfx.history.has("step_concrete"), "室內走路有水泥地腳步聲")
+	await _frames(10)
+	# 牆角輔助：正面撞上一根柱子的邊緣（只重疊 4 px）會自動滑過去
+	var post := StaticBody2D.new()
+	post.collision_layer = 1
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(16, 16)
+	shape.shape = rect
+	post.add_child(shape)
+	_main.level.add_child(post)
+	_place_player(_tile(20, 18), false)
+	post.global_position = _player.global_position + Vector2(20, 9.0)  # 主角下緣 +5，柱子上緣 +1：重疊 4 px
+	await _frames(2)
+	var y0 := _player.global_position.y
+	Input.action_press("move_right")
+	await _seconds(0.8)
+	Input.action_release("move_right")
+	_check(_player.global_position.x > post.global_position.x, "撞到柱子邊緣會自動滑過去（x=%.0f）" % (_player.global_position.x - post.global_position.x))
+	_check(absf(_player.global_position.y - y0) < 8.0, "只挪一點點")
+	post.queue_free()
+	await _frames(10)
 
 
 func _test_wall_blocks_vision() -> void:
@@ -355,6 +393,9 @@ func _test_sight_to_alert() -> void:
 	_check(_watcher.state in [Enemy.State.SUSPICIOUS, Enemy.State.ALERT], "很快進入起疑（%s）" % _watcher.get_state_name())
 	await _seconds(2.0)
 	_check(_watcher.state == Enemy.State.ALERT, "察覺值滿後進入警戒（%s）" % _watcher.get_state_name())
+	await _frames(2)
+	_check(Sfx.current_music == "chase", "被發現 = 追逐音樂")
+	_check(Sfx.history.has("alert_sting"), "被發現有提示音")
 	await _reset_world()
 
 
@@ -1869,6 +1910,33 @@ func _test_cold_and_huts() -> void:
 	WorldState.new_game()
 	await _main.load_area(WorldState.data.area, WorldState.data.entry, false)
 	await _test_touch()
+
+
+func _test_audio() -> void:
+	print("[audio]")
+	# 提示詞文件（給生成工具）和程式清單要一致
+	var doc := FileAccess.get_file_as_string("res://docs/AUDIO_PROMPTS.md")
+	var re := RegEx.new()
+	re.compile("\\| `([a-z0-9_]+)` \\|")
+	var doc_ids := {}
+	for m in re.search_all(doc):
+		doc_ids[m.get_string(1)] = true
+	var ids := SoundList.all_ids()
+	var missing_doc := ids.filter(func(id): return not doc_ids.has(id))
+	var missing_code := doc_ids.keys().filter(func(id): return not ids.has(id))
+	_check(missing_doc.is_empty(), "每個聲音都有提示詞 %s" % [missing_doc])
+	_check(missing_code.is_empty(), "提示詞文件裡的聲音都在清單裡 %s" % [missing_code])
+	var no_file := ids.filter(func(id): return not Sfx.has_file(id))
+	_check(no_file.is_empty(), "每個聲音都有檔案（正式或暫代） %s" % [no_file])
+	# 區域的音樂、環境音、腳步
+	await _frames(2)
+	_check(Sfx.current_music == "explore_outdoor", "戶外探索音樂")
+	_check(Sfx.current_ambience == "amb_blizzard", "北極戶外是暴風雪環境音")
+	_check(_main.level.step_surface(_player.global_position) == "snow", "戶外踩雪")
+	Sfx.history.clear()
+	Sfx.play("pistol_shot", _player.global_position)
+	Sfx.play("not_a_sound")
+	_check(Sfx.history == ["pistol_shot"], "播放會記錄；不在清單裡的不會播")
 
 
 func _test_touch() -> void:

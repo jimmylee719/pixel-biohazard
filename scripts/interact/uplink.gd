@@ -45,6 +45,7 @@ func counts_as_interaction(_player: Player) -> bool:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("terminal_beep", global_position)
 	if WorldState.signal_choice() != "":
 		message_shown.emit("The uplink is silent. Whatever comes now, you already called it.")
 	elif not dish_ready():

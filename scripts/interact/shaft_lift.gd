@@ -20,6 +20,7 @@ func counts_as_interaction(_player: Player) -> bool:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("lift_machinery" if _ready_to_go() else "door_locked", global_position)
 	if not _ready_to_go():
 		message_shown.emit("The lift cage is wrapped in crystal. It won't move while that thing is still singing.")
 

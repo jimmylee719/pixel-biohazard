@@ -23,6 +23,8 @@ const TILE := 16.0
 @export var display_name := "Watcher"
 ## 像素圖（assets/sprites/<sprite_set>/），空字串 = 用色塊
 @export var sprite_set := ""
+## 叫聲種類（SoundList 裡的 <voice>_groan、<voice>_attack…）：watcher、listener
+@export var voice := "watcher"
 @export var sprite_tint := Color.WHITE
 
 @export_group("移動")
@@ -102,6 +104,7 @@ var patrol_points: Array[Vector2] = []
 var in_cold := false
 ## 距離上一次喀喀聲過了幾秒（除錯顯示和聲音提示用）
 var click_age := 99.0
+var _groan_timer := randf_range(3.0, 10.0)
 var health := 80.0
 var is_dead := false
 ## 正在休眠（凍眠體）：看起來像屍體，不會動、不會被自動鎖定
@@ -250,6 +253,7 @@ func _physics_process(delta: float) -> void:
 	_check_feel(delta)
 	_check_flashlight_hit()
 	_update_clicks(delta)
+	_update_idle_voice(delta)
 
 	if _process_attack(delta):
 		move_and_slide()
@@ -362,6 +366,16 @@ func _make_contact(pos: Vector2) -> void:
 	_no_contact_time = 0.0
 
 
+## 值班者沒察覺你的時候偶爾低吼一聲：聽得到就知道附近有東西
+func _update_idle_voice(delta: float) -> void:
+	if voice != "watcher" or is_boss() or is_dead or is_dormant or state != State.UNAWARE:
+		return
+	_groan_timer -= delta
+	if _groan_timer <= 0.0:
+		_groan_timer = randf_range(7.0, 14.0)
+		Sfx.play("watcher_groan", global_position, 0.15, -4.0)
+
+
 func _update_clicks(delta: float) -> void:
 	click_age += delta
 	if click_interval <= 0.0:
@@ -374,6 +388,8 @@ func _update_clicks(delta: float) -> void:
 			interval *= 1.6
 		_click_timer = interval
 		click_age = 0.0
+		if not is_dead and not is_dormant:
+			Sfx.play("listener_click", global_position, 0.12)
 
 
 # ── 攻擊、受傷、死亡 ──────────────────────────────────
@@ -393,6 +409,7 @@ func _process_attack(delta: float) -> bool:
 	if _attack_cd <= 0.0 and not _player.is_dead and _can_hit_player(attack_range):
 		_windup = attack_windup
 		winding_up = true
+		Sfx.play("watcher_attack", global_position)
 		velocity = Vector2.ZERO
 		return true
 	return false
@@ -418,6 +435,7 @@ func take_damage(amount: float, from_pos: Vector2, stagger: float) -> void:
 	if health <= 0.0:
 		_die()
 		return
+	Sfx.play("enemy_hurt", global_position, 0.1)
 	_stagger = stagger
 	_windup = 0.0
 	winding_up = false
@@ -449,6 +467,7 @@ func wake(toward: Vector2) -> void:
 	if not is_dormant:
 		return
 	is_dormant = false
+	Sfx.play("sleeper_wake", global_position)
 	_set_body_color(_body_color)
 	_body.scale = Vector2.ONE
 	_set_details_visible(true)
@@ -470,6 +489,8 @@ func burn(amount: float) -> void:
 	if is_dormant:
 		wake(global_position)
 	health -= amount
+	if burn_flash <= 0.0:
+		Sfx.play("enemy_burn", global_position, 0.1)
 	burn_flash = 0.5
 	if health <= 0.0:
 		_die()
@@ -515,6 +536,7 @@ func can_be_taken_down_by(player: Player) -> bool:
 
 
 func _die() -> void:
+	Sfx.play("enemy_death", global_position, 0.1)
 	if enemy_key != "":
 		WorldState.mark_enemy_dead(enemy_key, global_position)
 	_apply_dead_state()
@@ -588,6 +610,9 @@ func _set_state(new_state: State) -> void:
 		awareness = 1.0
 		if previous != State.ALERT and shriek_radius_tiles > 0.0:
 			NoiseBus.emit_noise(global_position, shriek_radius_tiles * TILE, self)
+			Sfx.play("listener_shriek", global_position)
+		elif previous != State.ALERT and voice == "watcher" and not is_boss():
+			Sfx.play("watcher_groan", global_position, 0.1, 3.0)
 	state_changed.emit(new_state)
 
 

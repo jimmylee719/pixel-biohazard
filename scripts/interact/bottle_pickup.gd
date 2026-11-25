@@ -12,6 +12,7 @@ func get_prompt(_player: Player) -> String:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("pickup_item", global_position)
 	WorldState.inv_add("bottle", 1)
 	take()
 

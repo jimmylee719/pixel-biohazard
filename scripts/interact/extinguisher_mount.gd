@@ -13,6 +13,7 @@ func get_prompt(_player: Player) -> String:
 
 
 func interact(player: Player) -> void:
+	Sfx.play("pickup_item", global_position)
 	WorldState.carrying = "extinguisher"
 	WorldState.extinguisher_charge = player.extinguisher_charges
 	take()

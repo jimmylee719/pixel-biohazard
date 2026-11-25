@@ -25,6 +25,7 @@ func get_prompt(_player: Player) -> String:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("terminal_beep", global_position)
 	used.emit(item_name)
 
 

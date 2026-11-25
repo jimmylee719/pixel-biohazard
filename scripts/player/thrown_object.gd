@@ -48,6 +48,16 @@ func _land() -> void:
 	_landed = true
 	_t = 0.0
 	NoiseBus.emit_noise(_to, noise_radius, self)
+	match kind:
+		"stone":
+			Sfx.play("stone_land", _to)
+		"extinguisher":
+			Sfx.play("extinguisher_clang", _to)
+		"molotov":
+			Sfx.play("bottle_break", _to)
+			Sfx.play("molotov_ignite", _to)
+		_:
+			Sfx.play("bottle_break", _to)
 	if makes_fire:
 		var fire := Fire.new()
 		fire.radius = 26.0

@@ -495,6 +495,7 @@ const DATA := {
 	# 頂層：通訊室（上行終端機）、天線碟的平台（除冰器配電箱＋凍眠體）。
 	# 天線碟結冰時發不出訊號；開除冰器 = 平台變暖 = 平台上的凍眠體醒來。
 	"tower_top": {
+		"step": "metal",
 		"title": "Antenna Tower - Comms Deck",
 		"outdoor": false,
 		"floor": 3,
@@ -544,6 +545,8 @@ const DATA := {
 	# B1 南側的門（權限卡等級 3）進入。沿著井壁的維修走道一層層往下（GDD 10.4 的垂直剖面）。
 	# 整口井都是冷的：凍眠體睡著、感染者行動遲緩。
 	"drill_shaft": {
+		"step": "metal",
+		"ambience": "amb_shaft",
 		"title": "Drill Shaft",
 		"outdoor": false,
 		"floor": -2,
@@ -593,6 +596,8 @@ const DATA := {
 	# 井底：最終 Boss「深井」。固定鏡頭（一個畫面）。四根柱子可以擋共鳴脈衝。
 	# 井底的鑽頭加熱器（配電箱）關掉之後，深井蓄力變慢；打倒後搭升降機離開 = 結局。
 	"shaft_bottom": {
+		"step": "metal",
+		"ambience": "amb_shaft",
 		"title": "Shaft Bottom",
 		"outdoor": false,
 		"floor": -3,

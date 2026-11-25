@@ -50,6 +50,7 @@ func smash(noise_tiles: float) -> void:
 		return
 	if noise_tiles > 0.0:
 		NoiseBus.emit_noise(global_position, noise_tiles * Player.TILE, self)
+	Sfx.play("wood_break", global_position, 0.06, 0.0 if noise_tiles > 0.0 else -6.0)
 	take()
 	level.rebake_navigation()
 

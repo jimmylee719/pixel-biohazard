@@ -189,6 +189,15 @@ func _hear(pos: Vector2) -> void:
 func _set_phase(p: Phase) -> void:
 	phase = p
 	_phase_time = 0.0
+	match p:
+		Phase.WINDUP:
+			Sfx.play("bear_roar", global_position)
+		Phase.CHARGE:
+			Sfx.play("bear_charge", global_position)
+		Phase.STUNNED:
+			Sfx.play("wood_break", global_position, 0.05, 4.0)
+		Phase.SWIPE:
+			Sfx.play("watcher_attack", global_position, 0.05, 4.0)
 
 
 func take_damage(amount: float, from_pos: Vector2, _stagger: float) -> void:
@@ -200,6 +209,7 @@ func take_damage(amount: float, from_pos: Vector2, _stagger: float) -> void:
 	if health <= 0.0:
 		_die()
 		return
+	Sfx.play("enemy_hurt", global_position, 0.05, 2.0)
 	_hear(from_pos)  # 被打到就知道你在哪
 
 

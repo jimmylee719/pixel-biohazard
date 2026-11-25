@@ -38,6 +38,11 @@
 - 美術：`art_raw/`（ComfyUI 原圖，不進版本控制）→ `tools/import_art.gd`（清單在檔案裡）→ `assets/sprites/`，之後跑一次 `--import`。
   執行：`/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tools/import_art.gd`。
   角色動畫 `scripts/fx/character_sprite.gd`（5 方向＋鏡像），讀圖用 `Art.tex()`，沒有圖時退回色塊。
+- 聲音：自動載入 `Sfx`（`scripts/autoload/sfx.gd`）＝玩家聽到的聲音；敵人聽到的是 `NoiseBus`，兩者分開，有聲響的動作兩個都要呼叫。
+  清單 `scripts/audio/sound_list.gd`（id = 檔名），提示詞 `docs/AUDIO_PROMPTS.md`（測試會檢查兩邊一致、每個 id 都有檔案）。
+  正式素材放 `assets/audio/{sfx,music,ambience}/<id>.ogg`（或 _1、_2 多版本），沒有就用 `assets/audio/synth/` 的合成暫代版（`python3 tools/synth_audio.py` 產生）。
+  區域音樂／環境音由 `Level.music_id()`、`ambience_id()` 決定（區域資料可用 `music`、`ambience`、`step` 指定），追逐音樂在 `main.gd` 的 `_update_music`。
+- 操作手感：類比搖桿輕推（< `analog_sneak_tilt`）自動潛行；撞到牆角邊緣會自動滑開（`Player._assist_corner`）。
 - 觸控：`scripts/ui/touch_controls.gd`、`touch_stick.gd`（全部轉成 InputMap 動作）。注意 Godot 4.7 內建 `VirtualJoystick` 類別，自己的類別不要取這個名字。
 - 多語系：介面與劇情文字一律寫英文原文，顯示時用 `tr()`（資料裡的整句在 `show_message`、面板顯示處翻譯）。
   中文在 `tools/locale/zh_TW.py`，改完跑 `python3 tools/locale/make_po.py` 產生 `locale/zh_TW.po`；測試會檢查劇情、任務、物品文字都有中文。

@@ -100,6 +100,7 @@ func _ready() -> void:
 	_banner.visible = false
 	_hint.text = _build_hint()
 	Missions.mission_completed.connect(func(id: String):
+		Sfx.play("mission_complete")
 		show_message(tr("MISSION COMPLETE: %s") % tr(Missions.get_mission(id).title))
 		if level:
 			level.sync_from_state()  # 獎勵可能讓隱藏的東西出現
@@ -198,6 +199,47 @@ func _process(delta: float) -> void:
 	_objective.text = "> %s" % tr(tracked.title) if not tracked.is_empty() else ""
 	_update_status()
 	_update_boss_bar()
+	_update_music(delta)
+
+
+# ── 音樂 ──────────────────────────────────────────────
+
+## 有敵人追著你（ALERT）就換成追逐音樂；甩掉之後過一陣子才換回探索音樂（避免一直切換）
+const CHASE_HOLD := 6.0
+var _chase_timer := 0.0
+var _any_alert := false
+var _any_suspicious := false
+
+
+func _update_music(delta: float) -> void:
+	if level == null or _ending_panel.visible:
+		return
+	var alert := false
+	var suspicious := false
+	for enemy in enemies:
+		if enemy.is_dead or enemy.is_boss():
+			continue
+		if enemy.state == Enemy.State.ALERT:
+			alert = true
+		elif enemy.state == Enemy.State.SUSPICIOUS:
+			suspicious = true
+	if alert and not _any_alert:
+		Sfx.play("alert_sting")
+		Sfx.rumble(80, 0.5)
+	elif suspicious and not _any_suspicious and not alert:
+		Sfx.play("suspicious_sting")
+	_any_alert = alert
+	_any_suspicious = suspicious
+	if alert:
+		_chase_timer = CHASE_HOLD
+	else:
+		_chase_timer = maxf(_chase_timer - delta, 0.0)
+	var base := level.music_id()
+	if _chase_timer > 0.0 and not level.safe and level.boss_name() == "":
+		Sfx.play_music("chase", 0.4)
+	else:
+		Sfx.play_music(base, 2.0)
+	Sfx.play_ambience(level.ambience_id(WorldState.power_on))
 
 
 func _update_boss_bar() -> void:
@@ -222,13 +264,16 @@ func _physics_process(_delta: float) -> void:
 		if _locked_door_notice != door:
 			_locked_door_notice = door
 			show_message(tr("The door is electric. There's no power."), true)
+			Sfx.play("door_locked")
 		return
 	var need := level.door_access(door)
 	if need > WorldState.access_level:
 		if _locked_door_notice != door:
 			_locked_door_notice = door
 			show_message(tr("Locked. Keycard access level %d required.") % need, true)
+			Sfx.play("door_locked")
 		return
+	Sfx.play("door_open")
 	load_area(level.door_target(door), door)
 
 
@@ -285,6 +330,9 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.message_shown.connect(func(text: String): show_message(text, true))
 
 	_apply_darkness()
+	_chase_timer = 0.0
+	_any_alert = false
+	_any_suspicious = false
 	_player.level = level
 	_player.reset_to(level.get_entry_position(entry))
 	_camera.setup(_player, level.bounds, level.camera_mode())
@@ -399,7 +447,10 @@ func _on_radio_used() -> void:
 	for text in Missions.receive_radio():
 		_radio_transcript.append(tr(text))
 	WorldState.save_checkpoint(level.area_id, "radio")
-	_radio_transcript.append(tr("Progress saved.") if WorldState.save_to_disk() else tr("Save failed."))
+	var saved := WorldState.save_to_disk()
+	_radio_transcript.append(tr("Progress saved.") if saved else tr("Save failed."))
+	if saved:
+		Sfx.play("save_chime")
 	_radio_panel.visible = true
 	get_tree().paused = true
 	_refresh_radio()
@@ -428,9 +479,11 @@ func _process_radio_input() -> void:
 		step = -Frequencies.COARSE_STEP
 	if step != 0:
 		tune_radio(_radio_freq + step)
+		Sfx.play("radio_tune")
 	elif Input.is_action_just_pressed("switch_target"):
 		_next_memo()
 	elif Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept"):
+		Sfx.play("radio_static")
 		listen_radio()
 	_refresh_radio()
 
@@ -622,6 +675,7 @@ func send_signal(choice_id: String) -> void:
 	if option.is_empty() or WorldState.signal_choice() != "":
 		return
 	WorldState.set_flag("signal", choice_id)
+	Sfx.play("uplink_transmit")
 	_signal_transcript.clear()
 	_signal_transcript.append(tr(option.sent))
 	_signal_transcript.append(tr(option.reply))
@@ -699,6 +753,8 @@ func _show_ending() -> void:
 	_player.input_enabled = false
 	_resetting = true  # 結局畫面期間不會被抓、不會切換區域
 	last_ending = Endings.resolve(WorldState.signal_choice(), _player.infection)
+	Sfx.play_music("ending", 3.0)
+	Sfx.play_ambience("")
 	await get_tree().create_timer(ENDING_DELAY).timeout
 	var lines: Array[String] = [tr(last_ending.title), ""]
 	for line in last_ending.lines:
@@ -716,6 +772,7 @@ func _show_ending() -> void:
 
 func _toggle_pause() -> void:
 	_pause_panel.visible = not _pause_panel.visible
+	Sfx.play("ui_confirm" if _pause_panel.visible else "ui_cancel")
 	get_tree().paused = _pause_panel.visible
 	if _pause_panel.visible:
 		_resume_button.grab_focus()
@@ -729,6 +786,7 @@ func _quit_to_title() -> void:
 
 func _toggle_mission_panel() -> void:
 	_mission_panel.visible = not _mission_panel.visible
+	Sfx.play("ui_confirm" if _mission_panel.visible else "ui_cancel")
 	get_tree().paused = _mission_panel.visible
 	if _mission_panel.visible:
 		_mission_text.text = _build_mission_text()
@@ -780,6 +838,7 @@ func _build_items_text() -> String:
 
 func _toggle_inventory_panel() -> void:
 	_inventory_panel.visible = not _inventory_panel.visible
+	Sfx.play("ui_confirm" if _inventory_panel.visible else "ui_cancel")
 	get_tree().paused = _inventory_panel.visible
 	_inventory_cursor = 0
 	_refresh_inventory()
@@ -792,14 +851,17 @@ func _process_inventory_input() -> void:
 		return
 	if Input.is_action_just_pressed("ui_down") or Input.is_action_just_pressed("move_down"):
 		_inventory_cursor = (_inventory_cursor + 1) % slots.size()
+		Sfx.play("ui_move")
 	elif Input.is_action_just_pressed("ui_up") or Input.is_action_just_pressed("move_up"):
 		_inventory_cursor = (_inventory_cursor - 1 + slots.size()) % slots.size()
+		Sfx.play("ui_move")
 	elif Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("interact"):
 		var slot: Dictionary = slots[_inventory_cursor]
 		if not slot.is_empty():
 			var kind: String = Items.get_item(slot.id).kind
 			var made: String = Items.get_item(slot.id).get("recipe", {}).get("makes", "")
 			if _player.use_item(slot.id):
+				Sfx.play("ui_confirm")
 				match kind:
 					"weapon":
 						show_message(tr("Equipped %s.") % Items.display_name(slot.id))
@@ -812,6 +874,7 @@ func _process_inventory_input() -> void:
 					_:
 						show_message(tr("Used %s.") % Items.display_name(slot.id))
 			else:
+				Sfx.play("ui_cancel")
 				show_message(tr("Can't use that now."))
 	_refresh_inventory()
 

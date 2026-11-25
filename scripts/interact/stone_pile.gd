@@ -12,6 +12,7 @@ func get_prompt(_player: Player) -> String:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("pickup_item", global_position)
 	var stack: int = Items.get_item("stone").stack
 	var want := stack - WorldState.inv_count("stone") % stack if WorldState.inv_count("stone") % stack != 0 else stack
 	WorldState.inv_add("stone", mini(want, WorldState.inv_space_for("stone")))

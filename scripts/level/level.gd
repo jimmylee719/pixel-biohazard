@@ -218,6 +218,40 @@ func exposure_at(pos: Vector2) -> float:
 	return -c.recover
 
 
+## 腳步聲的地面：區域資料可以用 step 指定（例如鐵板 "metal"），不然戶外是雪、室內是水泥
+func step_surface(pos: Vector2) -> String:
+	if _data.has("step"):
+		return _data.step
+	if outdoor and not _is_indoor_cell(cell_of(pos)):
+		return "snow"
+	return "concrete"
+
+
+## 區域的音樂（區域資料 music 可以指定）：安全屋、Boss 戰、戶外、室內
+func music_id() -> String:
+	if _data.has("music"):
+		return _data.music
+	if safe:
+		return "safe_room"
+	match boss_name():
+		"TUNDRA MOTHER":
+			return "boss_bear"
+		"THE DEEP WELL":
+			return "boss_well"
+	return "explore_outdoor" if outdoor else "explore_station"
+
+
+## 區域的環境音（區域資料 ambience 可以指定）
+func ambience_id(powered: bool) -> String:
+	if _data.has("ambience"):
+		return _data.ambience
+	if outdoor and Climates.has_exposure(climate_id()):
+		return "amb_blizzard"
+	if outdoor:
+		return ""
+	return "amb_station_hum" if powered else "amb_station_dark"
+
+
 ## 樓層（樓梯提示用）
 func floor_number() -> int:
 	return _data.get("floor", 1)

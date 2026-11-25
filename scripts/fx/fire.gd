@@ -29,6 +29,7 @@ var _light: PointLight2D
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	Sfx.attach_loop(self, "fire_loop")
 	_light = PointLight2D.new()
 	_light.texture = LightTextures.make_radial()
 	_light.texture_scale = light_radius / (LightTextures.SIZE * 0.5)

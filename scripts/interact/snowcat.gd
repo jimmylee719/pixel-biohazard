@@ -24,6 +24,7 @@ func counts_as_interaction(_player: Player) -> bool:
 
 func interact(player: Player) -> void:
 	if _ready_to_go() and not player.is_carrying():
+		Sfx.play("snowcat_engine", global_position)
 		drive.emit(level.snowcat_destination())
 
 

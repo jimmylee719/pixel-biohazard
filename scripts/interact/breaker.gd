@@ -38,6 +38,7 @@ func can_interact(player: Player) -> bool:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("breaker_switch", global_position)
 	level.set_zone_heated(zone_name, not level.is_zone_heated(zone_name))
 	NoiseBus.emit_noise(global_position, NOISE_TILES * Level.TILE, self)
 

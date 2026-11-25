@@ -37,6 +37,7 @@ func counts_as_interaction(_player: Player) -> bool:
 func interact(_player: Player) -> void:
 	if WorldState.power_on or WorldState.carrying != "fuel":
 		return
+	Sfx.play("generator_start", global_position)
 	WorldState.carrying = ""
 	WorldState.set_flag("power_on")
 	NoiseBus.emit_noise(global_position, NOISE_TILES * Level.TILE, self)

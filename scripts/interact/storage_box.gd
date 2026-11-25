@@ -14,6 +14,7 @@ func get_prompt(_player: Player) -> String:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("ui_confirm", global_position)
 	opened.emit()
 
 

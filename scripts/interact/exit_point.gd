@@ -28,6 +28,7 @@ func get_prompt(_player: Player) -> String:
 
 
 func interact(_player: Player) -> void:
+	Sfx.play("stairs", global_position)
 	reached.emit(target_area)
 
 
