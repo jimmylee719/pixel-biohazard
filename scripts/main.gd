@@ -12,6 +12,7 @@ const OUTDOOR_DARKNESS := Color(0.2, 0.22, 0.3)
 const SAFE_DARKNESS := Color(0.34, 0.28, 0.22)
 const TITLE_SCENE := "res://scenes/title.tscn"
 const KOVAC_INTRO := ("KOVAC: \"...is anyone on this channel? This is Dr. Ina Kovac, I left Greycrow two weeks ago. If you're in the clean room, you're safe. Listen carefully.\"")
+const SURVIVAL_MENU_SCENE := "res://scenes/survival_menu.tscn"
 const ENEMY_SCENES := {
 	"patroller": preload("res://scenes/enemy.tscn"),
 	"listener": preload("res://scenes/enemy_listener.tscn"),
@@ -41,6 +42,9 @@ var _message_timer := 0.0
 var codex_cursor := 0
 ## 過場（用遊戲畫面演出）
 var cutscene: CutscenePlayer
+## 生存模式（WorldState.mode == "survival" 時才有）
+var survival: SurvivalMode
+var survival_results: SurvivalResults
 var message_log: Array[String] = []
 var _message_more: Label
 var _hurt_timer := 0.0
@@ -113,7 +117,11 @@ func _ready() -> void:
 	_overlay.setup(_player)
 	_vignette.texture = _make_vignette()
 	_infection_vignette.texture = _make_vignette(Color(0.75, 0.95, 1.0, 0.85))
-	_player.died.connect(func(): _end_attempt(tr("YOU DIED"), Color(0.9, 0.2, 0.2)))
+	_player.died.connect(func():
+		if survival:
+			_on_survival_died()
+		else:
+			_end_attempt(tr("YOU DIED"), Color(0.9, 0.2, 0.2)))
 	_player.hurt.connect(func(_d):
 		_hurt_flash.color.a = 0.45
 		_hurt_timer = 4.0
@@ -121,9 +129,11 @@ func _ready() -> void:
 	_banner.visible = false
 	_hint.text = _build_hint()
 	WorldState.codex_unlocked.connect(func(id: String):
-		if Codex.ENTRIES.has(id):
+		if Codex.ENTRIES.has(id) and WorldState.mode == "story":
 			show_message(tr("New field file: %s") % tr(Codex.ENTRIES[id].name)))
 	Missions.mission_completed.connect(func(id: String):
+		if WorldState.mode != "story":
+			return
 		Sfx.play("mission_complete")
 		show_message(tr("MISSION COMPLETE: %s") % tr(Missions.get_mission(id).title))
 		if level:
@@ -188,6 +198,8 @@ func _ready() -> void:
 	$HUD.add_child(_portrait)
 	$HUD.move_child(_portrait, _condition.get_index())
 	await load_area(WorldState.data.area, WorldState.data.entry, false)
+	if WorldState.mode == "survival":
+		_start_survival()
 
 
 func _process(delta: float) -> void:
@@ -268,7 +280,7 @@ func _process(delta: float) -> void:
 	_objective.visible = false
 	var tracked_id: String = tracked.get("id", "")
 	if tracked_id != _last_objective:
-		if _last_objective != "" and tracked_id != "":
+		if _last_objective != "" and tracked_id != "" and WorldState.mode == "story":
 			show_message(tr("New objective: %s") % tr(tracked.title))
 		_last_objective = tracked_id
 	_update_status()
@@ -342,7 +354,7 @@ func _process_window_view(delta: float) -> void:
 			close_window_view()
 		return
 	# 往窗戶推一下（推著不動 0.25 秒）就自動靠過去看
-	var w := _player.focus as WindowPane
+	var w := _player.focus as WindowPane if is_instance_valid(_player.focus) else null
 	var push := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if w and _player.input_enabled and push.dot((w.global_position - _player.global_position).normalized()) > 0.7:
 		_window_push += delta
@@ -440,6 +452,8 @@ func _update_boss_bar() -> void:
 func _physics_process(_delta: float) -> void:
 	if level == null or _transitioning or _resetting or _player.is_hiding or not _player.input_enabled:
 		return
+	if survival:
+		return  # 生存模式：門出不去
 	var door := level.door_at(_player.global_position)
 	if door == "":
 		_locked_door_notice = ""
@@ -490,7 +504,7 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	add_child(level)
 	move_child(level, _darkness.get_index() + 1)
 
-	for i in level.enemy_defs.size():
+	for i in (level.enemy_defs.size() if WorldState.mode == "story" else 0):
 		var def: Dictionary = level.enemy_defs[i]
 		var enemy: Enemy = ENEMY_SCENES[def.type].instantiate()
 		enemy.enemy_key = "%s:%d" % [root, i]
@@ -565,7 +579,7 @@ func _check_cutscene(area_id: String) -> void:
 
 ## 播放一段過場：遊戲暫停（敵人定格）、上下黑邊、鏡頭移動、對白。看過就不再播。
 func play_cutscene(id: String) -> void:
-	if not WorldState.cutscenes or not Cutscenes.DATA.has(id) or WorldState.has_flag("scene:" + id) \
+	if WorldState.mode != "story" or not WorldState.cutscenes or not Cutscenes.DATA.has(id) or WorldState.has_flag("scene:" + id) \
 			or cutscene.active or _player.is_dead:
 		return
 	WorldState.set_flag("scene:" + id)
@@ -946,6 +960,9 @@ func _infection_word() -> String:
 
 ## 用無線電：接收新的委託、在無線電旁邊存檢查點、存到硬碟，然後打開調頻介面。
 func _on_radio_used() -> void:
+	if WorldState.mode != "story":
+		show_message(tr("Only static. No saving out here tonight."))
+		return
 	_radio_transcript.clear()
 	if not WorldState.has_flag("radio:intro"):
 		WorldState.set_flag("radio:intro")
@@ -1282,6 +1299,42 @@ func _toggle_pause() -> void:
 	get_tree().paused = _pause_panel.visible
 	if _pause_panel.visible:
 		_resume_button.grab_focus()
+
+
+# ── 生存模式 ──────────────────────────────────────────
+
+func _start_survival() -> void:
+	survival = SurvivalMode.new()
+	survival.name = "Survival"
+	add_child(survival)
+	survival.setup(self, WorldState.survival_setup.get("map", "station_1f"))
+	survival_results = SurvivalResults.new()
+	$HUD.add_child(survival_results)
+	survival.finished.connect(_on_survival_finished)
+	survival_results.retry.connect(func():
+		get_tree().paused = false
+		WorldState.start_survival(WorldState.survival_setup.map, WorldState.survival_setup.weapon)
+		get_tree().reload_current_scene())
+	survival_results.to_menu.connect(func():
+		get_tree().paused = false
+		get_tree().change_scene_to_file(SURVIVAL_MENU_SCENE))
+	survival_results.to_title.connect(_quit_to_title)
+
+
+func _on_survival_died() -> void:
+	_player.input_enabled = false
+	_banner.text = tr("YOU DIED")
+	_banner.add_theme_color_override("font_color", Color(0.9, 0.2, 0.2))
+	_banner.visible = true
+	await get_tree().create_timer(1.5).timeout
+	_banner.visible = false
+	survival.finish(false)
+
+
+func _on_survival_finished(_result: Dictionary) -> void:
+	_player.input_enabled = false
+	get_tree().paused = true
+	survival_results.show_result(_result)
 
 
 func _quit_to_title() -> void:

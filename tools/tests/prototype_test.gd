@@ -85,6 +85,7 @@ func _run() -> void:
 	await _test_title()
 	await _test_save_migration()
 	await _test_expansion()
+	await _test_survival()
 
 	print("")
 	if _failures == 0:
@@ -1092,6 +1093,10 @@ func _test_title() -> void:
 					texts.append(step[key])
 	for id in Codex.ENTRIES:
 		texts.append_array([Codex.ENTRIES[id].name, Codex.ENTRIES[id].desc, Codex.ENTRIES[id].tip])
+	for id in SurvivalData.MAPS:
+		texts.append_array([SurvivalData.MAPS[id].name, SurvivalData.MAPS[id].desc])
+	for id in SurvivalData.UNLOCKS:
+		texts.append_array([SurvivalData.UNLOCKS[id].name, SurvivalData.UNLOCKS[id].desc])
 	var missing := texts.filter(func(t): return t != "" and TranslationServer.translate(t) == t)
 	_check(missing.is_empty(), "所有劇情、任務、物品文字都有中文（缺 %d：%s）" % [missing.size(), str(missing.slice(0, 3))])
 	TranslationServer.set_locale("en")
@@ -2358,3 +2363,72 @@ func _test_expansion() -> void:
 	_check(not _main.cutscene.active and not get_tree().paused, "跳過過場後恢復遊戲")
 	_check(WorldState.has_flag("scene:clean_room"), "看過的過場不再播")
 	WorldState.cutscenes = false
+
+
+## 生存模式「長夜」：波次、分數、補給、撤離、殘響點數、解鎖、主線補給箱
+func _test_survival() -> void:
+	print("[survival]")
+	WorldState.profile_path = "user://test_profile.cfg"
+	WorldState.reset_profile()
+	_check(not SurvivalData.map_unlocked("north_harbor") and SurvivalData.map_unlocked("station_1f"), "北港地圖要解鎖")
+	_check(SurvivalData.wave_size(1) == 5 and SurvivalData.rank_for(30000) == "S", "波數、評價表")
+	# 換成生存模式的主場景
+	_main.queue_free()
+	await _frames(2)
+	WorldState.start_survival("station_1f", "pistol")
+	_main = load("res://scenes/main.tscn").instantiate()
+	add_child(_main)
+	_player = _main.get_node("Player")
+	await _frames(10)
+	var sv: SurvivalMode = _main.survival
+	_check(sv != null and _main.enemies.is_empty(), "生存模式：沒有區域原本的敵人")
+	_check(WorldState.inv_count("pistol") == 1 and WorldState.inv_count("med") >= 1, "起始裝備")
+	sv.timer = 0.0
+	await _frames(3)
+	_check(sv.wave == 1 and _main.enemies.size() == SurvivalData.wave_size(1), "第 1 波刷出 %d 隻（%d）" % [SurvivalData.wave_size(1), _main.enemies.size()])
+	var far := true
+	for e in _main.enemies:
+		if e.global_position.distance_to(_player.global_position) < 60.0:
+			far = false
+	_check(far, "敵人不會刷在玩家身邊")
+	for e in _main.enemies:
+		e.take_damage(9999.0, e.global_position, 1.0)
+	await _frames(3)
+	_check(sv.kills == 5 and sv.score >= 500 + SurvivalData.WAVE_BONUS, "擊倒＋過波獎勵（%d 分）" % sv.score)
+	_check(sv.combo >= 2, "連殺倍率")
+	var drops := 0
+	for item in _main.level.get_interactables():
+		if item.item_id.begins_with("survival:drop"):
+			drops += 1
+	_check(sv.phase == "break" and drops >= 2, "波間空投補給（%d 個）" % drops)
+	_check(not sv.extract_open, "第 1 波後還不能撤離")
+	# 第 5 波：深夜潮＋撤離
+	sv.wave = 4
+	sv.timer = 0.0
+	await _frames(3)
+	var types := {}
+	for e in sv._alive:
+		types[e.get_species()] = true
+	_check(types.has("husk") and types.has("chorister"), "第 5 波深夜潮：膨脹者和詠者")
+	for e in sv._alive.duplicate():
+		e.take_damage(9999.0, e.global_position, 1.0)
+	await _frames(3)
+	_check(sv.extract_open and sv._extract != null, "第 5 波後出現撤離點")
+	var before := WorldState.profile_points()
+	var score := sv.score
+	sv._extract.interact(_player)
+	await _frames(3)
+	_check(sv.phase == "over" and sv.result.extracted, "撤離成功")
+	_check(WorldState.profile_points() == before + int(score * SurvivalData.POINTS_PER_SCORE), "撤離：殘響點數全拿（+%d）" % (WorldState.profile_points() - before))
+	_check(_main.survival_results.visible and get_tree().paused, "結算畫面")
+	_check(not WorldState.best_record("station_1f").is_empty(), "記錄最高分")
+	get_tree().paused = false
+	# 解鎖與主線補給箱
+	WorldState.profile.points = 500
+	_check(WorldState.buy_unlock("cache_1", SurvivalData.UNLOCKS.cache_1.cost), "用點數解鎖")
+	_check(not WorldState.buy_unlock("cache_1", 0), "已經解鎖的不能再買")
+	WorldState.start_story()
+	WorldState.new_game()
+	_check(WorldState.storage().get("med", 0) >= 1, "主線新遊戲：儲物箱裡有補給箱的東西")
+	_check(WorldState.mode == "story", "回到主線模式")
+	WorldState.reset_profile()

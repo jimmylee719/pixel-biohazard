@@ -32,6 +32,7 @@ const DEFAULT_LANGUAGE := "zh_TW"
 
 
 func _ready() -> void:
+	load_profile()
 	new_game()
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH)
@@ -53,6 +54,111 @@ func set_language(code: String) -> void:
 
 ## 過場動畫要不要播（測試、截圖工具會關掉）
 var cutscenes := true
+## 遊戲模式："story"（主線）、"survival"（生存模式「長夜」，見 SurvivalMode）
+var mode := "story"
+## 生存模式這一局的設定 {map, weapon}（生存選單設定）
+var survival_setup := {}
+
+
+# ── 玩家檔案（跨存檔、跨模式：殘響點數、解鎖、最高紀錄）。存在 user://profile.cfg，和主線存檔分開 ──
+
+var profile_path := "user://profile.cfg"
+var profile := {}
+
+
+func load_profile() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(profile_path)
+	profile = {
+		"points": cfg.get_value("profile", "points", 0),
+		"unlocks": cfg.get_value("profile", "unlocks", []),
+		"best": cfg.get_value("profile", "best", {}),
+	}
+
+
+func save_profile() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("profile", "points", profile.points)
+	cfg.set_value("profile", "unlocks", profile.unlocks)
+	cfg.set_value("profile", "best", profile.best)
+	cfg.save(profile_path)
+
+
+## 開始一局生存模式：全新的遊戲資料、指定地圖、起始裝備（手槍＋選的武器＋解鎖的道具）
+func start_survival(map: String, weapon: String) -> void:
+	mode = "survival"
+	survival_setup = {"map": map, "weapon": weapon}
+	new_game()
+	var m: Dictionary = SurvivalData.MAPS[map]
+	data.area = map
+	data.entry = m.entry
+	if m.get("power", false):
+		set_flag("power_on")
+	inv_add("pistol", 1)
+	set_loaded("pistol", 8)
+	inv_add("ammo", 16)
+	if weapon != "pistol":
+		var l: Dictionary = SurvivalData.LOADOUTS[weapon]
+		inv_add(weapon, 1)
+		set_loaded(weapon, PlayerCombat.WEAPONS[weapon].mag)
+		inv_add(l.ammo[0], l.ammo[1])
+		equipped = weapon
+	inv_add("med", 2 if is_unlocked("perk_med") else 1)
+	inv_add("stone", 2)
+	if is_unlocked("melee_axe"):
+		inv_add("fire_axe", 1)
+	_checkpoint = data.duplicate(true)
+
+
+## 回到主線模式（標題畫面的新遊戲／繼續）
+func start_story() -> void:
+	mode = "story"
+	survival_setup = {}
+
+
+func reset_profile() -> void:
+	profile = {"points": 0, "unlocks": [], "best": {}}
+	save_profile()
+
+
+func profile_points() -> int:
+	return profile.points
+
+
+func add_points(n: int) -> void:
+	profile.points += n
+	save_profile()
+
+
+func is_unlocked(id: String) -> bool:
+	return profile.unlocks.has(id)
+
+
+## 花點數解鎖；點數不夠或已經有了回傳 false
+func buy_unlock(id: String, cost: int) -> bool:
+	if is_unlocked(id) or profile.points < cost:
+		return false
+	profile.points -= cost
+	profile.unlocks.append(id)
+	save_profile()
+	return true
+
+
+## 生存模式的最高紀錄（每張地圖）
+func best_record(map: String) -> Dictionary:
+	return profile.best.get(map, {})
+
+
+## 記錄一局的成績；破紀錄回傳 true
+func record_best(map: String, score: int, wave: int, rank: String) -> bool:
+	var old: Dictionary = profile.best.get(map, {})
+	var better: bool = old.is_empty() or score > old.get("score", 0)
+	if better:
+		profile.best[map] = {"score": score, "wave": maxi(wave, old.get("wave", 0)), "rank": rank}
+	elif wave > old.get("wave", 0):
+		old["wave"] = wave
+	save_profile()
+	return better
 
 
 func new_game() -> void:
@@ -74,6 +180,11 @@ func new_game() -> void:
 		"enemies": {},
 		"codex": {},
 	}
+	if mode == "story":
+		for unlock in SurvivalData.STORY_CACHES:
+			if is_unlocked(unlock):
+				for item_id in SurvivalData.STORY_CACHES[unlock]:
+					data.storage[item_id] = data.storage.get(item_id, 0) + SurvivalData.STORY_CACHES[unlock][item_id]
 	_checkpoint = data.duplicate(true)
 
 

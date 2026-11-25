@@ -27,6 +27,14 @@ func _ready() -> void:
 	$Center/Box.add_child(_language)
 	$Center/Box.move_child(_language, _quit.get_index())
 	_refresh_language()
+	# 生存模式「長夜」
+	var survival := Button.new()
+	survival.text = tr("Survival: The Long Night")
+	survival.add_theme_font_size_override("font_size", 12)
+	survival.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/survival_menu.tscn"))
+	$Center/Box.add_child(survival)
+	$Center/Box.move_child(survival, _continue.get_index() + 1)
 	(_new_game if _continue.disabled else _continue).grab_focus()
 
 
@@ -41,11 +49,13 @@ func _refresh_language() -> void:
 
 
 func _on_new_game() -> void:
+	WorldState.start_story()
 	WorldState.new_game()
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 
 func _on_continue() -> void:
+	WorldState.start_story()
 	if WorldState.load_from_disk():
 		get_tree().change_scene_to_file(GAME_SCENE)
 	else:

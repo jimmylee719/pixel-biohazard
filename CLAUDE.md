@@ -97,3 +97,7 @@
 ## 素材與版本控制
 - png、wav、ogg、mp3 用 Git LFS 追蹤
 - `.godot/` 不進版本控制
+- 生存模式「長夜」：`scripts/modes/survival_mode.gd`（波次、分數、空投、撤離；多人預留 `players()`）、資料 `survival_data.gd`、
+  撤離點 `survival_extraction.gd`、選單 `scenes/survival_menu.tscn`、結算 `scripts/ui/survival_results.gd`。設計與市場分析 `docs/SURVIVAL_MODE.md`。
+  `WorldState.mode`（story／survival）、`start_survival()`；跨存檔的玩家檔案（殘響點數、解鎖、最高紀錄）`WorldState.profile`
+  存在 `user://profile.cfg`（測試改 `profile_path`）。解鎖的「主線補給箱」在主線新遊戲時放進儲物箱（`SurvivalData.STORY_CACHES`）。

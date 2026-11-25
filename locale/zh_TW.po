@@ -1202,3 +1202,183 @@ msgstr "……裡面有東西在唱歌。"
 
 msgid "If it sees me, everything on this floor will hear it."
 msgstr "要是被它看到，整層樓都會聽見。"
+
+msgid "THE LONG NIGHT"
+msgstr "長夜"
+
+msgid "WAVE %d"
+msgstr "第 %d 波"
+
+msgid "WAVE %d CLEAR - EXTRACTION OPEN"
+msgstr "第 %d 波清除——撤離點開啟"
+
+msgid "WAVE %d CLEAR  +%d"
+msgstr "第 %d 波清除　+%d"
+
+msgid "GET READY"
+msgstr "準備"
+
+msgid "SCORE %d"
+msgstr "分數 %d"
+
+msgid "NEXT %d"
+msgstr "下一波 %d"
+
+msgid "LEFT %d"
+msgstr "剩 %d"
+
+msgid "[EXTRACT]"
+msgstr "［可撤離］"
+
+msgid "Extract (keep everything)"
+msgstr "撤離（獎勵全部帶走）"
+
+msgid "Run it again"
+msgstr "再來一局"
+
+msgid "Survival menu"
+msgstr "生存選單"
+
+msgid "Title screen"
+msgstr "標題畫面"
+
+msgid "EXTRACTED"
+msgstr "撤離成功"
+
+msgid "LOST IN THE NIGHT"
+msgstr "消失在長夜裡"
+
+msgid "Rank  %s"
+msgstr "評價　%s"
+
+msgid "NEW RECORD"
+msgstr "新紀錄"
+
+msgid "Score  %d"
+msgstr "分數　%d"
+
+msgid "Waves survived  %d"
+msgstr "撐過的波數　%d"
+
+msgid "Kills  %d   (silent %d)"
+msgstr "擊倒　%d　（無聲 %d）"
+
+msgid "Best combo  %d"
+msgstr "最高連殺　%d"
+
+msgid "Echoes earned  +%d%s"
+msgstr "獲得殘響　+%d%s"
+
+msgid "(30% - you did not make it out)"
+msgstr "（只拿到 30%——沒能撤離）"
+
+msgid "Echoes total  %d"
+msgstr "殘響總計　%d"
+
+msgid "Survival: The Long Night"
+msgstr "生存模式：長夜"
+
+msgid "LOADOUT"
+msgstr "裝備"
+
+msgid "Your second weapon. The pistol and the knife always come along."
+msgstr "第二把武器。手槍和小刀一定會帶著。"
+
+msgid "Begin the night"
+msgstr "開始這一夜"
+
+msgid "Survive the waves. Every 5th wave you can extract and keep everything - die, and you keep 30%."
+msgstr "撐過一波又一波。每 5 波可以撤離、帶走全部獎勵——死掉的話只剩 30%。"
+
+msgid "Back"
+msgstr "返回"
+
+msgid "UNLOCK (echoes)"
+msgstr "解鎖（殘響）"
+
+msgid "Locked. Unlock it on the right."
+msgstr "尚未解鎖。在右邊用殘響解鎖。"
+
+msgid "Unlocked: %s"
+msgstr "已解鎖：%s"
+
+msgid "Already yours."
+msgstr "已經擁有。"
+
+msgid "Not enough echoes."
+msgstr "殘響不夠。"
+
+msgid "Echoes: %d"
+msgstr "殘響：%d"
+
+msgid "(locked)"
+msgstr "（未解鎖）"
+
+msgid "Weapon: %s"
+msgstr "武器：%s"
+
+msgid "Only static. No saving out here tonight."
+msgstr "只有雜訊。今晚沒辦法存檔。"
+
+msgid "Corridors, labs and lockers. Close quarters - nowhere to run far."
+msgstr "走廊、實驗室和置物櫃。近距離——沒地方跑遠。"
+
+msgid "Open snow between the huts. Hounds come fast in the open."
+msgstr "小屋之間的開闊雪地。獵犬在空曠處來得很快。"
+
+msgid "The docks. Gatekeeper troops join the night - and they carry radios."
+msgstr "碼頭。守門派部隊也加入這一夜——而且他們帶著無線電。"
+
+msgid "Shotgun loadout"
+msgstr "散彈槍裝備"
+
+msgid "Start survival runs with the shotgun."
+msgstr "生存模式開局帶散彈槍。"
+
+msgid "Nail gun loadout"
+msgstr "釘槍裝備"
+
+msgid "Start survival runs with the silent nail gun."
+msgstr "生存模式開局帶無聲的釘槍。"
+
+msgid "Flare gun loadout"
+msgstr "信號槍裝備"
+
+msgid "Start survival runs with the flare gun."
+msgstr "生存模式開局帶信號槍。"
+
+msgid "Hunting rifle loadout"
+msgstr "獵槍裝備"
+
+msgid "Start survival runs with the rifle."
+msgstr "生存模式開局帶獵槍。"
+
+msgid "Carry the fire axe in every survival run."
+msgstr "每一局生存模式都帶著消防斧。"
+
+msgid "Extra first aid"
+msgstr "額外急救包"
+
+msgid "One more first aid kit at the start of each run."
+msgstr "每一局開始多一個急救包。"
+
+msgid "Map: North Harbor"
+msgstr "地圖：北港"
+
+msgid "Unlock the harbor map, with Gatekeeper troops."
+msgstr "解鎖北港地圖（有守門派部隊）。"
+
+msgid "Story cache I"
+msgstr "主線補給箱 I"
+
+msgid "New story games: a first aid kit and pistol rounds wait in the safe room box."
+msgstr "主線新遊戲時，安全屋的儲物箱裡會有急救包和手槍子彈。"
+
+msgid "Story cache II"
+msgstr "主線補給箱 II"
+
+msgid "New story games: a nail gun and nails wait in the safe room box."
+msgstr "主線新遊戲時，安全屋的儲物箱裡會有釘槍和釘條。"
+
+msgid "[owned] "
+msgstr "［已有］"
