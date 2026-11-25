@@ -26,6 +26,7 @@ func _run() -> void:
 	TranslationServer.set_locale("en")  # 檢查的是英文原文；翻譯另外測
 	WorldState.delete_save()
 	WorldState.new_game()
+	WorldState.cutscenes = false  # 過場另外測（_test_cutscene）
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	_player = _main.get_node("Player")
@@ -83,6 +84,7 @@ func _run() -> void:
 	await _test_exit()
 	await _test_title()
 	await _test_save_migration()
+	await _test_expansion()
 
 	print("")
 	if _failures == 0:
@@ -1083,6 +1085,13 @@ func _test_title() -> void:
 		texts.append_array([u.label, u.sent, u.reply])
 	texts.append_array(UplinkMessages.INTRO)
 	texts.append_array(UplinkMessages.HOLD_REPLY)
+	for id in Cutscenes.DATA:
+		for step in Cutscenes.DATA[id]:
+			for key in ["caption", "say", "text"]:
+				if step.has(key):
+					texts.append(step[key])
+	for id in Codex.ENTRIES:
+		texts.append_array([Codex.ENTRIES[id].name, Codex.ENTRIES[id].desc, Codex.ENTRIES[id].tip])
 	var missing := texts.filter(func(t): return t != "" and TranslationServer.translate(t) == t)
 	_check(missing.is_empty(), "所有劇情、任務、物品文字都有中文（缺 %d：%s）" % [missing.size(), str(missing.slice(0, 3))])
 	TranslationServer.set_locale("en")
@@ -1874,7 +1883,7 @@ func _test_cold_and_huts() -> void:
 	WorldState.body_temp = 100.0
 	_place_player(_tile(20, 12), true, Vector2.UP)
 	await _seconds(1.0)
-	_check(WorldState.body_temp < 99.5 and WorldState.body_temp > 97.0, "戶外會慢慢失溫（%.1f）" % WorldState.body_temp)
+	_check(WorldState.body_temp < 99.8 and WorldState.body_temp > 99.0, "戶外會慢慢失溫（%.1f）" % WorldState.body_temp)
 	_check("Body:" in _main.get_node("HUD/Condition").text, "會失溫的地方顯示體溫")
 	var fire := Fire.new()
 	fire.harmful = false
@@ -2285,3 +2294,67 @@ func _test_pixel_art() -> void:
 	_check(front.x >= 0 and not over.mask_rects(feet).is_empty(), "站在牆前面：角色補畫在牆上面")
 	_check(open_cell.x >= 0 and over.mask_rects((Vector2(open_cell) + Vector2(0.5, 0.9)) * Level.TILE).is_empty(),
 		"前面沒有牆：不用補畫")
+
+
+## 擴張：新區域（北港、冰洞、東翼）、新武器、圖鑑、過場
+func _test_expansion() -> void:
+	print("[expansion]")
+	# 門要兩邊對得上
+	for area_id in Areas.DATA:
+		for door_id in Areas.DATA[area_id].doors:
+			var to: String = Areas.DATA[area_id].doors[door_id].to
+			_check(Areas.DATA.has(to) and Areas.DATA[to].doors.has(door_id), "門 %s:%s 兩邊相通" % [area_id, door_id])
+	for area_id in ["north_harbor", "ice_caves", "station_east_wing"]:
+		var entry: String = Areas.DATA[area_id].doors.keys()[0]
+		await _main.load_area(area_id, entry, false)
+		_quiet()
+		var types := {}
+		for e in _main.enemies:
+			types[e.get_species()] = true
+		_check(_main.enemies.size() >= 4, "%s 有敵人（%s）" % [area_id, types.keys()])
+		_check(_main.level.title != "", "%s 載入" % area_id)
+	_check(not Areas.DATA.north_harbor.reinforcements.is_empty(), "北港有增援（無線電通報）")
+	# 圖鑑：看到就解鎖、打倒會記數
+	var e: Enemy = _main.enemies[0]
+	var sp := e.get_species()
+	WorldState.data.codex.erase(sp)
+	e.process_mode = Node.PROCESS_MODE_INHERIT
+	_place_player(e.global_position + Vector2(0, 20), true, Vector2.UP)
+	await _frames(4)
+	_check(WorldState.codex_has(sp), "看到 %s：圖鑑解鎖" % sp)
+	var kills := WorldState.codex_kills(sp)
+	e.take_damage(9999.0, _player.global_position, 1.0)
+	await _frames(2)
+	_check(WorldState.codex_kills(sp) == kills + 1, "打倒：圖鑑記一次")
+	_main.open_phone("codex")
+	await _frames(1)
+	_check(_main.phone.get_text() != "" and _main.phone.codex_header.size() >= 2, "手機的檔案 App 顯示圖鑑")
+	_main.close_phone()
+	# 信號槍：落點起火
+	for f in get_tree().get_nodes_in_group(Fire.GROUP):
+		f.queue_free()
+	WorldState.inv_add("flare_gun", 1)
+	WorldState.equipped = "flare_gun"
+	WorldState.set_loaded("flare_gun", 1)
+	_player.combat._cooldown = 0.0
+	_check(_player.combat.shoot(), "信號槍可以開火")
+	await _frames(2)
+	_check(get_tree().get_nodes_in_group(Fire.GROUP).size() >= 1, "信號彈落點起火")
+	WorldState.inv_remove("flare_gun", 1)
+	# 消防斧：揮砍傷害變大
+	_check(_player.combat.melee_weapon() == "", "沒有斧頭時用小刀")
+	WorldState.inv_add("fire_axe", 1)
+	_check(_player.combat.melee_weapon() == "fire_axe", "撿到消防斧就換成斧頭")
+	WorldState.inv_remove("fire_axe", 1)
+	_check(PlayerCombat.WEAPONS.nailgun.noise_tiles < PlayerCombat.WEAPONS.pistol.noise_tiles * 0.3, "釘槍幾乎沒聲音")
+	# 過場：暫停遊戲、黑邊、跳過後恢復
+	WorldState.cutscenes = true
+	WorldState.data.flags.erase("scene:clean_room")
+	_main.play_cutscene("clean_room")
+	await _frames(3)
+	_check(_main.cutscene.active and get_tree().paused, "過場：遊戲暫停、黑邊出現")
+	_main.cutscene.skip()
+	await _seconds(0.8)
+	_check(not _main.cutscene.active and not get_tree().paused, "跳過過場後恢復遊戲")
+	_check(WorldState.has_flag("scene:clean_room"), "看過的過場不再播")
+	WorldState.cutscenes = false

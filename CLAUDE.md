@@ -22,7 +22,14 @@
 - 主角的戰鬥在子節點 Combat（`scripts/player/player_combat.gd`）；物品資料在 `scripts/world/items.gd`，物品欄、生命值、感染值存在 WorldState。
 - 遊戲從 `scenes/title.tscn` 開始；存檔只在安全屋的無線電（`WorldState.save_to_disk()`，用 store_var 存 data）。測試會把 `WorldState.save_path` 改成測試用檔名。
 - 無線電頻率在 `scripts/world/frequencies.gd`（頻率用整數百分之一 MHz）；地圖上的頻率線索用區域資料的 `learn`，聽了才出現的物品用 `hidden`。頻段和內容要維持原創，不要用 MGS 的 140.xx 頻段或角色。
-- 敵人種類：patroller（值班者）、listener（鳴骨者）、sleeper（凍眠體，`dormant` 參數）、guard（武裝人員）、hound（獵犬，還沒放進地圖）。新種類先試著只用 @export 參數＋新場景做。
+- 敵人種類：patroller（值班者）、listener（鳴骨者）、sleeper（凍眠體，`dormant` 參數）、guard（武裝人員）、hound（獵犬）、
+  crawler（爬行者，看不見、聽覺好）、husk（膨脹者，慢、耐打、高感染）、chorister（詠者，看到你就呼叫大範圍同伴）。
+  場景的 `species` = 圖鑑編號、`step_style` = 腳步聲（foot／paw）；敵人走路有腳步聲（躲櫃子時靠聽）。
+- 圖鑑：`scripts/world/codex.gd`（敵人第一次被看到、武器第一次撿到時解鎖，`WorldState.codex_*`），手機「檔案」App。
+- 過場：`scripts/world/cutscenes.gd`（步驟資料）＋ `scripts/ui/cutscene_player.gd`（黑邊、對白），`main.play_cutscene()`；
+  區域資料 `cutscene` = 第一次進入時播放（旗標 `scene:<id>`）。用遊戲畫面演出、遊戲暫停。測試／截圖設 `WorldState.cutscenes = false`。
+- 武器：`PlayerCombat.WEAPONS`（pistol、shotgun、rifle、nailgun 安靜、flare_gun 落點起火）、`MELEE_WEAPONS`（fire_axe）；地圖符號見 areas.gd。
+- 擴張區域：north_harbor（北港，武裝人員＋增援）、ice_caves（冰洞）、station_east_wing（東翼），從氣象小屋北門、二樓東側進入。新種類先試著只用 @export 參數＋新場景做。
 - Boss：繼承 Enemy、只覆寫行動邏輯，並覆寫 `is_boss()`／`boss_suffix()`（例：`boss_bear.gd`、最終 Boss `boss_well.gd`）；區域資料 `camera: "fixed"` + `boss` 名稱 = Boss 戰鏡頭與血條；Boss 死亡發出任務事件 `defeat`。
 - 門的 `access` 欄位 = 需要的權限卡等級（`WorldState.access_level`）；權限卡、鑰匙類不佔物品欄。
 - 推出方式是「本篇＋資料片」（SERIES_BIBLE 第 5 節）：新內容盡量只加資料和參數化場景，不改核心系統，方便之後做資料片。

@@ -875,3 +875,330 @@ msgstr "語言：English"
 
 msgid "Language: 中文"
 msgstr "語言：中文"
+
+msgid "Hunting rifle"
+msgstr "獵槍"
+
+msgid "Bolt-action, scoped. For the bears, the station manual said. Hits like a truck; the whole island hears it."
+msgstr "栓動式，附瞄準鏡。站內手冊說是用來防熊的。打中像被卡車撞，整座島都聽得到。"
+
+msgid "Rifle rounds"
+msgstr "獵槍子彈"
+
+msgid ".308. Heavy brass in a cardboard box."
+msgstr ".308 口徑。紙盒裡沉甸甸的銅彈。"
+
+msgid "Nail gun"
+msgstr "釘槍"
+
+msgid "Pneumatic, from the workshop. Weak, but barely a whisper. Nobody comes running."
+msgstr "工坊的氣動釘槍。威力不大，但幾乎沒有聲音，不會把別的東西引過來。"
+
+msgid "Nail strip"
+msgstr "釘條"
+
+msgid "Collated framing nails. Twelve to a strip."
+msgstr "排釘。一條 12 根。"
+
+msgid "Flare gun"
+msgstr "信號槍"
+
+msgid "Single shot. Wherever the flare lands, it burns and lights up the dark."
+msgstr "單發。信號彈落在哪裡，哪裡就會燃燒、照亮黑暗。"
+
+msgid "Flares"
+msgstr "信號彈"
+
+msgid "Signal flares. Red, hot, and very bright."
+msgstr "求救用的信號彈。紅色、灼熱、非常亮。"
+
+msgid "Fire axe"
+msgstr "消防斧"
+
+msgid "Replaces the knife for your first swing. Splits crates and barricades in one blow."
+msgstr "取代小刀的第一下揮砍。木箱、木板一斧就劈開。"
+
+msgid "FILE"
+msgstr "檔案"
+
+msgid "Field Files"
+msgstr "現場檔案"
+
+msgid "INFECTED"
+msgstr "感染體"
+
+msgid "HUMAN"
+msgstr "人類"
+
+msgid "WEAPONS"
+msgstr "武器"
+
+msgid "Downed: %d"
+msgstr "擊倒：%d"
+
+msgid "Found %d/%d"
+msgstr "收集 %d/%d"
+
+msgid "Tip: %s"
+msgstr "對策：%s"
+
+msgid "Not yet encountered."
+msgstr "尚未遭遇。"
+
+msgid "[Up/Down] browse"
+msgstr "［上／下］翻閱"
+
+msgid "New field file: %s"
+msgstr "新的現場檔案：%s"
+
+msgid "Watcher"
+msgstr "值班者"
+
+msgid "Station staff, still in their coveralls. Blind - the frost took the eyes first - but they hear everything, and they still walk the rounds they walked alive."
+msgstr "還穿著工作服的站內人員。眼睛最先被霜吃掉，所以看不見；但什麼都聽得到，而且還在走生前巡的那條路線。"
+
+msgid "Sneak behind it. Cold slows it down."
+msgstr "從背後潛行過去。寒冷會讓它變慢。"
+
+msgid "Sleeper"
+msgstr "凍眠體"
+
+msgid "A host gone dormant. It lies among the real dead and looks exactly like them - except for the faint glint of crystal, now and then."
+msgstr "進入休眠的宿主。躺在真正的屍體之間，看起來一模一樣——只有偶爾閃一下的結晶微光不同。"
+
+msgid "Watch the bodies before you walk past. Heat or noise wakes it."
+msgstr "經過屍體前先看清楚。熱或聲音會把它弄醒。"
+
+msgid "Chimer"
+msgstr "鳴骨者"
+
+msgid "The bone has grown into a resonator. It clicks and listens to the echo, like a bat. Light means nothing to it."
+msgstr "骨頭長成了共鳴器。它發出喀喀聲、聽回音，像蝙蝠一樣。光對它沒有意義。"
+
+msgid "Stand still while the click passes over you. It shrieks for help when it finds you."
+msgstr "喀喀聲掃過時站著別動。被它發現會尖叫叫同伴來。"
+
+msgid "Crawler"
+msgstr "爬行者"
+
+msgid "Bent so far forward it walks on its hands. It lives in the ducts and under the floors, and it feels footsteps through the ground."
+msgstr "身體往前彎到用手走路。住在管道裡、地板下，靠地面傳來的震動感覺腳步。"
+
+msgid "No eyes at all. Walk, don't run, and it never knows you were there."
+msgstr "完全沒有眼睛。用走的別用跑的，它就永遠不知道你來過。"
+
+msgid "Husk"
+msgstr "膨脹者"
+
+msgid "The colony has filled this one up like a balloon. Slow, enormous, and one grab carries a frightening dose of spores."
+msgstr "菌落把它撐得像氣球一樣。又慢又巨大，被抓一下就會吸進可怕份量的孢子。"
+
+msgid "Don't trade blows. Burn it, or just walk away."
+msgstr "別跟它硬碰硬。燒它，或乾脆繞開。"
+
+msgid "Chorister"
+msgstr "詠者"
+
+msgid "The crystals ring its throat like a collar. When it sees you, it sings - and everything nearby comes to listen."
+msgstr "結晶像項圈一樣圍著它的喉嚨。看到你時它會開始唱——附近的東西全都會過來聽。"
+
+msgid "Kill it first, and quietly, or the whole floor comes."
+msgstr "先安靜地解決它，不然整層樓都會過來。"
+
+msgid "Hound"
+msgstr "獵犬"
+
+msgid "One of the station's sled dogs. Fast, and its nose still works. It hunts in the open snow."
+msgstr "研究站的雪橇犬之一。很快，鼻子也還靈。在開闊的雪地裡獵食。"
+
+msgid "You can't outrun it. Get indoors and shut a door between you."
+msgstr "你跑不贏它。躲進室內，讓一道門隔在你們之間。"
+
+msgid "Tundra Mother"
+msgstr "苔原之母"
+
+msgid "A polar bear the colony has made its home. The hangar was hers long before you arrived."
+msgstr "被菌落當成家的北極熊。在你來之前，機庫就是它的地盤。"
+
+msgid "Its back is soft where the crystals split."
+msgstr "結晶裂開的背部比較軟。"
+
+msgid "The Deep Well"
+msgstr "深井"
+
+msgid "What was waiting at the bottom of the drill shaft. Forty thousand years asleep. Awake now."
+msgstr "在鑽探井底等著的東西。睡了四萬年。現在醒了。"
+
+msgid "It has to breathe in before it sings."
+msgstr "它唱之前得先吸一口氣。"
+
+msgid "Operative"
+msgstr "武裝人員"
+
+msgid "Gatekeeper troops, landed to contain the island - and everyone on it. Armed, trained, and they carry radios."
+msgstr "守門派的部隊，登島來封鎖這座島——連同島上的每一個人。有武器、受過訓練，而且帶著無線電。"
+
+msgid "Hit one mid-call to cut the radio. If the alert goes up, hide and wait it out."
+msgstr "在他通報時打中他就能打斷無線電。警報響了就躲起來等它解除。"
+
+msgid "Survival knife"
+msgstr "求生刀"
+
+msgid "Your own. Quiet, always there. From behind, one cut is enough."
+msgstr "你自己的刀。安靜、永遠在身上。從背後一刀就夠了。"
+
+msgid "Slash, punch, kick - chain them."
+msgstr "刀、拳、踢——連起來用。"
+
+msgid "Station security sidearm. Eight rounds."
+msgstr "研究站保全的配槍。8 發。"
+
+msgid "Hold aim to steady it before you fire."
+msgstr "按住瞄準等準心收束再開槍。"
+
+msgid "Pump action. Two shells. Ends arguments at close range."
+msgstr "泵動式。2 發。近距離一槍解決。"
+
+msgid "Useless past a few steps."
+msgstr "幾步之外就沒用了。"
+
+msgid "Scoped, bolt-action. The loudest thing on the island."
+msgstr "栓動、附瞄準鏡。全島最大聲的東西。"
+
+msgid "One shot, then move."
+msgstr "開一槍，然後換位置。"
+
+msgid "Pneumatic, almost silent. Weak, but nothing comes running."
+msgstr "氣動式，幾乎無聲。威力弱，但不會引來任何東西。"
+
+msgid "For picking off strays without an alert."
+msgstr "用來不觸發警戒地解決落單的敵人。"
+
+msgid "Sets the landing spot burning and lights the dark."
+msgstr "讓落點燃燒，照亮黑暗。"
+
+msgid "Fire it past them to pull them away - or into them."
+msgstr "射到牠們後面把牠們引開——或直接射進牠們之間。"
+
+msgid "Heavy, red, reliable. Replaces the knife's first swing."
+msgstr "沉、紅、可靠。取代小刀的第一下揮砍。"
+
+msgid "Barricades come down in one blow."
+msgstr "木板一斧就劈開。"
+
+msgid "North Harbor"
+msgstr "北港"
+
+msgid "Ice Caves"
+msgstr "冰洞"
+
+msgid "East Wing"
+msgstr "東翼研究區"
+
+msgid "GATE ORDERS (printed, stamped): \"Island is under Accord quarantine. Survivors are to be detained, not evacuated. Specimens take priority over personnel. No aircraft leaves Greycrow without Gate One's word.\""
+msgstr "守門命令（列印、蓋章）：「本島依協定實施隔離。倖存者一律扣留，不予撤離。樣本優先於人員。未經守門一號許可，任何飛機不得離開灰鴉島。」"
+
+msgid "NOTE, pinned under the rifle: \"Came down here after the dogs. They weren't dogs anymore. Took the rifle off the rack for bears. Doesn't matter what you shoot - it hears the shot from everywhere. - Ivo\""
+msgstr "壓在獵槍下的紙條：「追著狗下來的。牠們已經不是狗了。我拿了架上防熊用的獵槍。打什麼都沒差——槍聲到處都聽得到。——伊佛」"
+
+msgid "LAB LOG, East Wing: \"Sealed the wing on the director's order. Twelve still inside. He says the cold will keep them asleep. He says a lot of things.\""
+msgstr "東翼實驗日誌：「依站長命令封閉東翼。裡面還有十二個人。他說寒冷會讓他們一直睡著。他說的話可多了。」"
+
+msgid "MEMO - A. KOVAC (dated before she left): \"It isn't a disease. It's a hibernation strategy that uses us as the burrow. Whoever is paying for this already knows that.\""
+msgstr "備忘錄——A．科瓦契（日期在她離開之前）：「這不是疾病。這是一種冬眠策略，而我們是它的巢穴。出錢的人早就知道了。」"
+
+msgid "Shen"
+msgstr "沈若寧"
+
+msgid "[GATE-1]"
+msgstr "［守門一號］"
+
+msgid "[GATE-2]"
+msgstr "［守門二號］"
+
+msgid "[%s] skip"
+msgstr "［%s］跳過"
+
+msgid "Esc"
+msgstr "Esc"
+
+msgid "Supply run seventeen. Drop the crates, refuel, home before dark."
+msgstr "第十七趟補給。卸貨、加油、天黑前回去。"
+
+msgid "Nobody answered the landing call. Nobody came out for the crates."
+msgstr "降落時沒人回應。也沒有人出來搬貨。"
+
+msgid "North Latitude Station. Thirty-one people work there. Not one light on."
+msgstr "北緯站。三十一個人在這裡工作。一盞燈都沒亮。"
+
+msgid "The rotor iced up on the way in. I'm not flying anywhere tonight."
+msgstr "進場時旋翼結冰了。今晚哪裡都飛不了。"
+
+msgid "Somebody in there has a radio. Find it."
+msgstr "裡面一定有人有無線電。去找。"
+
+msgid "Hello? It's the supply pilot. Your landing pad is buried..."
+msgstr "有人嗎？我是補給機的駕駛。你們的停機坪被雪埋了……"
+
+msgid "...That was a person. The eyes are gone. Frost is growing out of the skin."
+msgstr "……那曾經是個人。眼睛沒了。霜從皮膚裡長出來。"
+
+msgid "It turned toward my voice - not toward my light."
+msgstr "它轉向的是我的聲音——不是我的燈光。"
+
+msgid "Quiet, then. Stay out of its way."
+msgstr "那就安靜。別擋到它的路。"
+
+msgid "A clean room. Sealed door, its own air. Nothing followed me in."
+msgstr "無菌室。密封門、獨立空調。沒有東西跟進來。"
+
+msgid "And a radio. I can save what I know here - and listen. Somebody might be talking."
+msgstr "還有無線電。可以在這裡記下我知道的事——然後聽。也許有人在說話。"
+
+msgid "Something big is breathing in there."
+msgstr "裡面有個很大的東西在呼吸。"
+
+msgid "The hangar isn't empty. It's hers."
+msgstr "機庫不是空的。是牠的地盤。"
+
+msgid "The antenna tower. If the battery holds, one message reaches the mainland."
+msgstr "天線塔。如果電池撐得住，能有一則訊息傳到本土。"
+
+msgid "One message. I'd better be sure who I'm calling."
+msgstr "只有一則。最好想清楚要呼叫誰。"
+
+msgid "Four hundred meters, straight down."
+msgstr "四百公尺，直直往下。"
+
+msgid "The director's last note said only three words. 'It sings back.'"
+msgstr "站長最後的筆記只有一句話：「它會唱回來。」"
+
+msgid "Gate One, Gate Two. Harbor perimeter is set. Nothing leaves this island."
+msgstr "守門一號，這裡是二號。港口封鎖線完成。任何東西都別想離開這座島。"
+
+msgid "Copy. Survivors are to be held, not evacuated. Anything that runs, you stop."
+msgstr "收到。倖存者一律扣留，不准撤離。會跑的，全部攔下。"
+
+msgid "Soldiers. That isn't a rescue."
+msgstr "軍隊。那不是來救援的。"
+
+msgid "Whoever sent them knew exactly what was on this island."
+msgstr "派他們來的人，很清楚這座島上有什麼。"
+
+msgid "They carry radios. If one of them calls it in, the whole harbor comes down on me."
+msgstr "他們帶著無線電。只要有一個人通報，整個港口都會衝過來。"
+
+msgid "The ice is glowing. The whole cave is full of it."
+msgstr "冰在發光。整個洞窟都是。"
+
+msgid "And something down here is moving across the floor. On its hands."
+msgstr "而且下面有東西在地上移動。用手爬。"
+
+msgid "The east wing. Biology labs. The doors were sealed from this side."
+msgstr "東翼。生物實驗室。門是從這一側封起來的。"
+
+msgid "...Something in there is singing."
+msgstr "……裡面有東西在唱歌。"
+
+msgid "If it sees me, everything on this floor will hear it."
+msgstr "要是被它看到，整層樓都會聽見。"

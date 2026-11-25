@@ -54,8 +54,8 @@ func open(level: Level, from: Vector2, dir: Vector2, view_mode: String, hint := 
 	active = true
 	visible = true
 	if mode == "locker":
-		_fov = deg_to_rad(56.0)
-		_ambient = 0.62
+		_fov = deg_to_rad(62.0)
+		_ambient = 0.8
 	else:
 		_fov = deg_to_rad(70.0)
 		_ambient = 0.9 if level.is_lit() or level.outdoor else 0.7
@@ -241,14 +241,22 @@ func _enemy_texture(e: Enemy) -> Texture2D:
 
 
 func _draw_locker_slats() -> void:
-	# 百葉縫：只從幾條縫看出去
-	var y := 0.0
+	# 百葉門：細細的斜葉片（半透明），從縫隙看得到外面；四周一圈櫃門的暗框
+	var y := 6.0
 	while y < H:
-		draw_rect(Rect2(0, y, W, 7), Color(0.01, 0.01, 0.015))
-		draw_rect(Rect2(0, y + 8, W, 1), Color(0.12, 0.14, 0.16))
-		y += 15.0
-	draw_rect(Rect2(0, 0, 40, H), Color(0.01, 0.01, 0.015))
-	draw_rect(Rect2(W - 40, 0, 40, H), Color(0.01, 0.01, 0.015))
+		draw_rect(Rect2(0, y, W, 3), Color(0.02, 0.025, 0.03, 0.82))
+		draw_rect(Rect2(0, y + 3, W, 1), Color(0.18, 0.2, 0.22, 0.55))
+		y += 22.0
+	var edge := Color(0.015, 0.015, 0.02)
+	draw_rect(Rect2(0, 0, 14, H), edge)
+	draw_rect(Rect2(W - 14, 0, 14, H), edge)
+	draw_rect(Rect2(0, 0, W, 8), edge)
+	draw_rect(Rect2(0, H - 10, W, 10), edge)
+	# 邊緣往內漸暗（櫃子裡很暗）
+	for i in 10:
+		var a := 0.5 * (1.0 - i / 10.0)
+		draw_rect(Rect2(14 + i * 3, 8, 3, H - 18), Color(0, 0, 0, a))
+		draw_rect(Rect2(W - 17 - i * 3, 8, 3, H - 18), Color(0, 0, 0, a))
 
 
 func _draw_window_frame() -> void:

@@ -12,6 +12,7 @@ motion_mode = 1
 script = ExtResource("1_enemy")
 display_name = "Sleeper"
 sprite_set = "watcher"
+species = "sleeper"
 sprite_tint = Color(0.62, 0.78, 0.92, 1)
 patrol_speed = 20.0
 investigate_speed = 34.0

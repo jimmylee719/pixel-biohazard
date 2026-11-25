@@ -18,6 +18,9 @@ const ENEMY_SCENES := {
 	"sleeper": preload("res://scenes/enemy_sleeper.tscn"),
 	"guard": preload("res://scenes/enemy_guard.tscn"),
 	"hound": preload("res://scenes/enemy_hound.tscn"),
+	"crawler": preload("res://scenes/enemy_crawler.tscn"),
+	"husk": preload("res://scenes/enemy_husk.tscn"),
+	"chorister": preload("res://scenes/enemy_chorister.tscn"),
 	"bear": preload("res://scenes/boss_bear.tscn"),
 	"well": preload("res://scenes/boss_well.tscn"),
 }
@@ -34,6 +37,10 @@ var _resetting := false
 var _transitioning := false
 var _message_timer := 0.0
 ## 收過的訊息（新的在前），手機「訊息」App 看得到全文
+## 圖鑑 App 選到哪一筆
+var codex_cursor := 0
+## 過場（用遊戲畫面演出）
+var cutscene: CutscenePlayer
 var message_log: Array[String] = []
 var _message_more: Label
 var _hurt_timer := 0.0
@@ -113,6 +120,9 @@ func _ready() -> void:
 		close_window_view())
 	_banner.visible = false
 	_hint.text = _build_hint()
+	WorldState.codex_unlocked.connect(func(id: String):
+		if Codex.ENTRIES.has(id):
+			show_message(tr("New field file: %s") % tr(Codex.ENTRIES[id].name)))
 	Missions.mission_completed.connect(func(id: String):
 		Sfx.play("mission_complete")
 		show_message(tr("MISSION COMPLETE: %s") % tr(Missions.get_mission(id).title))
@@ -162,6 +172,9 @@ func _ready() -> void:
 	add_child(touch_controls)
 	_hint.visible = false  # 操作說明在手機「操作」App
 	_build_phone()
+	cutscene = CutscenePlayer.new()
+	cutscene.name = "Cutscene"
+	$HUD.add_child(cutscene)
 	_portrait = TextureRect.new()
 	_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_portrait.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -180,6 +193,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("debug_toggle"):
 		_overlay.debug_enabled = not _overlay.debug_enabled
+	if cutscene and cutscene.active:
+		return
 	var busy := _resetting or _transitioning or _player.is_dead
 	if _ending_panel.visible:
 		if Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept"):
@@ -534,6 +549,83 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 		await _fade_to(0.0)
 	_player.input_enabled = true
 	_transitioning = false
+	await _check_cutscene(area_id)
+	if _region != area_id:
+		await _check_cutscene(_region)
+
+
+# ── 過場 ──────────────────────────────────────────────
+
+## 這個區域（或房間）有沒有還沒看過的過場
+func _check_cutscene(area_id: String) -> void:
+	var id: String = Areas.DATA.get(area_id, {}).get("cutscene", "")
+	if id != "":
+		await play_cutscene(id)
+
+
+## 播放一段過場：遊戲暫停（敵人定格）、上下黑邊、鏡頭移動、對白。看過就不再播。
+func play_cutscene(id: String) -> void:
+	if not WorldState.cutscenes or not Cutscenes.DATA.has(id) or WorldState.has_flag("scene:" + id) \
+			or cutscene.active or _player.is_dead:
+		return
+	WorldState.set_flag("scene:" + id)
+	if phone.visible:
+		close_phone()
+	var was_paused := get_tree().paused
+	get_tree().paused = true
+	_player.velocity = Vector2.ZERO
+	await cutscene.open()
+	var lights: Array[Node] = []
+	for step: Dictionary in Cutscenes.DATA[id]:
+		if cutscene.skipping:
+			break
+		if step.has("caption"):
+			await cutscene.caption(tr(step.caption), step.get("time", 2.0))
+		elif step.has("say"):
+			await cutscene.say(tr(step.say), tr(step.text), step.get("auto", 0.0))
+		elif step.has("pan"):
+			var at := (Vector2(step.pan) + Vector2(0.5, 0.5)) * Level.TILE
+			if step.has("light"):
+				lights.append(_cutscene_light(at, step.light))
+			await _pan_camera(at, step.get("time", 1.5))
+		elif step.has("pan_enemy"):
+			var i: int = step.pan_enemy
+			if i < enemies.size() and is_instance_valid(enemies[i]):
+				var e: Enemy = enemies[i]
+				e.reveal_for_cutscene()
+				lights.append(_cutscene_light(e.global_position, 60.0))
+				await _pan_camera(e.global_position, step.get("time", 1.5))
+		elif step.has("back"):
+			await _pan_camera(_player.global_position, step.back)
+		elif step.has("wait"):
+			await cutscene.wait(step.wait)
+		elif step.has("sfx"):
+			Sfx.play(step.sfx)
+	for l in lights:
+		if is_instance_valid(l):
+			l.queue_free()
+	_camera.snap_to_target()
+	await cutscene.close()
+	get_tree().paused = was_paused
+
+
+func _pan_camera(to: Vector2, time: float) -> void:
+	if cutscene.skipping:
+		return
+	var t := cutscene.create_tween()
+	t.tween_property(_camera, "global_position", to.round(), time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await t.finished
+
+
+func _cutscene_light(at: Vector2, radius: float) -> PointLight2D:
+	var light := PointLight2D.new()
+	light.texture = LightTextures.make_radial()
+	light.texture_scale = radius / (LightTextures.SIZE * 0.5)
+	light.energy = 0.8
+	light.color = Color(0.75, 0.85, 1.0)
+	light.global_position = at
+	level.add_child(light)
+	return light
 
 
 func _fade_to(alpha: float) -> void:
@@ -565,6 +657,7 @@ func _update_region() -> void:
 		_region = region
 		WorldState.emit_event("enter_area", region)
 		_apply_darkness()
+		_check_cutscene(region)
 
 
 func _apply_darkness() -> void:
@@ -755,6 +848,16 @@ func _process_phone_input() -> void:
 			if Input.is_action_just_pressed("inventory") or Input.is_action_just_pressed("map") \
 					or Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel"):
 				close_phone()
+			elif phone.app == "codex":
+				var n := Codex.ENTRIES.size()
+				if Input.is_action_just_pressed("move_down") or Input.is_action_just_pressed("ui_down"):
+					codex_cursor = (codex_cursor + 1) % n
+					Sfx.play("ui_move")
+					_refresh_phone()
+				elif Input.is_action_just_pressed("move_up") or Input.is_action_just_pressed("ui_up"):
+					codex_cursor = (codex_cursor + n - 1) % n
+					Sfx.play("ui_move")
+					_refresh_phone()
 			elif phone.app == "messages" and not message_log.is_empty():
 				if Input.is_action_just_pressed("move_down") or Input.is_action_just_pressed("ui_down"):
 					_message_cursor = mini(_message_cursor + 1, message_log.size() - 1)
@@ -779,6 +882,30 @@ func _refresh_phone() -> void:
 				phone.set_text("%d / %d\n\n%s" % [_message_cursor + 1, message_log.size(), message_log[_message_cursor]])
 		"controls":
 			phone.set_text(_build_hint().replace("  ", "\n"))
+		"codex":
+			_refresh_codex()
+
+
+## 圖鑑 App：上下選一筆。沒遇過的只顯示剪影和「???」
+func _refresh_codex() -> void:
+	var ids := Codex.ids()
+	codex_cursor = clampi(codex_cursor, 0, ids.size() - 1)
+	var id: String = ids[codex_cursor]
+	var e: Dictionary = Codex.ENTRIES[id]
+	var open := Codex.unlocked(id)
+	phone.codex_locked = not open
+	phone.codex_icon = Art.tex(e.sprite) if e.sprite != "" else null
+	var header: Array[String] = ["%s  %d/%d" % [tr(Codex.GROUP_TITLES[e.group]), codex_cursor + 1, ids.size()],
+		tr(e.name) if open else "???"]
+	if open and e.group != "weapon":
+		header.append(tr("Downed: %d") % WorldState.codex_kills(id))
+	header.append(tr("Found %d/%d") % [Codex.count_unlocked(), ids.size()])
+	phone.codex_header = header
+	if open:
+		phone.set_text("%s\n\n%s" % [tr(e.desc), tr("Tip: %s") % tr(e.tip)])
+	else:
+		phone.set_text(tr("Not yet encountered.") + "\n\n" + tr("[Up/Down] browse"))
+	phone.queue_redraw()
 
 
 func _build_status_text() -> String:

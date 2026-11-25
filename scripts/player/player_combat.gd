@@ -48,7 +48,18 @@ const WEAPONS := {
 		"damage_min": 25.0, "damage_max": 55.0, "stagger": 0.35, "noise_tiles": 12.0, "falloff": false},
 	"shotgun": {"ammo": "shells", "mag": 2, "reload": 1.8, "cooldown": 0.9, "range": 96.0,
 		"damage_min": 70.0, "damage_max": 110.0, "stagger": 0.9, "noise_tiles": 14.0, "falloff": true},
+	# 獵槍：射程最遠、一發很痛，但裝填慢、整座島都聽得到
+	"rifle": {"ammo": "rifle_rounds", "mag": 5, "reload": 2.4, "cooldown": 1.1, "range": 260.0,
+		"damage_min": 80.0, "damage_max": 140.0, "stagger": 1.0, "noise_tiles": 20.0, "falloff": false},
+	# 釘槍：傷害低但幾乎沒聲音（潛入用）
+	"nailgun": {"ammo": "nails", "mag": 12, "reload": 1.6, "cooldown": 0.22, "range": 110.0,
+		"damage_min": 10.0, "damage_max": 20.0, "stagger": 0.15, "noise_tiles": 2.5, "falloff": false, "quiet": true},
+	# 信號槍：打到的地方起火、照亮一大片（引開、燒怪、看清楚黑暗）
+	"flare_gun": {"ammo": "flares", "mag": 1, "reload": 1.5, "cooldown": 0.8, "range": 150.0,
+		"damage_min": 15.0, "damage_max": 25.0, "stagger": 0.6, "noise_tiles": 7.0, "falloff": false, "fire": true},
 }
+## 近戰武器：有的話第一下（揮砍）換成它（傷害倍率、可以一下劈開木箱木板）
+const MELEE_WEAPONS := {"fire_axe": {"mult": 1.9, "noise": 3.0}}
 
 ## 目前武器的彈匣容量（沒有武器時為 0）
 var magazine_size: int:
@@ -87,6 +98,14 @@ func current_weapon() -> String:
 	if WorldState.inv_count(WorldState.equipped) > 0 and WEAPONS.has(WorldState.equipped):
 		return WorldState.equipped
 	for w in WEAPONS:
+		if WorldState.inv_count(w) > 0:
+			return w
+	return ""
+
+
+## 身上有的近戰武器（沒有 = 小刀）
+func melee_weapon() -> String:
+	for w in MELEE_WEAPONS:
 		if WorldState.inv_count(w) > 0:
 			return w
 	return ""
@@ -204,7 +223,15 @@ func shoot() -> bool:
 	_cooldown = s.cooldown
 	var origin := player.global_position
 	NoiseBus.emit_noise(origin, s.noise_tiles * Player.TILE, player)
-	Sfx.play("shotgun_shot" if weapon == "shotgun" else "pistol_shot", origin, 0.04)
+	match weapon:
+		"shotgun", "rifle":
+			Sfx.play("shotgun_shot", origin, 0.04, 2.0 if weapon == "rifle" else 0.0)
+		"nailgun":
+			Sfx.play("knife_swing", origin, 0.1, -6.0)
+		"flare_gun":
+			Sfx.play("pistol_shot", origin, 0.1, -6.0)
+		_:
+			Sfx.play("pistol_shot", origin, 0.04)
 	Sfx.rumble(60 if weapon == "pistol" else 110, 0.6)
 	var hit := false
 	var end: Vector2
@@ -220,6 +247,14 @@ func shoot() -> bool:
 	else:
 		end = Sight.cast(player, origin, origin + player.facing * s.range)
 	last_shot = {"from": origin, "to": end, "t": 0.0, "hit": hit}
+	if s.get("fire", false) and player.level:
+		# 信號彈落點起火：燒幾秒、照亮一大片
+		var fire := Fire.new()
+		fire.radius = 16.0
+		fire.duration = 9.0
+		fire.light_radius = 130.0
+		player.level.add_child(fire)
+		fire.global_position = end - (end - origin).normalized() * 4.0
 	aim_focus = minf(aim_focus, 0.3)  # 後座力：準心重新收束
 	return true
 
@@ -268,6 +303,8 @@ func melee() -> bool:
 		if not Sight.in_cone(origin, player.facing, enemy.global_position, half, reach):
 			continue
 		var damage: float = melee_damage if combo_step == 0 else move.damage
+		if combo_step == 0 and melee_weapon() != "":
+			damage *= MELEE_WEAPONS[melee_weapon()].mult
 		if enemy.can_be_taken_down_by(player):
 			damage *= takedown_mult
 			takedown = true
@@ -288,7 +325,7 @@ func melee() -> bool:
 		for item in player.level.get_interactables():
 			if item is Breakable and item.enabled \
 					and Sight.in_cone(origin, player.facing, item.global_position, half, reach + 8.0):
-				if move.name == "kick":
+				if move.name == "kick" or (combo_step == 0 and melee_weapon() != ""):
 					item.smash(4.0)
 				else:
 					item.cut()

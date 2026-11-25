@@ -16,7 +16,7 @@ const COLORS := {
 	"heat_pack": Color(1.0, 0.6, 0.25),
 }
 ## 撿到武器時彈匣裡已經有的子彈
-const START_LOADED := {"pistol": 6, "shotgun": 2}
+const START_LOADED := {"pistol": 6, "shotgun": 2, "rifle": 3, "nailgun": 12, "flare_gun": 1}
 
 var pickup_item := ""
 var pickup_count := 1
@@ -38,6 +38,8 @@ func interact(_player: Player) -> void:
 	if WorldState.inv_space_for(pickup_item) < pickup_count:
 		return
 	WorldState.inv_add(pickup_item, pickup_count)
+	if Codex.ENTRIES.has(pickup_item):
+		WorldState.codex_see(pickup_item)
 	if START_LOADED.has(pickup_item):
 		WorldState.set_loaded(pickup_item, START_LOADED[pickup_item])
 	take()

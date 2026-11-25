@@ -17,7 +17,7 @@ const CLICK_LIFETIME := 0.5
 ## 主角離鳴骨者多近才「聽得到」喀喀聲
 const CLICK_AUDIBLE_RANGE := 200.0
 
-var debug_enabled := true
+var debug_enabled := false
 
 var _enemies: Array[Enemy] = []
 var _player: Player
@@ -141,7 +141,7 @@ func _draw_shot(shot: Dictionary, weapon: String) -> void:
 		draw_line(muzzle, shot.to, Color(1.0, 0.95, 0.6, 1.0 - t / 0.14), 1.0)
 	# 彈殼：往右後方拋物線彈出，落地停一下
 	var casing := Art.tex("fx/shell_casing" if weapon == "shotgun" else "fx/casing")
-	if casing and t < 0.6:
+	if casing and t < 0.6 and weapon in ["pistol", "shotgun", "rifle"]:
 		var side := Vector2(-dir.y, dir.x)
 		var k := minf(t / 0.3, 1.0)
 		var p: Vector2 = shot.from + side * (4.0 + 10.0 * k) - dir * 4.0 * k + Vector2(0, -8.0 * k * (1.0 - k) * 4.0 + 3.0 * k)

@@ -8,8 +8,10 @@ extends Node
 ## 遊戲事件（任務系統監聽）：kind = "enter_area" / "interact" / "collect"，id = 物件或區域名稱
 signal game_event(kind: String, id: String)
 signal changed
+## 圖鑑多了一筆（敵人第一次看到、武器第一次拿到）
+signal codex_unlocked(id: String)
 
-const START_SLOTS := 6
+const START_SLOTS := 8
 const MAX_HEALTH := 100.0
 const MAX_INFECTION := 100.0
 const MAX_BODY_TEMP := 100.0
@@ -49,6 +51,10 @@ func set_language(code: String) -> void:
 	cfg.save(SETTINGS_PATH)
 
 
+## 過場動畫要不要播（測試、截圖工具會關掉）
+var cutscenes := true
+
+
 func new_game() -> void:
 	data = {
 		"area": Areas.START_AREA,
@@ -66,8 +72,31 @@ func new_game() -> void:
 		"extinguisher": 0,
 		"body_temp": MAX_BODY_TEMP,
 		"enemies": {},
+		"codex": {},
 	}
 	_checkpoint = data.duplicate(true)
+
+
+# ── 圖鑑（看過的敵人、拿過的武器）──
+
+## 看到（或拿到）了：圖鑑上出現這一筆
+func codex_see(id: String) -> void:
+	if not data.codex.has(id):
+		data.codex[id] = {"kills": 0}
+		codex_unlocked.emit(id)
+
+
+func codex_kill(id: String) -> void:
+	codex_see(id)
+	data.codex[id].kills += 1
+
+
+func codex_has(id: String) -> bool:
+	return data.codex.has(id)
+
+
+func codex_kills(id: String) -> int:
+	return data.codex[id].kills if data.codex.has(id) else 0
 
 
 # ── 通用旗標 ──
@@ -405,6 +434,7 @@ func _migrate(old: Dictionary) -> Dictionary:
 		"extinguisher": 0,
 		"body_temp": MAX_BODY_TEMP,
 		"enemies": {},
+		"codex": {},
 	}
 	if old.has("pistol_loaded") and not old.has("loaded"):
 		old["loaded"] = {"pistol": old.pistol_loaded, "shotgun": 0}
@@ -412,6 +442,9 @@ func _migrate(old: Dictionary) -> Dictionary:
 	for key in fresh:
 		if not old.has(key):
 			old[key] = fresh[key]
+	# 物品欄格數變多了：舊存檔補上空格
+	while old.inventory.size() < START_SLOTS:
+		old.inventory.append({})
 	return old
 
 

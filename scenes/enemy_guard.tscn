@@ -12,6 +12,7 @@ motion_mode = 1
 script = ExtResource("1_enemy")
 display_name = "Operative"
 sprite_set = "guard"
+species = "guard"
 voice = "human"
 patrol_speed = 34.0
 investigate_speed = 50.0

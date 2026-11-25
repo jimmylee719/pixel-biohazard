@@ -13,8 +13,9 @@ const FEET := 6.0
 ## 每種動作的播放速度（格／秒）、會不會循環。沒列出來的用 6、循環。
 const ANIMS := {
 	"idle": [2.0, true], "walk": [9.0, true], "sneak": [7.0, true], "listen": [2.5, true],
-	"aim": [1.0, true], "aim_pistol": [1.0, true], "aim_shotgun": [1.0, true],
-	"slash": [14.0, false], "punch": [14.0, false], "kick": [12.0, false], "attack": [8.0, false],
+	"aim": [1.0, true], "aim_pistol": [1.0, true], "aim_shotgun": [1.0, true], "aim_rifle": [1.0, true],
+	"aim_nailgun": [1.0, true], "aim_flare_gun": [1.0, true],
+	"slash": [14.0, false], "slash_axe": [12.0, false], "punch": [14.0, false], "kick": [12.0, false], "attack": [8.0, false],
 }
 
 var char_id := ""
@@ -71,7 +72,12 @@ func show_pose(anim: String, facing: Vector2, playing: bool, speed := 1.0) -> vo
 	if not has_art():
 		return
 	if not has_anim(anim):
-		anim = "walk" if has_anim("walk") else _anims[0]
+		if anim.begins_with("aim_") and has_anim("aim_pistol"):
+			anim = "aim_pistol"
+		elif anim.begins_with("slash") and has_anim("slash"):
+			anim = "slash"
+		else:
+			anim = "walk" if has_anim("walk") else _anims[0]
 	if facing.length() > 0.1:
 		_dir = wrapi(roundi(facing.angle() / (PI / 4.0)), 0, 8)
 	var name := "%s_%s" % [anim, DIRS[_dir]]

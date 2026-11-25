@@ -28,6 +28,20 @@ const DATA := {
 		"desc": "Pump shotgun. Devastating up close, useless at range. 2-shell tube."},
 	"shells": {"name": "Shotgun shells", "stack": 8, "kind": "ammo",
 		"desc": "12 gauge. Count every one."},
+	"rifle": {"name": "Hunting rifle", "stack": 1, "kind": "weapon",
+		"desc": "Bolt-action, scoped. For the bears, the station manual said. Hits like a truck; the whole island hears it."},
+	"rifle_rounds": {"name": "Rifle rounds", "stack": 10, "kind": "ammo",
+		"desc": ".308. Heavy brass in a cardboard box."},
+	"nailgun": {"name": "Nail gun", "stack": 1, "kind": "weapon",
+		"desc": "Pneumatic, from the workshop. Weak, but barely a whisper. Nobody comes running."},
+	"nails": {"name": "Nail strip", "stack": 36, "kind": "ammo",
+		"desc": "Collated framing nails. Twelve to a strip."},
+	"flare_gun": {"name": "Flare gun", "stack": 1, "kind": "weapon",
+		"desc": "Single shot. Wherever the flare lands, it burns and lights up the dark."},
+	"flares": {"name": "Flares", "stack": 4, "kind": "ammo",
+		"desc": "Signal flares. Red, hot, and very bright."},
+	"fire_axe": {"name": "Fire axe", "stack": 1, "kind": "melee",
+		"desc": "Replaces the knife for your first swing. Splits crates and barricades in one blow."},
 }
 
 ## 地圖符號 → [物品, 數量]
@@ -40,6 +54,13 @@ const MAP_PICKUPS := {
 	"L": ["shells", 3],
 	"I": ["ethanol", 1],
 	"u": ["heat_pack", 1],
+	"j": ["rifle", 1],
+	"k": ["rifle_rounds", 4],
+	"n": ["nailgun", 1],
+	"m": ["nails", 12],
+	"v": ["flare_gun", 1],
+	"y": ["flares", 2],
+	"z": ["fire_axe", 1],
 }
 
 ## 投擲物：落地聲音大小（格）、會不會起火

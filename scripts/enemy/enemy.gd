@@ -26,6 +26,10 @@ const TILE := 16.0
 ## 叫聲種類（SoundList 裡的 <voice>_groan、<voice>_attack…）：watcher、listener
 @export var voice := "watcher"
 @export var sprite_tint := Color.WHITE
+## 圖鑑的編號（Codex.ENTRIES）；空字串 = 用 sprite_set
+@export var species := ""
+## 腳步聲：foot（兩腳）、paw（四腳，輕而密）、none
+@export var step_style := "foot"
 
 @export_group("移動")
 @export var patrol_speed := 30.0
@@ -151,6 +155,8 @@ var _fade := 0.0
 var _click_timer := 0.0
 var _stagger := 0.0
 var _windup := 0.0
+## 腳步聲的計時（走路時每隔一段距離響一次）
+var _step_dist := 0.0
 var _attack_cd := 0.0
 var _body_color := Color.WHITE
 ## 被火燒到的閃爍時間
@@ -399,6 +405,7 @@ func _physics_process(delta: float) -> void:
 	_check_flashlight_hit()
 	_update_clicks(delta)
 	_update_idle_voice(delta)
+	_update_steps(delta)
 	_update_radio(delta)
 	_ranged_cd = maxf(_ranged_cd - delta, 0.0)
 
@@ -514,6 +521,23 @@ func _make_contact(pos: Vector2) -> void:
 
 
 ## 值班者沒察覺你的時候偶爾低吼一聲：聽得到就知道附近有東西
+## 敵人的腳步聲：玩家聽得到（躲在櫃子裡只能靠這個判斷外面的情況）。跑起來比較密、比較大聲。
+func _update_steps(delta: float) -> void:
+	if is_dead or is_dormant or _level == null:
+		return
+	var speed := velocity.length()
+	if speed < 8.0:
+		_step_dist = 0.0
+		return
+	_step_dist += speed * delta
+	var stride := 13.0 if step_style == "paw" else 18.0
+	if _step_dist >= stride:
+		_step_dist = 0.0
+		var loud := clampf(speed / chase_speed, 0.3, 1.0)
+		var id := "step_" + _level.step_surface(global_position)
+		Sfx.play(id, global_position, 0.12, -8.0 + loud * 6.0 + (-6.0 if step_style == "paw" else 0.0))
+
+
 func _update_idle_voice(delta: float) -> void:
 	if voice != "watcher" or is_boss() or is_dead or is_dormant or state != State.UNAWARE:
 		return
@@ -741,6 +765,21 @@ func blind(duration: float) -> void:
 
 
 ## Boss（畫面上方顯示血條）
+## 過場時讓這隻敵人立刻顯示出來（遊戲暫停中，淡入不會跑）
+func reveal_for_cutscene() -> void:
+	_fade = 1.0
+	_body.modulate.a = 1.0
+	if _sprite:
+		_sprite.modulate.a = 1.0
+	WorldState.codex_see(get_species())
+
+
+func get_species() -> String:
+	if species != "":
+		return species
+	return sprite_set if sprite_set != "" else "watcher"
+
+
 func is_boss() -> bool:
 	return false
 
@@ -764,6 +803,7 @@ func can_be_taken_down_by(player: Player) -> bool:
 
 
 func _die() -> void:
+	WorldState.codex_kill(get_species())
 	Sfx.play("enemy_death", global_position, 0.1)
 	if enemy_key != "":
 		WorldState.mark_enemy_dead(enemy_key, global_position)
@@ -1019,6 +1059,8 @@ func _look_around(amplitude: float) -> void:
 ## 主角看不到的敵人就不畫出來（淡入淡出）。
 func _update_visibility(delta: float) -> void:
 	visible_to_player = _player.can_see_point(global_position)
+	if visible_to_player and not is_dead and not is_dormant and not WorldState.codex_has(get_species()):
+		WorldState.codex_see(get_species())
 	var target_alpha := 1.0 if visible_to_player else 0.0
 	_fade = move_toward(_fade, target_alpha, delta * 6.0)
 	burn_flash = maxf(burn_flash - delta, 0.0)

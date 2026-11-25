@@ -8,11 +8,11 @@ extends Control
 signal app_pressed(app: String)
 signal close_pressed
 
-const APPS := ["status", "items", "missions", "messages", "map", "controls"]
-const APP_LABELS := {"status": "STAT", "items": "ITEM", "missions": "OPS", "messages": "MSG", "map": "MAP",
-	"controls": "KEYS"}
+const APPS := ["status", "items", "missions", "messages", "codex", "map", "controls"]
+const APP_LABELS := {"status": "STAT", "items": "ITEM", "missions": "OPS", "messages": "MSG", "codex": "FILE",
+	"map": "MAP", "controls": "KEYS"}
 const APP_TITLES := {"status": "Status", "items": "Items", "missions": "Operations", "messages": "Messages",
-	"map": "Map", "controls": "Controls"}
+	"codex": "Field Files", "map": "Map", "controls": "Controls"}
 
 ## 手機外框與螢幕（480x270 的畫面座標）
 const FRAME := Rect2(136, 4, 208, 262)
@@ -26,6 +26,10 @@ var player_pos := Vector2.ZERO
 var portrait: Texture2D
 ## 物品 App：選到的物品的圖（放大兩倍畫在右上角）
 var item_icon: Texture2D
+## 圖鑑 App：這一筆的圖、標題（名稱、擊倒數）、還沒解鎖（畫黑色剪影）
+var codex_icon: Texture2D
+var codex_header: Array[String] = []
+var codex_locked := false
 
 var _buttons := {}
 var _title: Label
@@ -44,11 +48,11 @@ func _ready() -> void:
 		b.flat = true
 		b.add_theme_font_size_override("font_size", 12)
 		b.position = Vector2(x, SCREEN.position.y + 14)
-		b.size = Vector2(31, 16)
+		b.size = Vector2(27, 16)
 		b.pressed.connect(func(): app_pressed.emit(id))
 		add_child(b)
 		_buttons[id] = b
-		x += 31.5
+		x += 27.0
 	# 關閉（觸控用；鍵盤按物品鍵、取消鍵也可以）
 	var close := Button.new()
 	close.text = "X"
@@ -81,10 +85,13 @@ func set_app(id: String) -> void:
 	for b_id in _buttons:
 		var b: Button = _buttons[b_id]
 		b.add_theme_color_override("font_color", Color(1, 0.85, 0.4) if b_id == id else Color(0.55, 0.62, 0.66))
-	_text.visible = id in ["status", "messages", "controls"]
+	_text.visible = id in ["status", "messages", "controls", "codex"]
 	if id == "status":
 		_text.position = CONTENT.position + Vector2(0, 40)
 		_text.size = CONTENT.size - Vector2(0, 40)
+	elif id == "codex":
+		_text.position = CONTENT.position + Vector2(0, 70)
+		_text.size = CONTENT.size - Vector2(0, 70)
 	else:
 		_text.position = CONTENT.position
 		_text.size = CONTENT.size
@@ -134,9 +141,30 @@ func _draw() -> void:
 				var at := Vector2(CONTENT.end.x - sz.x - 2, CONTENT.position.y + 2)
 				draw_rect(Rect2(at - Vector2(2, 2), sz + Vector2(4, 4)), Color(0.06, 0.12, 0.13))
 				draw_texture_rect(item_icon, Rect2(at, sz), false)
+		"codex":
+			_draw_codex()
 		"status":
 			if portrait:
 				draw_texture_rect(portrait, Rect2(CONTENT.position, Vector2(36, 36)), false)
+
+
+## 圖鑑：左上是名稱、擊倒數，右上是放大兩倍的圖（沒解鎖 = 黑色剪影）
+func _draw_codex() -> void:
+	var font := get_theme_default_font()
+	var y := CONTENT.position.y + 12
+	for i in codex_header.size():
+		var col := Color(1, 0.85, 0.4) if i == 1 else Color(0.7, 0.85, 0.8)
+		draw_string(font, Vector2(CONTENT.position.x, y), codex_header[i], HORIZONTAL_ALIGNMENT_LEFT, 110, 12, col)
+		y += 15
+	var box := Rect2(CONTENT.end.x - 68, CONTENT.position.y, 68, 66)
+	draw_rect(box, Color(0.06, 0.12, 0.13))
+	if codex_icon:
+		var k := minf(2.0, minf(64.0 / codex_icon.get_width(), 64.0 / codex_icon.get_height()))
+		var sz := (codex_icon.get_size() * k).floor()
+		draw_texture_rect(codex_icon, Rect2(box.get_center() - sz * 0.5, sz), false,
+			Color(0, 0, 0, 0.9) if codex_locked else Color.WHITE)
+	else:
+		draw_string(font, box.get_center() + Vector2(-4, 5), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(0.5, 0.6, 0.6))
 
 
 ## 目前區域的地圖：牆、地板、門、安全屋（綠）、主角（閃爍的點）

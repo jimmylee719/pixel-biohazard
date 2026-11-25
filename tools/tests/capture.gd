@@ -16,6 +16,7 @@ func _run() -> void:
 		_out = OS.get_cmdline_user_args()[0]
 	WorldState.save_path = "user://capture_save.dat"
 	WorldState.new_game()
+	WorldState.cutscenes = false
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	_player = _main.get_node("Player")
@@ -262,6 +263,37 @@ func _run() -> void:
 	await _shot("31_touch_ui")
 	_main.touch_controls.joystick.release()
 	_main.touch_controls.set_enabled(false)
+
+	# 擴張區域：北港（過場）、東翼、冰洞、圖鑑
+	WorldState.cutscenes = true
+	_main.load_area("north_harbor", "harbor", false)
+	await _frames(40)
+	await _shot("40_harbor_cutscene")
+	_main.cutscene.next()
+	await _frames(30)
+	await _shot("40b_harbor_cutscene_pan")
+	_main.cutscene.skip()
+	await _frames(40)
+	WorldState.cutscenes = false
+	_put_player(_tile(30, 18), Vector2.UP, true)
+	await _frames(40)
+	await _shot("41_harbor")
+	await _main.load_area("station_east_wing", "east_wing", false)
+	_put_player(_tile(12, 9), Vector2.RIGHT, true)
+	await _frames(40)
+	await _shot("42_east_wing")
+	await _main.load_area("ice_caves", "caves", false)
+	_put_player(_tile(8, 11), Vector2.RIGHT, true)
+	await _frames(40)
+	await _shot("43_ice_caves")
+	for id in ["watcher", "crawler", "husk", "chorister", "rifle"]:
+		WorldState.codex_see(id)
+	_main.open_phone("codex")
+	_main.codex_cursor = 4
+	_main._refresh_phone()
+	await _frames(3)
+	await _shot("44_codex")
+	_main.close_phone()
 
 	# 標題畫面
 	_main.queue_free()

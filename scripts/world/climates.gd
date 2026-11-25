@@ -7,7 +7,7 @@ class_name Climates
 extends RefCounted
 
 const DATA := {
-	"arctic": {"outdoor_loss": 1.1, "cold_loss": 0.35, "recover": 3.0},
+	"arctic": {"outdoor_loss": 0.4, "cold_loss": 0.12, "recover": 4.0},
 	"temperate": {"outdoor_loss": 0.0, "cold_loss": 0.0, "recover": 3.0},
 	"tropical": {"outdoor_loss": 0.0, "cold_loss": 0.0, "recover": 3.0},
 }

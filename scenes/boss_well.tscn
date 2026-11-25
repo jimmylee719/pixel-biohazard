@@ -11,6 +11,7 @@ collision_mask = 57
 motion_mode = 1
 script = ExtResource("1_well")
 display_name = "Deep Well"
+species = "deep_well"
 has_sight = false
 reacts_to_light = false
 hearing_mult = 1.5

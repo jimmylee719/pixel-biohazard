@@ -16,6 +16,7 @@
 ##   I  實驗室酒精（＋空瓶 = 汽油彈）
 ##   環境互動（小寫）：o 油桶（打火機點燃）  w 木箱（踢開／刀割，內容見 loot）
 ##                     p 封住通道的木板（同上，拆掉 = 捷徑）  q 滅火器  r 碎石堆（撿石頭）
+##   武器（小寫）：j 獵槍  k 獵槍子彈  n 釘槍  m 釘條  v 信號槍  y 信號彈  z 消防斧
 ##   +  室內自動門（有人靠近就開；關著時看不到門後面。整排 + 是一道寬門）
 ##   =  窗戶（走不過去、看得穿；靠過去看 = 第一人稱視角）
 ##   1～9、a～i  敵人巡邏點，哪些點屬於哪隻敵人見 enemies
@@ -58,6 +59,7 @@ const START_ENTRY := "start"
 
 const DATA := {
 	"south_shore": {
+		"cutscene": "opening",
 		"title": "South Shore",
 		"outdoor": true,
 		"map": [
@@ -114,6 +116,7 @@ const DATA := {
 	},
 
 	"station_1f": {
+		"cutscene": "station_first",
 		"title": "Station 1F",
 		"powered_area": true,
 		"outdoor": false,
@@ -184,6 +187,7 @@ const DATA := {
 	},
 
 	"station_safe": {
+		"cutscene": "clean_room",
 		"title": "Clean Room (Safe)",
 		"outdoor": false,
 		"safe": true,
@@ -224,7 +228,7 @@ const DATA := {
 			"#.....#...........#...........#.......##",
 			"#.G...#.CC.....CC.#.CC...d.Q..#.....M.##",
 			"#.....#.......x...#...........#..CC...##",
-			"#.....#.....a.....#....b......#..CC...##",
+			"#.....#.....a.....#....b......#..CC....D",
 			"#.....#.CC.....CC.#.CC.....CC.#.......##",
 			"#.....#....x......#...x.......#......H##",
 			"#.....#...........#...........#.......##",
@@ -251,6 +255,7 @@ const DATA := {
 		"breakers": [],
 		"doors": {
 			"office": {"cell": Vector2i(39, 10), "to": "station_2f_office", "spawn_dir": Vector2i(-1, 0), "access": 1},
+			"east_wing": {"cell": Vector2i(39, 4), "to": "station_east_wing", "spawn_dir": Vector2i(-1, 0)},
 		},
 		"stairs": {"2,2": "station_1f"},
 		"entries": {"stairs": Vector2i(2, 3)},
@@ -396,6 +401,7 @@ const DATA := {
 	},
 
 	"hangar": {
+		"cutscene": "hangar",
 		"title": "Hangar",
 		"outdoor": false,
 		"powered_area": true,
@@ -443,6 +449,7 @@ const DATA := {
 	# 從機庫開雪地車過來。塔底的庭院在戶外（冷，值班者行動遲緩）；
 	# 塔底的樓梯通往頂層的通訊甲板。
 	"tower_yard": {
+		"cutscene": "tower",
 		"title": "Antenna Tower - Yard",
 		"outdoor": true,
 		"floor": 0,
@@ -547,6 +554,7 @@ const DATA := {
 	# B1 南側的門（權限卡等級 3）進入。沿著井壁的維修走道一層層往下（GDD 10.4 的垂直剖面）。
 	# 整口井都是冷的：凍眠體睡著、感染者行動遲緩。
 	"drill_shaft": {
+		"cutscene": "shaft",
 		"step": "metal",
 		"ambience": "amb_shaft",
 		"title": "Drill Shaft",
@@ -649,7 +657,7 @@ const DATA := {
 		"outdoor": true,
 		"floor": 0,
 		"map": [
-			"################################################################",
+			"###############D################################################",
 			"#..CCCC..CCCC....CCCC.....CCCC.....CCCC...........CCCC...CCCC..#",
 			"#..CCCC..CCCC....CCCC.....CCCC.....CCCC...........CCCC...CCCC..#",
 			"#.............................CCC..............................#",
@@ -702,6 +710,7 @@ const DATA := {
 		"doors": {
 			"huts": {"cell": Vector2i(63, 18), "to": "south_shore", "spawn_dir": Vector2i(-1, 0)},
 			"bunk": {"cell": Vector2i(45, 12), "to": "huts_safe", "spawn_dir": Vector2i(0, 1)},
+			"harbor": {"cell": Vector2i(15, 0), "to": "north_harbor", "spawn_dir": Vector2i(0, 1)},
 		},
 		"names": {
 			"10,4": "beacon_drum",
@@ -750,6 +759,164 @@ const DATA := {
 		"entries": {"radio": Vector2i(3, 2)},
 		"names": {"3,1": "radio_huts"},
 		"messages": {},
+	},
+
+	# ── 擴張區域 ──
+	# 北港：守門派登陸的碼頭。武裝人員巡邏、倉庫（無縫室內）、獵犬。被無線電通報 = 增援從兩個入口進來。
+	"north_harbor": {
+		"title": "North Harbor",
+		"outdoor": true,
+		"floor": 0,
+		"cutscene": "harbor",
+		"map": [
+			"################################################",
+			"####################....########################",
+			"####################.CC.########################",
+			"####################....########################",
+			"#..........y......................CCCC.........#",
+			"#..1...CCCC.......................CCCC.....2...#",
+			"#......CCCC.........3..........................#",
+			"#...........................###=######=#####...#",
+			"#....CC.....................#.........#...#....#",
+			"#....CC.....................#..CC..a..#.H.#....#",
+			"#...........r...............=..CC.....+...#....#",
+			"#...........................#......N..#...#....#",
+			"#......CCC..........4.......#.v....CC.##+###...#",
+			"#......CCC..................#..b...CC.....M#...#",
+			"#...........................######++########...#",
+			"#..............................................#",
+			"#...CC...........CCCC..........................#",
+			"#...CC...........CCCC.............k......CC....#",
+			"#.....5..........................6.......CC....#",
+			"#..............................................D",
+			"#.........w.............x......................#",
+			"#..............................................#",
+			"#....CC..............o.................CC......#",
+			"#....CC..........7.....................CC...8..#",
+			"#..............................................#",
+			"#..........u...................................#",
+			"#..............................................#",
+			"##########D#####################################",
+		],
+		"enemies": [
+			{"type": "guard", "route": "12"},
+			{"type": "guard", "route": "34"},
+			{"type": "guard", "route": "ab"},
+			{"type": "guard", "route": "78"},
+			{"type": "hound", "route": "56"},
+		],
+		"zones": {
+			"outside": {"rect": Rect2i(0, 0, 48, 28), "heated": false},
+		},
+		"indoor_rects": [Rect2i(29, 8, 14, 6)],
+		"breakers": [],
+		"reinforcements": {"type": "guard", "count": 2, "doors": ["harbor", "caves"]},
+		"doors": {
+			"harbor": {"cell": Vector2i(10, 27), "to": "weather_huts", "spawn_dir": Vector2i(0, -1)},
+			"caves": {"cell": Vector2i(47, 19), "to": "ice_caves", "spawn_dir": Vector2i(-1, 0)},
+		},
+		"names": {"35,11": "gate_orders"},
+		"loot": {"10,20": ["shells", 2]},
+		"messages": {
+			"gate_orders": "GATE ORDERS (printed, stamped): \"Island is under Accord quarantine. Survivors are to be detained, not evacuated. Specimens take priority over personnel. No aircraft leaves Greycrow without Gate One's word.\"",
+		},
+	},
+
+	# 冰洞：港口後面的冰河洞窟。很暗、很冷，爬行者和膨脹者，盡頭有獵人留下的獵槍。
+	"ice_caves": {
+		"title": "Ice Caves",
+		"outdoor": false,
+		"floor": 0,
+		"cutscene": "caves",
+		"step": "snow",
+		"map": [
+			"############################################",
+			"#####.........######.............###########",
+			"####...........####......C........#####...##",
+			"###.....1.......##.......C..........##..j..#",
+			"###..............#..........2.......##.....#",
+			"##.......####...............###.....#....N.#",
+			"#.......######..............####....#......#",
+			"#......########......x......####.........u.#",
+			"#.......######.............................#",
+			"##.......####........CC.........b...########",
+			"##...................CC.......####...#######",
+			"D.....u........###............#####...######",
+			"##.............####..3....c.......#....#####",
+			"###.....a......####...............#.....####",
+			"####...........###...........##...........##",
+			"#####.....##..............x..###....d.....##",
+			"######...####.....4.........####.........###",
+			"#######..####...........##.........M....####",
+			"########.......####.....##.......##....#####",
+			"#########.....######...........####...######",
+			"############################################",
+		],
+		"enemies": [
+			{"type": "crawler", "route": "12"},
+			{"type": "crawler", "route": "34"},
+			{"type": "husk", "route": "ab"},
+			{"type": "sleeper", "route": "d"},
+		],
+		"zones": {
+			"cave": {"rect": Rect2i(0, 0, 44, 21), "heated": false},
+		},
+		"breakers": [],
+		"doors": {
+			"caves": {"cell": Vector2i(0, 11), "to": "north_harbor", "spawn_dir": Vector2i(1, 0)},
+		},
+		"names": {"42,5": "hunter_note"},
+		"messages": {
+			"hunter_note": "NOTE, pinned under the rifle: \"Came down here after the dogs. They weren't dogs anymore. Took the rifle off the rack for bears. Doesn't matter what you shoot - it hears the shot from everywhere. - Ivo\"",
+		},
+	},
+
+	# 北緯站 東翼：生物實驗室。走廊兩側是實驗室（自動門、觀察窗），爬行者、詠者、膨脹者。
+	"station_east_wing": {
+		"title": "East Wing",
+		"floor": 2,
+		"powered_area": true,
+		"outdoor": false,
+		"cutscene": "east_wing",
+		"map": [
+			"############################################",
+			"#.......#.........#.........#..............#",
+			"#..CC...#..CC.CC..#..CC.CC..#..H........m..#",
+			"#..CC...#.........#....a....#..............#",
+			"#.......#..x......#.........#....CCCC......#",
+			"#....N..#....n....#..V......#....CCCC..b...#",
+			"#.......#.........#.........#..............#",
+			"###++####==++==####==++==####==++==#########",
+			"D..........1...................2...........#",
+			"#..........................................#",
+			"###++####==++==####==++==#######++##########",
+			"#.......#.........#.........#........#.....#",
+			"#..CC...#..CC.CC..#..CC.CC..#...c....#..H..#",
+			"#..CC...#....d....#.........#........+..z..#",
+			"#...M...#.........#....x....#..CCCC..#.....#",
+			"#.......#..A......#.........#..CCCC..#..N..#",
+			"#.......#.........#.........#........#.....#",
+			"############################################",
+		],
+		"enemies": [
+			{"type": "patroller", "route": "12"},
+			{"type": "chorister", "route": "a"},
+			{"type": "crawler", "route": "b"},
+			{"type": "husk", "route": "c"},
+			{"type": "sleeper", "route": "d"},
+		],
+		"zones": {
+			"wing": {"rect": Rect2i(0, 0, 44, 18), "heated": false, "powered": true},
+		},
+		"breakers": [],
+		"doors": {
+			"east_wing": {"cell": Vector2i(0, 8), "to": "station_2f", "spawn_dir": Vector2i(1, 0)},
+		},
+		"names": {"5,5": "wing_log", "41,15": "kovac_memo"},
+		"messages": {
+			"wing_log": "LAB LOG, East Wing: \"Sealed the wing on the director's order. Twelve still inside. He says the cold will keep them asleep. He says a lot of things.\"",
+			"kovac_memo": "MEMO - A. KOVAC (dated before she left): \"It isn't a disease. It's a hibernation strategy that uses us as the burrow. Whoever is paying for this already knows that.\"",
+		},
 	},
 }
 

@@ -1,0 +1,42 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/enemy/enemy.gd" id="1_enemy"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_husk"]
+size = Vector2(10, 10)
+
+[node name="Husk" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 57
+motion_mode = 1
+script = ExtResource("1_enemy")
+display_name = "Husk"
+sprite_set = "husk"
+species = "husk"
+patrol_speed = 18.0
+investigate_speed = 24.0
+chase_speed = 40.0
+vision_range = 80.0
+max_health = 220.0
+attack_damage = 30.0
+attack_infection = 35.0
+attack_windup = 0.7
+attack_reach = 24.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_husk")
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+path_desired_distance = 4.0
+target_desired_distance = 4.0
+radius = 6.0
+
+[node name="Body" type="Node2D" parent="."]
+
+[node name="Square" type="Polygon2D" parent="Body"]
+color = Color(0.6, 0.6, 0.7, 1)
+polygon = PackedVector2Array(-5, -5, 5, -5, 5, 5, -5, 5)
+
+[node name="Eye" type="Polygon2D" parent="Body"]
+color = Color(1, 0.4, 0.4, 1)
+polygon = PackedVector2Array(2, -2, 6, 0, 2, 2)

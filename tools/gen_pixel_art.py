@@ -125,6 +125,12 @@ MATS = {
     "orange": ["#4a1e06", "#8a3e0e", "#cc6a1c", "#f4a040"],
     "black": ["#050506", "#0e0e10", "#18181c", "#24242a"],
     "fire": ["#a83a08", "#e8741a", "#ffb43a", "#fff0a0"],
+    "yellow": ["#3a2e06", "#7a620e", "#c09a1c", "#ecd050"],
+    # 膨脹者：灰紫腫脹的皮、潰爛
+    "bloat": ["#2a2430", "#4e4458", "#786c84", "#a89cb2"],
+    "pus": ["#3a3a10", "#6e6a1c", "#a8a030", "#dcd468"],
+    # 詠者：瘦長、灰白、喉嚨的結晶環
+    "ash": ["#24262a", "#45484e", "#6e727a", "#9ca0a8"],
 }
 MATS = {k: [hexc(c) for c in v] for k, v in MATS.items()}
 EMISSIVE = {"crystal", "goggle", "fire"}
@@ -529,6 +535,14 @@ def long_gun(at, basis, length=11.0, stock="wood"):
             Box(P((-2.6, 0, -0.4)), (2.4, 0.6, 1.0), stock, basis)]
 
 
+def axe(at, d):
+    b = basis_along(d)
+
+    def P(o): return add(at, add(add(mul(b[0], o[0]), mul(b[1], o[1])), mul(b[2], o[2])))
+    return [Box(P((3.0, 0, 0)), (4.2, 0.45, 0.45), "wood", b), Box(P((6.6, 0, 1.4)), (1.0, 0.35, 1.8), "red", b),
+            Box(P((6.6, 0, 3.0)), (1.3, 0.3, 0.4), "steel", b)]
+
+
 def knife(at, d):
     b = basis_along(d)
 
@@ -561,11 +575,15 @@ def player_model(anim, f, n):
         pose = default_pose()
         pose["legs"] = {1: (0.2, 0.15), -1: (-0.2, 0.15)}
         pose["arms"] = {1: (1.5, -0.42, 0.0), -1: (1.5, -0.45, 0.0)}
-    elif anim == "aim_shotgun":
+    elif anim in ("aim_nailgun", "aim_flare_gun"):
+        pose = default_pose()
+        pose["legs"] = {1: (0.2, 0.15), -1: (-0.2, 0.15)}
+        pose["arms"] = {1: (1.5, -0.42, 0.0), -1: (1.5, -0.45, 0.0)}
+    elif anim in ("aim_shotgun", "aim_rifle"):
         pose = default_pose()
         pose["legs"] = {1: (0.25, 0.15), -1: (-0.2, 0.15)}
         pose["arms"] = {1: (1.35, -0.3, 0.2), -1: (0.75, 0.05, 1.3)}
-    elif anim == "slash":
+    elif anim in ("slash", "slash_axe"):
         pose = default_pose()
         pose["legs"] = {1: (0.35, 0.2), -1: (-0.3, 0.2)}
         keys = [(0.3, 1.0, 1.6), (1.35, -0.2, 0.15), (0.9, -0.85, 0.1)]
@@ -597,8 +615,17 @@ def player_model(anim, f, n):
         prims += pistol(add(hand, (0.4, 0, 0.3)), basis_along((1, 0, 0)))
     elif anim == "aim_shotgun":
         prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.6)), basis_along((1, 0, 0.04)), 13.0)
+    elif anim == "aim_rifle":
+        prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.6)), basis_along((1, 0, 0.04)), 17.0)
+        prims.append(Box(add(J["hand-1"], (4.0, 0, 2.0)), (2.0, 0.5, 0.5), "black"))  # 瞄準鏡
+    elif anim in ("aim_nailgun", "aim_flare_gun"):
+        hand = mul(add(J["hand1"], J["hand-1"]), 0.5)
+        mat = "yellow" if anim == "aim_nailgun" else "orange"
+        prims += [Box(add(hand, (2.6, 0, 1.3)), (3.0, 0.8, 1.1), mat), Box(add(hand, (0.4, 0, -0.3)), (0.8, 0.6, 1.3), "black")]
     elif anim == "slash":
         prims += knife(J["hand-1"], J["fore-1"])
+    elif anim == "slash_axe":
+        prims += axe(J["hand-1"], J["fore-1"])
     return prims
 
 
@@ -761,15 +788,121 @@ def hound_model(anim, f, n):
     return prims
 
 
+def crawler_model(anim, f, n):
+    """爬行者：四肢著地、貼著地面爬的感染者（看不見，靠聽）"""
+    prims = []
+    bz = 4.5
+    lift = 0.0
+    if anim == "walk":
+        p = 2 * math.pi * f / n
+        ph = {"fl": 0, "br": 0, "fr": math.pi, "bl": math.pi}
+        legs = {k: (0.6 * math.sin(p + v), 0.3 + 0.8 * max(0, math.cos(p + v))) for k, v in ph.items()}
+    elif anim == "idle":
+        legs = {k: (0.1, 0.4) for k in ("fl", "fr", "bl", "br")}
+        lift = 0.5 * f
+    elif anim == "attack":
+        k = [((-0.4, 0.6), (0.3, 0.8)), ((1.2, 0.2), (0.5, 0.4)), ((0.7, 0.4), (0.3, 0.5))][f]
+        legs = {"fl": k[0], "fr": k[0], "bl": k[1], "br": k[1]}
+        lift = [0.0, 2.0, 1.0][f]
+    else:
+        raise ValueError(anim)
+    # 身體（拉長的人形軀幹，背上冰晶）
+    prims.append(Ell((0.0, 0, bz + 1.5 + lift), (7.0, 3.6, 2.6), "coverall"))
+    prims.append(Ell((-5.5, 0, bz + 1.0), (3.0, 3.0, 2.2), "coverall"))
+    hc = (7.5, 0, bz + 1.6 + lift)
+    prims.append(Ell(hc, (2.8, 2.6, 2.4), "pale"))
+    prims.append(Box(add(hc, (2.4, 0, -0.6)), (0.5, 1.6, 0.5), "vent"))  # 張開的嘴
+    for x in (-2.0, 1.5):
+        base = (x, 0, bz + 3.6 + lift)
+        prims.append(Cap(base, add(base, (-0.8, 0.3, 2.6)), 0.8, "crystal", 0.3))
+    # 手腳：前面是長手臂、後面是腿
+    for name, x, y, lu, ll, mat in (("fl", 4.5, 3.2, 5.0, 5.5, "pale"), ("fr", 4.5, -3.2, 5.0, 5.5, "pale"),
+                                     ("bl", -5.5, 2.8, 4.0, 4.5, "coverall"), ("br", -5.5, -2.8, 4.0, 4.5, "coverall")):
+        a, k = legs[name]
+        hip = (x, y, bz + 1.0 + lift)
+        kn, ft = leg_points(hip, a + (0.5 if name[0] == "f" else -0.5), k if name[0] == "b" else -k, lu, ll)
+        kn = add(kn, (0, y * 0.4, 1.5))
+        prims.append(Cap(hip, kn, 1.1, mat, 0.9))
+        prims.append(Cap(kn, ft, 0.9, mat, 0.7))
+    return prims
+
+
+def husk_model(anim, f, n):
+    """膨脹者：全身腫脹、慢、很耐打，抓到會大量感染"""
+    mats = {"leg": "bloat", "boot": "bloat", "hip": "bloat", "torso": "bloat", "arm": "bloat", "hand": "bloat",
+            "skin": "bloat"}
+    spec = {"torso_r": (6.0, 6.8, 7.0), "torso_len": 10.0, "lu": 5.5, "ll": 5.0, "leg_r": 2.8, "leg_r2": 2.4,
+            "sh_w": 6.2, "au": 5.0, "al": 5.0, "arm_r": 2.2, "head_r": (2.6, 2.6, 2.6), "hip_w": 3.2}
+    if anim == "walk":
+        pose = walk_pose(f, n, stride=0.3, knee=0.4, arm=0.15, lean=0.15)
+        for s_ in (1, -1):
+            a, b, e = pose["arms"][s_]
+            pose["arms"][s_] = (a, 0.45, 0.3)
+    elif anim == "idle":
+        pose = default_pose()
+        pose["arms"] = {1: (0.1, 0.45, 0.3), -1: (0.1, 0.45, 0.3)}
+        pose["hip_drop"] = 0.4 * f
+    elif anim == "attack":
+        pose = default_pose()
+        k = [(1.0, 0.6, 0.8), (1.5, 0.1, 0.1), (1.2, 0.2, 0.4)][f]
+        pose["arms"] = {1: k, -1: k}
+        pose["lean"] = [0.1, 0.35, 0.25][f]
+    else:
+        raise ValueError(anim)
+    pose["head_fwd"] = 1.5
+    pose["head_pitch"] = 0.3
+    prims, J = build_human(spec, pose, mats)
+    # 膿包、裂開的肚子
+    for off, r in (((4.5, 2.5, 1.0), 1.8), ((3.5, -3.0, -1.5), 1.5), ((-2.0, 4.5, 2.0), 1.6), ((5.0, 0.0, -3.0), 2.2)):
+        prims.append(Ell(add(J["chest"], off), (r, r, r), "pus"))
+    prims.append(Box(add(J["chest"], (5.9, 0.0, -0.5)), (0.3, 2.0, 0.5), "flesh"))
+    prims += face(J, "vent")
+    return prims
+
+
+def chorister_model(anim, f, n):
+    """詠者：瘦長、喉嚨長著結晶環，會發出呼喚把同伴叫過來"""
+    mats = {"leg": "ash", "boot": "ash", "hip": "rag", "torso": "ash", "arm": "ash", "hand": "ash", "skin": "ash"}
+    spec = {"lu": 7.2, "ll": 7.2, "torso_len": 10.0, "torso_r": (2.6, 3.4, 5.4), "leg_r": 1.2, "leg_r2": 1.0,
+            "au": 5.4, "al": 5.4, "arm_r": 1.0, "head_r": (2.6, 2.4, 3.0), "sh_w": 3.6}
+    if anim == "walk":
+        pose = walk_pose(f, n, stride=0.35, knee=0.7, arm=0.2, lean=0.05)
+    elif anim == "listen":
+        # 仰頭呼喚、雙手張開
+        pose = default_pose()
+        pose["arms"] = {1: (0.6 + 0.15 * f, 1.0, 0.3), -1: (0.6 + 0.15 * f, 1.0, 0.3)}
+        pose["head_pitch"] = -0.7
+        pose["lean"] = -0.12
+    elif anim == "attack":
+        pose = default_pose()
+        k = [(0.8, 0.7, 1.0), (1.5, 0.15, 0.05), (1.2, 0.0, 0.3)][f]
+        pose["arms"] = {1: k, -1: k}
+        pose["lean"] = [0.1, 0.4, 0.3][f]
+    else:
+        raise ValueError(anim)
+    prims, J = build_human(spec, pose, mats)
+    neck = add(J["chest"], (0.0, 0.0, 4.2))
+    for i in range(6):
+        a = i * math.pi / 3
+        prims.append(Cap(neck, add(neck, (math.cos(a) * 3.2, math.sin(a) * 3.2, 1.0)), 0.7, "crystal", 0.25))
+    prims.append(Box(head_local(J, (2.5, 0, -1.0)), (0.4, 1.2, 1.0), "vent", J["head_basis"]))  # 張大的嘴
+    prims.append(Ell(add(J["chest"], (0.5, 0, -3.5)), (3.0, 3.6, 2.4), "rag"))
+    return prims
+
+
 CHARACTERS = {
-    "player": (player_model, {"idle": 2, "walk": 6, "sneak": 6, "aim_pistol": 1, "aim_shotgun": 1,
-                              "slash": 3, "punch": 3, "kick": 3}),
+    "player": (player_model, {"idle": 2, "walk": 6, "sneak": 6, "aim_pistol": 1, "aim_shotgun": 1, "aim_rifle": 1,
+                              "aim_nailgun": 1, "aim_flare_gun": 1, "slash": 3, "slash_axe": 3, "punch": 3, "kick": 3}),
     "watcher": (watcher_model, {"walk": 6, "idle": 2, "attack": 3}),
     "listener": (listener_model, {"walk": 6, "listen": 2, "attack": 3}),
     "guard": (guard_model, {"walk": 6, "idle": 2, "aim": 1}),
     "hound": (hound_model, {"walk": 6, "idle": 2, "attack": 3}),
+    "crawler": (crawler_model, {"walk": 6, "idle": 2, "attack": 3}),
+    "husk": (husk_model, {"walk": 6, "idle": 2, "attack": 3}),
+    "chorister": (chorister_model, {"walk": 6, "listen": 2, "attack": 3}),
 }
-CANVAS = {"player": (32, 32), "watcher": (32, 32), "listener": (32, 36), "guard": (32, 32), "hound": (36, 30)}
+CANVAS = {"player": (36, 32), "watcher": (32, 32), "listener": (32, 36), "guard": (32, 32), "hound": (36, 30),
+          "crawler": (36, 26), "husk": (36, 34), "chorister": (32, 36)}
 
 
 def gen_character(name):
@@ -892,6 +1025,24 @@ def gen_items():
     save("ethanol", [Box((0, 0, -0.5), (2.2, 1.6, 3.5), "white"), Box((0, -1.65, -0.5), (1.6, 0.1, 1.6), "orange"),
                      Cap((0, 0, 3.0), (0, 0, 4.4), 0.7, "black")], 10, 14, yaw=0.3)
     save("stone", [Ell((0, 0, 0), (3.2, 2.6, 2.0), "rock")], 10, 8, yaw=0.4)
+    # 獵槍（栓動、瞄準鏡）、釘槍（工地用，很安靜）、信號槍、消防斧，和它們的彈藥
+    save("rifle", [Box((4.0, 0, 0.9), (10.0, 0.55, 0.55), "gunmetal", X), Box((-1.0, 0, 0.0), (6.0, 0.7, 0.8), "wood", X),
+                   Box((-8.5, 0, -0.6), (3.0, 0.7, 1.3), "wood", basis_along((1, 0, 0.2))),
+                   Box((1.0, 0, 2.3), (3.0, 0.6, 0.6), "black", X), Box((-2.5, 0, 1.2), (0.4, 0.8, 0.4), "steel", X)], 32, 10)
+    save("nailgun", [Box((1.0, 0, 1.2), (4.2, 1.2, 1.6), "yellow", X), Box((-2.0, 0, -1.8), (1.1, 0.8, 2.2), "black",
+                     basis_along((1, 0, -0.2))), Box((5.6, 0, 0.6), (0.8, 0.6, 0.8), "steel", X),
+                     Box((1.6, 0, -1.2), (1.8, 0.6, 0.9), "gunmetal", X)], 18, 14)
+    save("flare_gun", [Box((1.5, 0, 1.2), (3.6, 0.8, 1.2), "orange", X), Box((-1.4, 0, -1.2), (1.0, 0.6, 2.0), "orange",
+                       basis_along((1, 0, -0.25))), Box((5.2, 0, 1.2), (0.6, 1.0, 1.0), "black", X)], 16, 12)
+    save("fire_axe", [Box((-1.5, 0, 0), (7.0, 0.6, 0.7), "wood", X), Box((5.5, 0, 0.9), (1.4, 0.5, 2.4), "red", X),
+                      Box((5.5, 0, 3.4), (1.6, 0.4, 0.5), "steel", X), Box((5.5, 0, -1.6), (0.8, 0.5, 0.8), "red", X)], 22, 14)
+    save("rifle_rounds", [Box((0, 0, 0), (3.6, 2.2, 2.0), "wood"), Box((0, -2.25, 0.3), (2.6, 0.1, 0.9), "brass")], 12, 10, yaw=0.35)
+    nails = [Box((0, 0, -0.4), (3.0, 1.6, 2.4), "steel")]
+    for i in range(5):
+        nails.append(Box((-2.4 + i * 1.2, -1.7, 0.6), (0.25, 0.1, 1.2), "gunmetal"))
+    save("nails", nails, 10, 10, yaw=0.3)
+    save("flares", [Cap((-2.5, 0, 0), (2.5, 0, 0), 1.6, "red"), Cap((2.5, 0, 0), (3.5, 0, 0), 1.7, "black"),
+                    Cap((-2.5, 2.0, 0.3), (2.5, 2.0, 0.3), 1.6, "red")], 14, 10, yaw=0.3)
     save("heat_pack", [Box((0, 0, 0), (3.8, 0.8, 2.6), "orange"), Box((0, -0.85, 0), (2.4, 0.1, 1.0), "white")], 12, 10,
          yaw=0.3)
     print("items: ok")
