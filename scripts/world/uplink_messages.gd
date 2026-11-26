@@ -21,7 +21,7 @@ const DATA := [
 	{
 		"id": "quarantine",
 		"label": "QUARANTINE - seal Greycrow, nobody leaves, nothing lands",
-		"sent": "[OUT] GREYCROW TO ANY STATION. HOSTILE SIGNAL. QUARANTINE THE ISLAND. DO NOT LAND. NOBODY LEAVES.",
+		"sent": "[OUT] GREYCROW TO ANY STATION. BIOLOGICAL CONTAMINATION. QUARANTINE THE ISLAND. DO NOT LAND. NOBODY LEAVES.",
 		"reply": "[IN] RESCUE CENTRE: ...Say again, Greycrow? Copy quarantine. Passing it up the chain. Stay off the air.",
 	},
 	{

@@ -52,7 +52,6 @@
 ##   theme      室內的主題（家具、地板痕跡、牆上細節）：lab、office、dorm、industrial、military、hut、cave、outdoor
 ##   snowcat_to 雪地車開往的區域（到達後站在對方的 entries.snowcat）
 ##   zones 的 label：配電箱提示上顯示的名稱（預設是區域名）
-##   neon       {"x,y": {kind, text, color}}：牆上的霓虹燈（見 NeonSign；1985 年改建時留下的招牌）
 ##   reels      {"x,y": {to, entry, scene, flag, prompt}}：盤式錄音機 &（走進／走出一段記憶，見 MemoryReel）
 ##   lit        true = 這個區域一直有燈（不管電力）
 ##   era        時代的畫面色調："1962"（過去的記憶）、"2099"（未來的訊號）；不寫 = 現在
@@ -195,13 +194,6 @@ const DATA := {
 		},
 		"stairs": {"2,2": "station_2f"},
 		"entries": {"stairs": Vector2i(2, 3)},
-		# 1985 年改建時的霓虹招牌（大廳）和交誼廳的大型電玩
-		"neon": {
-			"8,0": {"text": "NORTH LATITUDE", "color": "3df5ff"},
-			"15,0": {"kind": "arcade", "color": "ff3df0"},
-			"26,1": {"text": "LAB", "color": "ff3df0"},
-			"28,1": {"kind": "arrow", "text": "right", "color": "ffd23d", "flicker": false},
-		},
 		"names": {
 			"31,2": "lounge_breaker",
 			"2,2": "stairs_up",
@@ -251,7 +243,6 @@ const DATA := {
 		"entries": {
 			"radio": Vector2i(3, 3),
 		},
-		"neon": {"5,0": {"text": "CLEAN ROOM", "color": "4dff9a", "flicker": false}},
 		"names": {
 			"3,2": "radio_safe",
 		},
@@ -284,10 +275,6 @@ const DATA := {
 			"########################################",
 		],
 		"gear": {"32,1": "sneaking_suit", "33,1": "balaclava", "34,1": "soft_soles"},
-		"neon": {
-			"8,8": {"text": "REC ROOM", "color": "ff3df0"},
-			"16,8": {"kind": "arcade", "color": "3df5ff"},
-		},
 		"enemies": [
 			{"type": "patroller", "route": "12"},
 			{"type": "sleeper", "route": "a"},
@@ -343,8 +330,8 @@ const DATA := {
 			"note_office": 12570,
 		},
 		"messages": {
-			"note_office": "DESK NOTE (Halvorsen): \"Ark line, 125.70, scheduled windows only. They promised a pickup for the reels and the core. Not for us.\"",
-			"director_terminal": "HALVORSEN'S RECORDS: \"Day 3: Mendez and Lund show the clicking. Kept off the report - the Ark people paid for this season. Day 6: moved the ones who kept listening to cold storage - the cold slows the signal. Day 9: power cut. God help us.\"",
+			"note_office": "DESK NOTE (Halvorsen): \"Ark line, 125.70, scheduled windows only. They promised a pickup for the samples. Not for us.\"",
+			"director_terminal": "HALVORSEN'S RECORDS: \"Day 3: Mendez and Lund show the clicking. Kept off the report - the Ark people paid for this season. Day 6: moved the infected to cold storage. Day 9: power cut. God help us.\"",
 		},
 	},
 
@@ -542,7 +529,7 @@ const DATA := {
 		],
 		"enemies": [
 			{"type": "patroller", "route": "1234"},
-			{"type": "patroller", "route": "ab"},
+			{"type": "runner", "route": "ab"},
 		],
 		"zones": {
 			"yard": {"rect": Rect2i(0, 0, 40, 24), "heated": false},
@@ -672,6 +659,7 @@ const DATA := {
 		"theme": "industrial",
 		"step": "metal",
 		"ambience": "amb_shaft",
+		"cutscene": "deep_well",
 		"title": "Shaft Bottom",
 		"outdoor": false,
 		"floor": -3,
@@ -761,7 +749,7 @@ const DATA := {
 		],
 		"enemies": [
 			{"type": "patroller", "route": "1234"},
-			{"type": "patroller", "route": "56"},
+			{"type": "runner", "route": "56"},
 			{"type": "patroller", "route": "78"},
 			{"type": "listener", "route": "ab"},
 			{"type": "sleeper", "route": "c"},
@@ -823,7 +811,6 @@ const DATA := {
 			"bunk": {"cell": Vector2i(7, 8), "to": "weather_huts", "spawn_dir": Vector2i(0, -1)},
 		},
 		"entries": {"radio": Vector2i(3, 2)},
-		"neon": {"8,0": {"text": "HOT COFFEE", "color": "ffa23d"}},
 		"names": {"3,1": "radio_huts"},
 		"messages": {},
 	},
@@ -890,7 +877,7 @@ const DATA := {
 		"names": {"35,11": "gate_orders"},
 		"loot": {"10,20": ["shells", 2]},
 		"messages": {
-			"gate_orders": "GATE ORDERS (printed, stamped): \"Island is under Accord quarantine. Survivors are to be detained, not evacuated. Receivers take priority over personnel. No aircraft leaves Greycrow without Gate One's word.\"",
+			"gate_orders": "GATE ORDERS (printed, stamped): \"Island is under Accord quarantine. Survivors are to be detained, not evacuated. Specimens take priority over personnel. No aircraft leaves Greycrow without Gate One's word.\"",
 		},
 	},
 
@@ -930,7 +917,7 @@ const DATA := {
 		"hazards": [{"rect": Rect2i(26, 7, 12, 7), "kind": "spores"}],
 		"enemies": [
 			{"type": "crawler", "route": "12"},
-			{"type": "crawler", "route": "34"},
+			{"type": "spitter", "route": "34"},
 			{"type": "husk", "route": "ab"},
 			{"type": "sleeper", "route": "d"},
 		],
@@ -980,7 +967,7 @@ const DATA := {
 		"hazards": [{"rect": Rect2i(19, 1, 9, 6), "kind": "spores"}, {"rect": Rect2i(9, 11, 9, 6), "kind": "spores"}, {"rect": Rect2i(29, 11, 8, 6), "kind": "spores"}],
 		"gear": {"2,9": "hazmat_suit", "3,9": "gas_mask", "4,9": "hazmat_boots"},
 		"enemies": [
-			{"type": "patroller", "route": "12"},
+			{"type": "brute", "route": "12"},
 			{"type": "chorister", "route": "a"},
 			{"type": "crawler", "route": "b"},
 			{"type": "husk", "route": "c"},
@@ -1101,7 +1088,6 @@ const DATA := {
 		"outdoor": false,
 		"powered_area": true,
 		"cutscene": "gate_base",
-		"neon": {"25,0": {"kind": "holo", "text": "GATE//ONE", "color": "3df5ff"}},
 		"map": [
 			"##############################################################",
 			"#........M.#.A.....#.................#..........#..........w.#",
@@ -1146,8 +1132,8 @@ const DATA := {
 			{"type": "guard", "route": "78"},
 			{"type": "chorister", "route": "a"},
 			{"type": "crawler", "route": "bc"},
-			{"type": "husk", "route": "d"},
-			{"type": "sleeper", "route": "e"},
+			{"type": "brute", "route": "d"},
+			{"type": "spitter", "route": "e"},
 		],
 		"zones": {
 			"base": {"rect": Rect2i(0, 0, 62, 33), "heated": true},
@@ -1161,11 +1147,11 @@ const DATA := {
 		"loot": {"59,1": ["shells", 3], "43,22": ["ammo", 6], "44,22": ["med", 1]},
 		"names": {"21,6": "g1_orders", "39,6": "commander_letter", "26,17": "comms_log", "59,12": "cell_scratch", "25,26": "specimen_report"},
 		"messages": {
-			"g1_orders": "OPERATIONS BOARD: \"Priority one: recover the drill core intact. Priority two: recover live receivers. Priority three: personnel. Strike priority three if it slows one or two.\"",
-			"commander_letter": "UNSENT LETTER, commander's desk: \"They told us it was a chemical spill. Then they told us to keep the overwritten alive. Then they told us the overwritten were the cargo. I have stopped asking what we are guarding.\"",
-			"comms_log": "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Receivers: four live, crated, ears taped. Aircraft: one, grounded by ice. The supply pilot's helicopter.\"",
+			"g1_orders": "OPERATIONS BOARD: \"Priority one: recover the drill core intact. Priority two: recover live specimens. Priority three: personnel. Strike priority three if it slows one or two.\"",
+			"commander_letter": "UNSENT LETTER, commander's desk: \"They told us it was a chemical spill. Then they told us to keep the infected alive. Then they told us the infected were the cargo. I have stopped asking what we are guarding.\"",
+			"comms_log": "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Specimens: four live, crated. Aircraft: one, grounded by ice. The supply pilot's helicopter.\"",
 			"cell_scratch": "SCRATCHED INTO THE CELL WALL: \"I'm not sick. I told them I'm not sick. They took blood every day and they never told me the results. If you read this - they're afraid of the cold room. Ask why.\"",
-			"specimen_report": "RECEIVER REPORT S-4: \"Subject keeps singing at 126.05, the same pitch as the core. When the two are in the same room, both get louder. Recommend they are never shipped together.\"",
+			"specimen_report": "SPECIMEN REPORT S-4: \"Subject keeps singing at the same pitch as the core sample. When the two are in the same room, both grow. Recommend they are never shipped together.\"",
 		},
 	},
 
@@ -1236,10 +1222,6 @@ const DATA := {
 		"breakers": [],
 		"doors": {},
 		"entries": {"start": Vector2i(3, 2)},
-		"neon": {
-			"14,0": {"text": "LANTERN", "color": "ffb347"},
-			"26,7": {"text": "ON AIR", "color": "ff3030"},
-		},
 		"names": {"36,2": "reel_1962", "11,2": "lantern_log", "28,4": "major_order", "31,16": "sato_letter"},
 		"reels": {"36,2": {"to": "station_b1", "entry": "reel", "scene": "lantern_signal", "flag": "memory:lantern", "prompt": "Play the last reel"}},
 		"messages": {
@@ -1422,7 +1404,7 @@ static func _compose(root: String) -> Dictionary:
 		for sid in shared_ids:
 			entries["%s:%s" % [room_id, sid]] = room.doors[sid].cell + room.doors[sid].spawn_dir
 		data["entries"] = entries
-		for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "neon", "reels", "item_keys", "breaker_cells", "offsets"]:
+		for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "reels", "item_keys", "breaker_cells", "offsets"]:
 			var dst: Dictionary = data.get(field, {})
 			dst.merge(room.get(field, {}), true)
 			data[field] = dst
@@ -1526,7 +1508,7 @@ static func _tag_breakers(data: Dictionary, _area_id: String) -> void:
 ## 整個區域資料的格子座標都加上 off（地圖本身不動）
 static func _shifted(d: Dictionary, off: Vector2i) -> Dictionary:
 	var out: Dictionary = d.duplicate(true)
-	for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "neon", "reels", "item_keys", "breaker_cells", "inner_doors"]:
+	for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "reels", "item_keys", "breaker_cells", "inner_doors"]:
 		var dst := {}
 		for key in d.get(field, {}):
 			dst[_shift_key(key, off)] = d[field][key]

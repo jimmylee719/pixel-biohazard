@@ -1,5 +1,4 @@
-## 訊號霧（舊名孢子區，類別名稱保留）：迴頻訊號太強的地方，空氣裡浮著青色／洋紅色的雜訊碎片，
-## 地板偏藍紫、偶爾整片閃一下（像壞掉的螢幕）。危險類型 id 仍是 "spores"（存檔相容）。
+## 孢子區的視覺：地板偏綠、空氣裡飄著發光的孢子（受光影響：手電筒照到才看得清楚，很恐怖）。
 class_name SporeHaze
 extends Node2D
 
@@ -34,14 +33,11 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	for h in level._data.get("hazards", []):
 		var r: Rect2i = h.rect
-		var glitch := 0.1 if fmod(_t * 3.1 + float(r.position.x), 4.0) < 0.12 else 0.0
-		draw_rect(Rect2(Vector2(r.position) * Level.TILE, Vector2(r.size) * Level.TILE), Color(0.35, 0.25, 0.75, 0.2 + glitch))
+		draw_rect(Rect2(Vector2(r.position) * Level.TILE, Vector2(r.size) * Level.TILE), Color(0.35, 0.65, 0.2, 0.22))
 	for m in _motes:
 		var rect: Rect2 = m.rect
 		var p: Vector2 = m.p + Vector2(sin(_t * m.sp + m.ph) * 6.0, fmod(-_t * 4.0 * m.sp, rect.size.y))
 		p.y = rect.position.y + fposmod(p.y - rect.position.y, rect.size.y)
 		var a := 0.5 + 0.35 * sin(_t * 2.0 + m.ph)
-		# 雜訊碎片：橫向的短線，青色和洋紅色交錯
-		var w := 3.0 if int(m.ph * 10.0) % 3 == 0 else 1.0
-		var col := Color(0.35, 1.0, 0.95, a) if int(m.ph * 7.0) % 2 == 0 else Color(1.0, 0.35, 0.85, a)
-		draw_rect(Rect2(p.floor(), Vector2(w, 1)), col)
+		var size := 2.0 if int(m.ph * 10.0) % 3 == 0 else 1.0
+		draw_rect(Rect2(p.floor(), Vector2(size, size)), Color(0.8, 1.0, 0.5, a))

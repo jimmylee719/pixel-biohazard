@@ -1133,7 +1133,7 @@ func _test_title() -> void:
 	texts.append_array(UplinkMessages.HOLD_REPLY)
 	for id in Cutscenes.DATA:
 		for step in Cutscenes.DATA[id]:
-			for key in ["caption", "say", "text"]:
+			for key in ["caption", "say", "text", "sub", "name", "role", "credit"]:
 				if step.has(key):
 					texts.append(step[key])
 	for id in Codex.ENTRIES:
@@ -2489,7 +2489,7 @@ func _test_expansion() -> void:
 
 ## AFTERSIGNAL 改版：1962 年的記憶（燈籠站）、時代色調、霓虹燈、選項
 func _test_aftersignal() -> void:
-	print("[AFTERSIGNAL: 1962 memory / neon / options]")
+	print("[AFTERSIGNAL: 1962 memory / options / new infected]")
 	await _enter("station_b1", "basement", false)
 	_quiet()
 	_level = _main.level
@@ -2504,7 +2504,6 @@ func _test_aftersignal() -> void:
 	_check(_main.level.area_id == "lantern_1962", "播放錄音帶 = 走進 1962 年的記憶")
 	_check(is_equal_approx(_main.current_era(), 1.0), "1962 年的畫面是泛黃的老底片")
 	_check(_main.enemies.size() == 3 and _main.enemies.all(func(en): return en.faction == "human"), "1962 年的敵人是三個士兵")
-	_check(_main.level.find_children("*", "NeonSign", true, false).size() == 2, "燈籠站的霓虹燈（LANTERN、ON AIR）")
 	_check(WorldState.checkpoint_area() == "lantern_1962", "被抓到會從記憶的開頭重來")
 	var last := _find_item(MemoryReel, Vector2i(36, 2)) as MemoryReel
 	_check(last != null and last.target_area == "station_b1", "錄音室的最後一捲帶子回到現在")
@@ -2516,11 +2515,8 @@ func _test_aftersignal() -> void:
 	_check(WorldState.has_flag("memory:lantern"), "記錄看過 1962 年的記憶")
 	medkit = _find_item(ItemPickup, Vector2i(23, 5))
 	_check(medkit != null and medkit.visible, "看完記憶：佐藤藏的急救包出現了")
-	await _enter("station_1f", "front", false)
-	_quiet()
-	_check(_main.level.find_children("*", "NeonSign", true, false).size() >= 4, "一樓大廳的霓虹招牌和大型電玩")
 	_main.set_era("2099")
-	_check(is_equal_approx(_main.current_era(), 2.0), "2099 年的霓虹色調")
+	_check(is_equal_approx(_main.current_era(), 2.0), "2099 年的未來色調")
 	_main.set_era("")
 	# 選項（依 iOS 玩家評價加的）
 	WorldState.set_option("assist", true, false)
@@ -2539,6 +2535,24 @@ func _test_aftersignal() -> void:
 	_check(_main.options_panel.visible, "暫停選單可以打開選項")
 	_main.options_panel.close()
 	_check(Missions.get_mission("lantern_1962").size() > 0, "支線：燈籠站，1962")
+	# 新的感染體：狂奔者、噴孢者、冰甲巨人
+	for t in ["runner", "spitter", "brute"]:
+		var en: Enemy = _main.spawn_enemy(t, _player.global_position + Vector2(200, 0))
+		_check(en != null and Codex.ENTRIES.has(en.get_species()) and Art.tex(t + "/walk_down_0") != null, "新感染體：%s（有圖、有圖鑑）" % t)
+		if t == "spitter":
+			_check(en.ranged_style == "spit" and en.ranged_infection > 0.0, "噴孢者：遠距離吐孢子，打中會感染")
+		if t == "brute":
+			en.facing = Vector2.LEFT
+			var hp0 := en.health
+			en.take_damage(20.0, en.global_position + Vector2.LEFT * 20.0, 0.3)
+			var front := hp0 - en.health
+			hp0 = en.health
+			en.take_damage(20.0, en.global_position + Vector2.RIGHT * 20.0, 0.3)
+			_check(front < 10.0 and hp0 - en.health > 19.0, "冰甲巨人：正面很硬，背後全額傷害")
+		if t == "runner":
+			_check(en.chase_speed > 100.0 and en.max_health < 60.0, "狂奔者：很快、很脆")
+		_main.enemies.erase(en)
+		en.queue_free()
 
 func _test_survival() -> void:
 	print("[survival]")

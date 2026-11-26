@@ -20,16 +20,19 @@ const SPAWNS := [
 	{"type": "hound", "from": 4, "weight": 2},
 	{"type": "chorister", "from": 5, "weight": 1},
 	{"type": "husk", "from": 6, "weight": 1},
+	{"type": "runner", "from": 2, "weight": 3},
+	{"type": "spitter", "from": 4, "weight": 2},
+	{"type": "brute", "from": 8, "weight": 1},
 ]
 ## 北港另外混進武裝人員
 const HUMAN_MAPS := ["north_harbor"]
 ## 每 5 波的「深夜潮」一定出現的敵人
-const SURGE := ["husk", "chorister"]
+const SURGE := ["husk", "chorister", "brute"]
 
 ## 擊倒分數（Enemy.get_species()）
 const KILL_SCORE := {
 	"watcher": 100, "sleeper": 80, "listener": 150, "crawler": 120, "husk": 300,
-	"chorister": 200, "hound": 150, "guard": 200,
+	"chorister": 200, "hound": 150, "guard": 200, "runner": 120, "spitter": 180, "brute": 400,
 }
 const COMBO_WINDOW := 5.0
 const COMBO_STEP := 0.25

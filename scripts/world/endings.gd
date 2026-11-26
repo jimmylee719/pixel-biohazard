@@ -1,7 +1,7 @@
-## 結局（GDD 10.6）：天線塔發出的訊號 × 打倒深井時主角的雜訊值（變數名稱 infection 沿用）。每個結局最後一句是 2099 年的未來。只有三個結局，不做龐大的分支。
+## 結局（GDD 10.6）：天線塔發出的訊號 × 打倒深井時主角的感染值。每個結局最後一句是 2099 年的未來。只有三個結局，不做龐大的分支。
 ##   隔離（quarantine）                → 正史結局：研究站被摧毀，她搭上一架不是救援隊派來的直升機
-##   救援（rescue）＋ 雜訊值低           → 撤離：大家得救了，但錄音帶也跟著離開了這座島（訊號跟著走）
-##   救援但已經被覆寫（雜訊值高），或要求摧毀        → 最後的光：她留在島上，親手燒掉研究站
+##   救援（rescue）＋ 感染值低           → 撤離：大家得救了，但霜鳴菌也跟著樣本箱離開了這座島
+##   救援但已經被感染，或要求摧毀        → 最後的光：她留在島上，親手燒掉研究站
 class_name Endings
 extends RefCounted
 
@@ -25,8 +25,8 @@ const DATA := {
 		"canon": false,
 		"lines": [
 			"The rescue flight comes on the third morning. Blankets, hot tea, a medic who won't stop talking.",
-			"They take the survivors, the logs, the sealed reel cases. Nobody opens the reel cases.",
-			"Somewhere over the sea, behind the cargo net, a tape machine starts turning on its own.",
+			"They take the survivors, the logs, the sealed sample cases. Nobody opens the sample cases.",
+			"Somewhere over the sea, behind the cargo net, something begins to click.",
 			"2099. The city sings with one voice, and every child learns the name of the pilot who brought the song home.",
 		],
 	},
@@ -43,7 +43,7 @@ const DATA := {
 }
 
 ## 被感染時「最後的光」的第一句換成這句
-const INFECTED_LINE := "You know before the lift stops: the static in your head isn't going to stop."
+const INFECTED_LINE := "You know before the lift stops: the cold in your blood isn't the weather anymore."
 
 
 static func resolve_id(choice: String, infection: float) -> String:

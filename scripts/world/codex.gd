@@ -1,4 +1,4 @@
-## 圖鑑：遇過的回聲體（被訊號覆寫的人和動物，舊稱感染體；分類 id 仍是 infected）、人類敵人，和拿過的武器。手機的「檔案」App 顯示。
+## 圖鑑：遇過的感染體、人類敵人，和拿過的武器。手機的「檔案」App 顯示。
 ## 敵人第一次被主角看到時解鎖（Enemy.species），殺掉會記次數；武器第一次撿到時解鎖。
 ## 資料片新增敵人／武器：在這裡加一筆就好。sprite = Art.tex 的路徑（"" = 沒有圖，畫剪影）。
 class_name Codex
@@ -7,35 +7,44 @@ extends RefCounted
 const ENTRIES := {
 	# ── 感染體 ──
 	"watcher": {"group": "infected", "name": "Watcher", "sprite": "watcher/walk_down_0",
-		"desc": "Station staff, still in their coveralls. The signal overwrote them a little at a time. The eyes went to glass first, but they hear everything, and they still walk the rounds they walked alive.",
+		"desc": "Station staff, still in their coveralls. Blind - the frost took the eyes first - but they hear everything, and they still walk the rounds they walked alive.",
 		"tip": "Sneak behind it. Cold slows it down."},
 	"sleeper": {"group": "infected", "name": "Sleeper", "sprite": "watcher/walk_down_0",
-		"desc": "An echo between broadcasts. It lies among the real dead and looks exactly like them - except for a faint glint of glass, now and then, when the carrier comes back.",
+		"desc": "A host gone dormant. It lies among the real dead and looks exactly like them - except for the faint glint of crystal, now and then.",
 		"tip": "Watch the bodies before you walk past. Heat or noise wakes it."},
 	"listener": {"group": "infected", "name": "Chimer", "sprite": "listener/walk_down_0",
-		"desc": "The skull has been retuned into a receiver. It clicks and listens to the echo, like a bat. Light means nothing to it.",
+		"desc": "The bone has grown into a resonator. It clicks and listens to the echo, like a bat. Light means nothing to it.",
 		"tip": "Stand still while the click passes over you. It shrieks for help when it finds you."},
 	"crawler": {"group": "infected", "name": "Crawler", "sprite": "crawler/walk_right_0",
 		"desc": "Bent so far forward it walks on its hands. It lives in the ducts and under the floors, and it feels footsteps through the ground.",
 		"tip": "No eyes at all. Walk, don't run, and it never knows you were there."},
 	"husk": {"group": "infected", "name": "Husk", "sprite": "husk/walk_down_0",
-		"desc": "This one listened for too long. It is swollen with static, slow and enormous, and one grab pours the signal straight into you.",
+		"desc": "The colony has filled this one up like a balloon. Slow, enormous, and one grab carries a frightening dose of spores.",
 		"tip": "Don't trade blows. Burn it, or just walk away."},
 	"chorister": {"group": "infected", "name": "Chorister", "sprite": "chorister/walk_down_0",
-		"desc": "Glass rings its throat like a collar. When it sees you, it sings the carrier - and everything nearby comes to listen.",
+		"desc": "The crystals ring its throat like a collar. When it sees you, it sings - and everything nearby comes to listen.",
 		"tip": "Kill it first, and quietly, or the whole floor comes."},
+	"runner": {"group": "infected", "name": "Runner", "sprite": "runner/walk_down_0",
+		"desc": "Infected only days ago. The frost hasn't slowed it yet - it still runs like the athlete it was, and it hears your heartbeat in the corridor.",
+		"tip": "Fragile. Two good hits. Don't let it get a straight line to you."},
+	"spitter": {"group": "infected", "name": "Spitter", "sprite": "spitter/walk_down_0",
+		"desc": "Its throat has swollen into a spore sac. It hangs back and spits clots of colony at anything that moves.",
+		"tip": "Close the distance or break line of sight. The glob arcs - sidestep it."},
+	"brute": {"group": "infected", "name": "Rimebrute", "sprite": "brute/walk_down_0",
+		"desc": "The colony mineralised this one's bones into a breastplate of ice. Bullets skip off the front. The back is still flesh.",
+		"tip": "Never from the front. Lure it past you, then hit the back."},
 	"hound": {"group": "infected", "name": "Hound", "sprite": "hound/walk_right_0",
-		"desc": "One of the station's sled dogs. Dogs hear higher than we do; it heard the signal first. Fast, and its nose still works.",
+		"desc": "One of the station's sled dogs. Fast, and its nose still works. It hunts in the open snow.",
 		"tip": "You can't outrun it. Get indoors and shut a door between you."},
 	"tundra_mother": {"group": "infected", "name": "Tundra Mother", "sprite": "bear/walk_right_0",
-		"desc": "A polar bear that slept on the hangar roof, right under the antenna. The hangar was hers long before you arrived.",
-		"tip": "Its back is soft where the glass splits."},
+		"desc": "A polar bear the colony has made its home. The hangar was hers long before you arrived.",
+		"tip": "Its back is soft where the crystals split."},
 	"deep_well": {"group": "infected", "name": "The Deep Well", "sprite": "well/exposed_0",
-		"desc": "The receiver at the bottom of the drill shaft. Sixty-four years of a future city singing into the ice, grown into one throat.",
+		"desc": "What was waiting at the bottom of the drill shaft. Forty thousand years asleep. Awake now.",
 		"tip": "It has to breathe in before it sings."},
 	# ── 人類 ──
 	"guard": {"group": "human", "name": "Operative", "sprite": "guard/walk_down_0",
-		"desc": "Gatekeeper troops of the Quiet Accord, landed to contain the island - and everyone on it. Armed, trained, and they carry radios.",
+		"desc": "Gatekeeper troops, landed to contain the island - and everyone on it. Armed, trained, and they carry radios.",
 		"tip": "Hit one mid-call to cut the radio. If the alert goes up, hide and wait it out."},
 	# ── 武器 ──
 	"knife": {"group": "weapon", "name": "Survival knife", "sprite": "props/knife",
@@ -54,7 +63,7 @@ const ENTRIES := {
 		"desc": "Heavy, red, reliable. Replaces the knife's first swing.", "tip": "Barricades come down in one blow."},
 }
 
-const GROUP_TITLES := {"infected": "ECHOES", "human": "HUMAN", "weapon": "WEAPONS"}
+const GROUP_TITLES := {"infected": "INFECTED", "human": "HUMAN", "weapon": "WEAPONS"}
 
 
 ## 圖鑑的順序（顯示用）

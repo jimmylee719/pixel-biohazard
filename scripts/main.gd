@@ -22,6 +22,9 @@ const ENEMY_SCENES := {
 	"crawler": preload("res://scenes/enemy_crawler.tscn"),
 	"husk": preload("res://scenes/enemy_husk.tscn"),
 	"chorister": preload("res://scenes/enemy_chorister.tscn"),
+	"runner": preload("res://scenes/enemy_runner.tscn"),
+	"spitter": preload("res://scenes/enemy_spitter.tscn"),
+	"brute": preload("res://scenes/enemy_brute.tscn"),
 	"bear": preload("res://scenes/boss_bear.tscn"),
 	"well": preload("res://scenes/boss_well.tscn"),
 }
@@ -305,7 +308,7 @@ func _process(delta: float) -> void:
 	if level and Climates.has_exposure(level.climate_id()):
 		body = tr("  Body: %s") % tr(_player.get_body_temp_state())
 	_condition.text = tr("Condition: %s%s%s") % [tr(_player.get_condition()),
-		tr("  (overwritten)") if _player.infection >= WorldState.MAX_INFECTION else "", body]
+		tr("  (infected)") if _player.infection >= WorldState.MAX_INFECTION else "", body]
 	_portrait.texture = Art.tex("portraits/shen_" + _player.get_condition().to_lower())
 	_portrait.modulate = Color(1, 1, 1, 0.9)
 	_condition.add_theme_color_override("font_color", {
@@ -337,7 +340,7 @@ func _process(delta: float) -> void:
 		_mark_explored(delta)
 		if _player.in_spores and not _spore_warned and Gear.stat("hazard") > 0.0:
 			_spore_warned = true
-			show_message(tr("The air here is crawling with static. Without a shielded suit, the signal is getting into you."), true)
+			show_message(tr("Spores hang in the air here. Without a sealed suit, you're breathing them in."), true)
 		elif not _player.in_spores:
 			_spore_warned = false
 	# 第一人稱時不顯示鍵盤說明和互動提示（畫面要乾淨）
@@ -980,7 +983,28 @@ func play_cutscene(id: String, enemy_base := 0) -> void:
 			Sfx.play(step.sfx)
 		elif step.has("era"):
 			set_era(step.era)
+		# ── 電影式的鏡頭語言 ──
+		elif step.has("fade_out"):
+			await cutscene.fade_out(step.fade_out)
+		elif step.has("fade_in"):
+			await cutscene.fade_in(step.fade_in)
+		elif step.has("title_card"):
+			await cutscene.title_card(tr(step.title_card), tr(step.get("sub", "")), step.get("time", 2.5))
+		elif step.has("name"):
+			cutscene.name_card(tr(step.name), tr(step.get("role", "")), step.get("time", 3.0))
+		elif step.has("credit"):
+			cutscene.credit(tr(step.credit), step.get("time", 2.5))
+		elif step.has("flash"):
+			cutscene.flash(step.flash)
+		elif step.has("shake"):
+			_shake_camera(step.shake, step.get("time", 0.5))
+		elif step.has("zoom"):
+			await _zoom_camera(step.zoom, step.get("time", 1.0))
+		elif step.has("music"):
+			Sfx.play_music(step.music)
 	set_era(Areas.get_area(level.area_id).get("era", "") if level else "")
+	_camera.zoom = Vector2.ONE
+	_camera.offset = Vector2.ZERO
 	for l in lights:
 		if is_instance_valid(l):
 			l.queue_free()
@@ -1031,6 +1055,27 @@ func _pan_camera(to: Vector2, time: float) -> void:
 		return
 	var t := cutscene.create_tween()
 	t.tween_property(_camera, "global_position", to.round(), time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await t.finished
+
+
+## 鏡頭震動（過場）：strength 像素，time 秒內慢慢停下來
+func _shake_camera(strength: float, time: float) -> void:
+	if cutscene.skipping:
+		return
+	var t := cutscene.create_tween()
+	var steps := int(time / 0.04)
+	for i in steps:
+		var k := 1.0 - float(i) / steps
+		t.tween_property(_camera, "offset", Vector2(randf_range(-1, 1), randf_range(-1, 1)).round() * strength * k, 0.04)
+	t.tween_property(_camera, "offset", Vector2.ZERO, 0.04)
+
+
+## 鏡頭推近／拉遠（過場的特寫）。zoom = 倍率（1 = 平常）
+func _zoom_camera(z: float, time: float) -> void:
+	if cutscene.skipping:
+		return
+	var t := cutscene.create_tween()
+	t.tween_property(_camera, "zoom", Vector2(z, z), time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await t.finished
 
 
@@ -1377,8 +1422,8 @@ func _refresh_codex() -> void:
 func _build_status_text() -> String:
 	var lines: Array[String] = []
 	lines.append(tr("Condition: %s%s%s") % [tr(_player.get_condition()),
-		tr("  (overwritten)") if _player.infection >= WorldState.MAX_INFECTION else "", ""])
-	lines.append(tr("Static: %s") % tr(_infection_word()))
+		tr("  (infected)") if _player.infection >= WorldState.MAX_INFECTION else "", ""])
+	lines.append(tr("Infection: %s") % tr(_infection_word()))
 	if level and Climates.has_exposure(level.climate_id()):
 		lines.append(tr("  Body: %s").replace("\u3000", "").strip_edges() % tr(_player.get_body_temp_state()))
 	lines.append(tr("Light: %s") % tr(_player.light_name()))

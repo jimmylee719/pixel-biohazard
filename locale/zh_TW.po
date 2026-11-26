@@ -10,7 +10,7 @@ msgid "Station 1F"
 msgstr "北緯站 一樓"
 
 msgid "Clean Room (Safe)"
-msgstr "潔淨室（安全屋）"
+msgstr "無菌室（安全屋）"
 
 msgid "Station 2F"
 msgstr "北緯站 二樓"
@@ -580,7 +580,7 @@ msgid "Close"
 msgstr "關閉"
 
 msgid "KOVAC: \"...is anyone on this channel? This is Dr. Ina Kovac, I left Greycrow two weeks ago. If you're in the clean room, you're safe. Listen carefully.\""
-msgstr "柯瓦奇：「……這個頻道有人嗎？我是伊娜．柯瓦奇博士，兩週前離開了灰鴉。如果你在潔淨室裡，你是安全的。仔細聽好。」"
+msgstr "柯瓦奇：「……這個頻道有人嗎？我是伊娜．柯瓦奇博士，兩週前離開了灰鴉。如果你在無菌室裡，你是安全的。仔細聽好。」"
 
 msgid "YOU DIED"
 msgstr "你死了"
@@ -1141,7 +1141,7 @@ msgid "Quiet, then. Stay out of its way."
 msgstr "那就安靜。別擋到它的路。"
 
 msgid "A clean room. Sealed door, its own air. Nothing followed me in."
-msgstr "潔淨室。密封門、獨立空調。沒有東西跟進來。"
+msgstr "無菌室。密封門、獨立空調。沒有東西跟進來。"
 
 msgid "And a radio. I can save what I know here - and listen. Somebody might be talking."
 msgstr "還有無線電。可以在這裡記下我知道的事——然後聽。也許有人在說話。"
@@ -1901,3 +1901,111 @@ msgstr "省電模式（30 FPS）：%s"
 
 msgid "1962 / 2026 / 2099 - same frequency"
 msgstr "1962／2026／2099——同一個頻率"
+
+msgid "Infection: %s"
+msgstr "感染：%s"
+
+msgid "  (infected)"
+msgstr "　（已感染）"
+
+msgid "INFECTED"
+msgstr "感染體"
+
+msgid "Spores hang in the air here. Without a sealed suit, you're breathing them in."
+msgstr "這裡的空氣裡飄著孢子。沒穿密封的防護衣，你正在把它們吸進去。"
+
+msgid "Spores"
+msgstr "孢子"
+
+msgid "Sealed biohazard suit. Keeps the spores out. Crinkles when you move."
+msgstr "密封的生化防護衣。孢子進不來，但一動就沙沙作響。"
+
+msgid "Full seal: spores can't touch you."
+msgstr "完全密封：孢子碰不到你。"
+
+msgid "Whoever is playing this: the thing in the ice is alive. It sings on this frequency - and the song is coming from the future."
+msgstr "不管是誰在聽這捲帶子：冰裡的東西是活的。它在這個頻率上唱歌——而那首歌，是從未來傳來的。"
+
+msgid "The colony in the ice sings - and its song kept everything that ever heard it. Including this night."
+msgstr "冰裡的菌落會唱歌——它的歌留下了所有聽過它的東西。包括這一夜。"
+
+msgid "Soldiers. If they see me, the memory starts over. The recording room is at the far end of the post."
+msgstr "士兵。如果被他們看到，這段記憶就會從頭開始。錄音室在監聽站的最裡面。"
+
+msgid "Runner"
+msgstr "狂奔者"
+
+msgid "Infected only days ago. The frost hasn't slowed it yet - it still runs like the athlete it was, and it hears your heartbeat in the corridor."
+msgstr "幾天前才被感染。寒冷還沒讓它慢下來——它跑起來還像生前那個運動員，而且聽得到你在走廊上的心跳。"
+
+msgid "Fragile. Two good hits. Don't let it get a straight line to you."
+msgstr "很脆，打中兩下就倒。別讓它有一條直線衝向你。"
+
+msgid "Spitter"
+msgstr "噴孢者"
+
+msgid "Its throat has swollen into a spore sac. It hangs back and spits clots of colony at anything that moves."
+msgstr "喉嚨腫成了一個孢子囊。它躲在後面，對任何會動的東西吐出一團團菌落。"
+
+msgid "Close the distance or break line of sight. The glob arcs - sidestep it."
+msgstr "拉近距離，或躲到它看不到的地方。孢子團是拋物線飛的——往旁邊閃。"
+
+msgid "Rimebrute"
+msgstr "冰甲巨人"
+
+msgid "The colony mineralised this one's bones into a breastplate of ice. Bullets skip off the front. The back is still flesh."
+msgstr "菌落把它的骨頭礦化成一整片冰的胸甲。子彈打在正面會彈開。背後還是肉。"
+
+msgid "Never from the front. Lure it past you, then hit the back."
+msgstr "絕對不要從正面打。引它從你旁邊經過，再打它的背。"
+
+msgid "From the LANTERN recordings, reel 9 of 9"
+msgstr "出自燈籠站錄音帶　第 9 捲／共 9 捲"
+
+msgid "78°N  -  120 km from the nearest settlement"
+msgstr "北緯 78 度——距離最近的聚落 120 公里"
+
+msgid "SHEN RUONING"
+msgstr "沈若寧"
+
+msgid "Supply pilot - run 17"
+msgstr "補給飛行員——第 17 趟"
+
+msgid "DR. INA KOVAC"
+msgstr "伊娜・柯瓦奇 博士"
+
+msgid "Microbiologist - mainland relay"
+msgstr "微生物學家——本土中繼站"
+
+msgid "Infected polar bear"
+msgstr "被感染的北極熊"
+
+msgid "Drill Shaft - 400 m below the station"
+msgstr "鑽探井——研究站地下 400 公尺"
+
+msgid "THE GATEKEEPERS"
+msgstr "守門派"
+
+msgid "Quiet Accord containment unit"
+msgstr "靜默協定・隔離部隊"
+
+msgid "CPL. KENJI SATO"
+msgstr "佐藤健二 下士"
+
+msgid "LANTERN radio operator - 1962"
+msgstr "燈籠站無線電操作員——1962"
+
+msgid "Shaft Bottom - 400 m"
+msgstr "井底——400 公尺"
+
+msgid "What was waiting under the ice"
+msgstr "在冰層底下等待的東西"
+
+msgid "Forty thousand years under the ice. And the whole time, it's been singing."
+msgstr "在冰底下四萬年。這段時間裡，它一直在唱歌。"
+
+msgid "Same pitch as the reel. Same pitch as the city."
+msgstr "和那捲錄音帶同一個音高。和那座城市同一個音高。"
+
+msgid "Then let's end the song."
+msgstr "那就讓這首歌結束吧。"

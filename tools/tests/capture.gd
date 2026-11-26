@@ -31,7 +31,7 @@ func _run() -> void:
 		var title_new: Control = load("res://scenes/title.tscn").instantiate()
 		add_child(title_new)
 		await _frames(20)
-		await _shot("61_title_neon")
+		await _title_shots(title_new)
 		get_tree().quit()
 		return
 	await _shot("0_shore_start")
@@ -345,24 +345,50 @@ func _run() -> void:
 	add_child(title)
 	await _frames(5)
 	await _shot("13_title")
+	await _title_shots(title)
 	get_tree().quit()
 
 
 ## AFTERSIGNAL 改版：霓虹燈、1962 年的記憶、訊號霧、2099 色調、選項、聲音提示
 func _aftersignal_shots() -> void:
+	# 電影式過場：片名卡、人物名牌、特寫
+	await _enter("hangar", "snowcat", false)
+	var cs: CutscenePlayer = _main.cutscene
+	await cs.open()
+	await _frames(30)
+	cs.title_card("A F T E R S I G N A L", tr("Sixty-four years later"), 30.0)
+	await _frames(3)
+	cs._card_title.modulate.a = 1.0
+	cs._card_sub.modulate.a = 1.0
+	await _frames(2)
+	await _shot("50_title_card")
+	cs._card_title.text = ""
+	cs._card_sub.text = ""
+	cs.fade_in(0.0)
+	cs.name_card(tr("TUNDRA MOTHER"), tr("Infected polar bear"), 30.0)
+	cs.say(tr("Shen"), tr("The hangar isn't empty. It's hers."))
+	_main.get_node("Camera").zoom = Vector2(1.4, 1.4)
+	await _frames(40)
+	cs._name_box.position.x = 0.0
+	await _frames(2)
+	await _shot("51_name_card")
+	cs.next()
+	cs.next()
+	await cs.close()
+	_main.get_node("Camera").zoom = Vector2.ONE
+	# 新的感染體
 	await _enter("station_1f", "front", false)
 	for e in _main.enemies:
 		e.process_mode = Node.PROCESS_MODE_DISABLED
-	_put_player(_tile(8, 3), Vector2.UP, true)
+	_put_player(_tile(8, 7), Vector2.RIGHT, true)
+	var i := 0
+	for t in ["runner", "spitter", "brute"]:
+		var en: Enemy = _main.spawn_enemy(t, _tile(11 + i * 3, 7))
+		en.process_mode = Node.PROCESS_MODE_DISABLED
+		en.reveal_for_cutscene()
+		i += 1
 	await _frames(30)
-	await _shot("50_neon_lobby")
-	_put_player(_tile(26, 3), Vector2.UP, false)
-	await _frames(20)
-	await _shot("51_neon_lab")
-	await _enter("station_2f", "stairs", false)
-	_put_player(_tile(12, 10), Vector2.UP, false)
-	await _frames(30)
-	await _shot("52_rec_room_arcade")
+	await _shot("52_new_infected")
 	await _enter("station_b1", "basement", false)
 	_put_player(_tile(19, 6), Vector2.UP, true)
 	await _frames(20)
@@ -399,7 +425,7 @@ func _aftersignal_shots() -> void:
 	await _shot("59_sound_cues")
 	_main._toggle_pause()
 	await _frames(3)
-	await _shot("62_pause")
+	await _shot("64_pause")
 	_main._pause_panel.visible = false
 	_main.options_panel.open()
 	await _frames(3)
@@ -409,7 +435,22 @@ func _aftersignal_shots() -> void:
 	# 結局畫面（最後一句是 2099 年，畫面換成未來色調）
 	await _main._show_ending()
 	await _frames(5)
-	await _shot("63_ending_2099")
+	await _shot("65_ending_2099")
+
+
+## 標題畫面的三個階段：開場字、按任意鍵、選單
+func _title_shots(title: Control) -> void:
+	title.backdrop.set_phase("intro")
+	title.backdrop._phase_t = 2.2
+	await _frames(3)
+	await _shot("61_title_intro")
+	title.backdrop.set_phase("press")
+	title.backdrop._phase_t = 3.0
+	await _frames(10)
+	await _shot("62_title_press")
+	title.press_start()
+	await get_tree().create_timer(0.8).timeout
+	await _shot("63_title_menu")
 
 
 ## 座標都是目前區域自己的座標（合併進大地圖的區域要加位移，見 Areas.area_offset）

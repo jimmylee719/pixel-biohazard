@@ -132,7 +132,7 @@ const DATA := [
 		"id": "cold_lounge", "main": false, "requires": ["find_shelter"],
 		"radio": "KOVAC: \"They go sluggish in the cold. The lab breaker controls the lounge heating. Use it.\"",
 		"title": "Cut the heat",
-		"desc": "The echoes slow down in the cold. Shut off the lounge heating from the lab breaker.",
+		"desc": "The infected slow down in the cold. Shut off the lounge heating from the lab breaker.",
 		"steps": [{"type": "interact", "target": "lounge_breaker"}],
 	},
 	{

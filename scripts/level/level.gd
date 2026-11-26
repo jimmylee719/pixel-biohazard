@@ -652,12 +652,6 @@ func _build_solids() -> void:
 	faces.name = "WallFaces"
 	_structure_layer.add_child(faces)
 	faces.setup(self)
-	# 霓虹燈招牌（區域資料 neon）：畫在牆面上、不受黑暗影響
-	for key in _data.get("neon", {}):
-		var xy: PackedStringArray = String(key).split(",")
-		var sign := NeonSign.create(self, Vector2i(int(xy[0]), int(xy[1])), _data.neon[key])
-		sign.name = "Neon_%s_%s" % [xy[0], xy[1]]
-		_structure_layer.add_child(sign)
 	var front := CanvasLayer.new()
 	front.name = "OverWall"
 	front.layer = 1

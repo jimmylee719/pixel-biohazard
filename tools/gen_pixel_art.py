@@ -1125,6 +1125,119 @@ def bear_model(anim, f, n):
     return prims
 
 
+
+def runner_model(anim, f, n):
+    """狂奔者：剛被感染沒多久的站員。瘦、跑很快、往前衝的姿勢，很脆"""
+    mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka_trim", "arm": "pale",
+            "hand": "pale", "skin": "pale"}
+    spec = {"torso_r": (2.9, 3.6, 5.0), "leg_r": 1.6, "leg_r2": 1.3, "arm_r": 1.2, "sh_w": 3.9}
+    if anim == "walk":
+        # 衝刺：大步、身體很低、手往後甩
+        pose = walk_pose(f, n, stride=0.7, knee=1.2, arm=0.2, lean=0.32)
+        p = 2 * math.pi * f / n
+        pose["arms"] = {1: (-0.6 + 0.3 * math.sin(p), 0.25, 0.4), -1: (-0.6 - 0.3 * math.sin(p), 0.25, 0.4)}
+    elif anim == "idle":
+        pose = default_pose()
+        pose["lean"] = 0.35
+        pose["legs"] = {1: (0.25, 0.5), -1: (-0.2, 0.5)}
+        pose["hip_drop"] = 0.8 + 0.3 * bf(f, n)
+        pose["arms"] = {1: (0.15, 0.3, 0.3), -1: (0.2, 0.25, 0.3)}
+        pose["head_roll"] = 0.15 * bf(f, n)
+    elif anim == "attack":
+        # 撲上來：雙手往前抓
+        pose = default_pose()
+        pose["legs"] = {1: (0.6, 0.5), -1: (-0.5, 0.4)}
+        k = kf([(0.4, 0.3, 0.8), (1.6, 0.15, 0.05), (1.3, 0.1, 0.3)], f, n)
+        pose["arms"] = {1: k, -1: k}
+        pose["lean"] = kf([0.4, 0.75, 0.6], f, n)
+    else:
+        raise ValueError(anim)
+    pose["head_pitch"] = pose.get("head_pitch", 0.0) + 0.2
+    pose["head_fwd"] = 1.2
+    prims, J = build_human(spec, pose, mats)
+    # 剛長出來的小冰晶（只有脖子和一邊肩膀）
+    prims.append(Cap(add(J["sh1"], (-0.5, 0.3, 0.8)), add(J["sh1"], (-1.2, 1.0, 2.6)), 0.7, "crystal", 0.25))
+    prims.append(Cap(add(J["chest"], (-2.0, -0.6, 3.5)), add(J["chest"], (-3.2, -1.0, 5.0)), 0.6, "crystal", 0.2))
+    prims += face(J, "vent")
+    return prims
+
+
+def spitter_model(anim, f, n):
+    """噴孢者：駝背、下巴和喉嚨腫成一個大孢子囊，從遠處吐孢子團"""
+    mats = {"leg": "ash", "boot": "boot", "hip": "rag", "torso": "rag", "arm": "ash", "hand": "ash", "skin": "ash"}
+    spec = {"torso_r": (3.4, 4.0, 4.8), "torso_len": 9.0, "lu": 6.0, "ll": 6.0, "au": 5.0, "al": 5.0, "arm_r": 1.2,
+            "head_r": (2.6, 2.6, 2.8)}
+    if anim == "walk":
+        pose = walk_pose(f, n, stride=0.32, knee=0.6, arm=0.1, lean=0.5)
+    elif anim == "idle":
+        pose = default_pose()
+        pose["lean"] = 0.5
+        pose["arms"] = {1: (0.2, 0.2, 0.2), -1: (0.25, 0.2, 0.2)}
+        pose["hip_drop"] = 0.3 * bf(f, n)
+    elif anim in ("attack", "aim"):
+        # 往後仰、吸氣，然後往前吐
+        pose = default_pose()
+        pose["legs"] = {1: (0.35, 0.3), -1: (-0.3, 0.3)}
+        pose["lean"] = kf([0.1, -0.15, 0.6], f, n) if anim == "attack" else -0.1
+        pose["arms"] = {1: (0.3, 0.6, 0.4), -1: (0.3, 0.6, 0.4)}
+    else:
+        raise ValueError(anim)
+    pose["head_fwd"] = 1.4
+    pose["head_pitch"] = pose.get("head_pitch", 0.0) + 0.1
+    prims, J = build_human(spec, pose, mats)
+    # 喉嚨的孢子囊（會脹）
+    swell = 1.0 + 0.15 * math.sin(2 * math.pi * f / max(n, 1))
+    sac = head_local(J, (1.2, 0, -2.6))
+    prims.append(Ell(sac, (2.6 * swell, 2.6 * swell, 2.2 * swell), "pus"))
+    prims.append(Ell(add(sac, (1.0, 1.0, 0.6)), (0.9, 0.9, 0.9), "glass"))
+    prims.append(Ell(add(sac, (0.8, -1.2, -0.2)), (0.8, 0.8, 0.8), "glass"))
+    # 背上的菌斑
+    for off in ((-3.0, 1.2, 1.5), (-3.2, -1.4, 0.0), (-2.6, 0.2, 3.0)):
+        prims.append(Ell(add(J["chest"], off), (1.4, 1.4, 1.2), "pus"))
+    prims.append(Box(head_local(J, (2.4, 0, -0.8)), (0.4, 1.4, 0.8), "vent", J["head_basis"]))
+    return prims
+
+
+def brute_model(anim, f, n):
+    """冰甲巨人：骨頭礦化成一整片冰晶甲殼的巨大宿主。正面很硬，背後是弱點"""
+    mats = {"leg": "coverall", "boot": "boot", "hip": "coverall", "torso": "coverall", "arm": "pale", "hand": "pale",
+            "skin": "pale"}
+    spec = {"torso_r": (5.6, 6.8, 7.2), "torso_len": 11.0, "lu": 6.0, "ll": 5.6, "leg_r": 2.6, "leg_r2": 2.3,
+            "sh_w": 6.4, "au": 5.8, "al": 6.2, "arm_r": 2.3, "head_r": (2.4, 2.4, 2.4), "hip_w": 3.0}
+    if anim == "walk":
+        pose = walk_pose(f, n, stride=0.32, knee=0.5, arm=0.25, lean=0.25)
+        for s_ in (1, -1):
+            a, b, e = pose["arms"][s_]
+            pose["arms"][s_] = (a, 0.35, 0.25)
+    elif anim == "idle":
+        pose = default_pose()
+        pose["lean"] = 0.2
+        pose["arms"] = {1: (0.1, 0.35, 0.2), -1: (0.1, 0.35, 0.2)}
+        pose["hip_drop"] = 0.3 * bf(f, n)
+    elif anim == "attack":
+        # 雙手舉高往下砸
+        pose = default_pose()
+        k = kf([(0.6, 0.3, 0.3), (2.6, 0.2, 0.1), (1.0, 0.25, 0.5)], f, n)
+        pose["arms"] = {1: k, -1: k}
+        pose["lean"] = kf([0.0, -0.2, 0.55], f, n)
+        pose["legs"] = {1: (0.4, 0.3), -1: (-0.4, 0.3)}
+    else:
+        raise ValueError(anim)
+    pose["head_fwd"] = 1.8
+    pose["head_pitch"] = 0.35
+    prims, J = build_human(spec, pose, mats)
+    # 胸前和肩膀的冰晶甲殼
+    for off, r in (((4.8, 2.4, 1.2), (1.2, 2.0, 2.4)), ((4.8, -2.4, 1.2), (1.2, 2.0, 2.4))):
+        prims.append(Ell(add(J["chest"], off), r, "crystal"))
+    for side in (1, -1):
+        sh = J["sh%d" % side]
+        prims.append(Ell(add(sh, (0.5, side * 0.6, 1.2)), (2.0, 2.0, 1.6), "crystal"))
+        prims.append(Cap(add(sh, (0, side * 0.5, 2.0)), add(sh, (-1.0, side * 1.6, 5.0)), 0.9, "crystal", 0.3))
+    # 背後：甲殼裂開、露出肉（弱點）
+    prims.append(Ell(add(J["chest"], (-4.0, 0, 0.5)), (1.6, 3.0, 3.4), "flesh"))
+    prims += face(J, "vent")
+    return prims
+
 CHARACTERS = {
     "player": (player_model, dict({"idle": 4, "walk": 8, "sneak": 8, "slash": 6, "slash_axe": 6, "punch": 6, "kick": 6,
                                    "hurt": 3, "dodge": 5, "dodge_back": 5},
@@ -1138,11 +1251,15 @@ CHARACTERS = {
     "husk": (husk_model, {"walk": 8, "idle": 4, "attack": 5, "hurt": 3}),
     "chorister": (chorister_model, {"walk": 8, "listen": 4, "attack": 5, "hurt": 3}),
     "bear": (bear_model, {"walk": 8, "idle": 4, "attack": 5, "hurt": 3}),
+    "runner": (runner_model, {"walk": 8, "idle": 4, "attack": 5, "hurt": 3}),
+    "spitter": (spitter_model, {"walk": 8, "idle": 4, "attack": 5, "aim": 1, "hurt": 3}),
+    "brute": (brute_model, {"walk": 8, "idle": 4, "attack": 5, "hurt": 3}),
 }
 # 人形敵人的受傷動作（共用姿勢修正）
-HURT_BASE = {"watcher": "idle", "listener": "listen", "guard": "idle", "husk": "idle", "chorister": "listen"}
+HURT_BASE = {"runner": "idle", "spitter": "idle", "brute": "idle", "watcher": "idle", "listener": "listen", "guard": "idle", "husk": "idle", "chorister": "listen"}
 CANVAS = {"player": (36, 32), "watcher": (32, 32), "listener": (32, 36), "guard": (32, 32), "hound": (36, 30),
-          "crawler": (36, 26), "husk": (36, 34), "chorister": (32, 36), "bear": (64, 48)}
+          "crawler": (36, 26), "husk": (36, 34), "chorister": (32, 36), "bear": (64, 48),
+          "runner": (32, 32), "spitter": (32, 32), "brute": (40, 40)}
 
 
 # 紙娃娃：本體套裝、頭部圖層、腳部圖層（遊戲裡依裝備組合疊起來）

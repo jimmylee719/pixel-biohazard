@@ -1,8 +1,8 @@
 # pixel-biohazard（資料夾代號；遊戲名稱 AFTERSIGNAL《迴頻》）
 
-像素風、俯視跟隨鏡頭的生存恐怖潛行遊戲。世界觀（v0.3）：1962 年北極監聽站收到來自 2099 年的訊號（126.05 MHz），
-聽久了會被「覆寫」成回聲體（看不見、靠聲音）。過去 1962／現在 2026（主線）／未來 2099，帶一點 80 年代霓虹和賽博龐克。
-**不要再用細菌、病毒、孢子、感染這類生物學說法寫新文字**（變數名稱 infection、spores 等為了存檔相容保留）。
+像素風、俯視跟隨鏡頭的生存恐怖潛行遊戲。世界觀（v0.4）：冰封四萬年的遠古細菌「霜鳴菌」讓宿主失明、聽覺發達、骨骼結晶共鳴；
+菌落在冰層下「唱歌」的頻率 126.05 MHz，1962 年被冷戰監聽站「燈籠」收到，歌裡有 2099 年的城市（菌落擴散到全人類的未來）。
+過去 1962／現在 2026（主線）／未來 2099。**不使用霓虹燈元素**（使用者覺得太多，已取消）。過場要有好萊塢電影的節奏（見 cutscenes.gd 開頭的步驟說明）。
 設定以 `docs/SERIES_BIBLE.md` 第 1～4 節為準；投資人評估、市場研究、IP 企劃在 `docs/IP_REVIEW.md`。
 專案名稱 `config/name` 不要改：改了 user:// 資料夾會變，玩家的存檔和設定會不見（視窗標題由 title.gd 設定）。
 
@@ -129,9 +129,11 @@
 - 時代與記憶：區域資料 `era`（"1962" 泛黃老底片、"2099" 霓虹幻象）由 `main.set_era()` 設定後製 `film.gdshader` 的 era；
   過場步驟 `{"era": ...}` 可以暫時換時代。盤式錄音機 `&`（`scripts/interact/memory_reel.gd`，區域資料 `reels`）= 走進／走出一段記憶，
   目前有 B1 → `lantern_1962`（1962 年的燈籠監聽站，`lit: true` 一直有燈）→ 回 B1，旗標 `memory:lantern`、支線 `lantern_1962`。
-- 霓虹燈：區域資料 `neon`（`scripts/fx/neon_sign.gd`：sign、arrow、arcade 大型電玩、holo 全息投影），畫在 Structure 圖層（不受黑暗影響）＋地上一盞同色燈；
-  招牌文字是遊戲世界裡的東西，維持英文不翻譯。
 - 選項：`WorldState.options`（settings.cfg 的 options 區段）：音樂、音效、聲音提示 `scripts/ui/sound_cues.gd`、輔助模式 `assist_mult()`、
   觸控透明度、左手模式（`TouchControls.apply_layout`）、省電模式（30 FPS）。介面 `scripts/ui/options_panel.gd`（標題、暫停選單）。
-  標題畫面背景 `scripts/ui/neon_backdrop.gd`（合成波）。
+  標題畫面 `scripts/ui/title_backdrop.gd`（潛龍諜影式：衛星定位開場字 → 暴風雪夜景＋大標題＋PRESS ANY BUTTON → 槍聲後選單出現）。
+- 過場的電影語言：`CutscenePlayer` 的 fade_out／fade_in（硬切）、title_card（片名卡）、name_card（人物名牌）、credit（片頭字幕）、flash；
+  main 的 `_shake_camera`、`_zoom_camera`。寬銀幕黑邊（上 32、下 44）。
+- 敵人新增：runner（狂奔者，快、脆）、spitter（噴孢者，`ranged_style = "spit"` 吐孢子團 `scripts/fx/spore_glob.gd`、`ranged_infection`）、
+  brute（冰甲巨人，`front_armor` 正面減傷）。
 - 子彈穿牆：`PlayerCombat.PIERCE`（手槍穿 1 格、獵槍 2 格，每穿一道傷害打折）、`trace_shot()`；沒鎖定時直線開槍會打到路上的敵人。

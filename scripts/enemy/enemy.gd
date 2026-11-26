@@ -78,6 +78,10 @@ const TILE := 16.0
 @export var ranged_cooldown := 1.3
 ## 主角站著不動時的命中率；移動中、奔跑中會降低
 @export var ranged_accuracy := 0.8
+## "gun" = 槍（人類）；"spit" = 噴孢者吐出的孢子團（聲音小、打中會感染、看得到飛過去）
+@export var ranged_style := "gun"
+## 遠距離攻擊打中時的感染量
+@export var ranged_infection := 0.0
 
 @export_group("察覺值（每秒）")
 @export var awareness_rate_far := 0.6
@@ -103,6 +107,8 @@ const TILE := 16.0
 @export var attack_cooldown := 1.0
 ## 從背後被偷襲時，主角要在牠背後多大的角度內（度）
 @export var takedown_back_angle_deg := 110.0
+## 正面的甲殼（冰甲巨人）：從正面打到時傷害乘上 (1 - front_armor)，背後全額；也不會被正面打到踉蹌
+@export var front_armor := 0.0
 
 @export_group("休眠（凍眠體）")
 ## 一開始是躺著睡著的
@@ -610,8 +616,12 @@ func _process_ranged(delta: float) -> bool:
 func _fire_ranged() -> void:
 	_ranged_cd = ranged_cooldown
 	var from := global_position
-	NoiseBus.emit_noise(from, 14.0 * TILE, self)
-	Sfx.play("pistol_shot", from, 0.08)
+	if ranged_style == "spit":
+		NoiseBus.emit_noise(from, 5.0 * TILE, self)
+		Sfx.play("watcher_attack", from, 0.15)
+	else:
+		NoiseBus.emit_noise(from, 14.0 * TILE, self)
+		Sfx.play("pistol_shot", from, 0.08)
 	var chance := ranged_accuracy
 	match _player.gait:
 		Player.Gait.RUN:
@@ -620,8 +630,10 @@ func _fire_ranged() -> void:
 			chance *= 0.7
 	var hit := sees_player and Sight.is_clear(self, from, _player.global_position) and randf() < chance
 	if hit:
-		_player.take_hit(ranged_damage, 0.0, from)
+		_player.take_hit(ranged_damage, ranged_infection, from)
 	last_ranged = {"from": from, "to": _player.global_position, "t": 0.0, "hit": hit}
+	if ranged_style == "spit" and is_inside_tree():
+		SporeGlob.launch(get_parent(), from, _player.global_position, hit)
 
 
 func _can_hit_player(reach: float) -> bool:
@@ -638,6 +650,12 @@ func _can_hit_player(reach: float) -> bool:
 func take_damage(amount: float, from_pos: Vector2, stagger: float) -> void:
 	if is_dead:
 		return
+	if front_armor > 0.0 and from_pos != global_position:
+		var to_attacker := (from_pos - global_position).normalized()
+		if to_attacker.dot(facing) > 0.3:
+			amount *= 1.0 - front_armor
+			stagger *= 0.2
+			Sfx.play("bottle_break", global_position, 0.2, -8.0)  # 打在冰甲上
 	health -= amount
 	if is_dormant and health > 0.0:
 		wake(from_pos)
