@@ -2129,3 +2129,144 @@ msgstr "刀"
 
 msgid "RELOAD"
 msgstr "裝填"
+
+msgid "[%s] Let the door close"
+msgstr "[%s] 把門關回去"
+
+msgid "[%s] Ease the door open and look"
+msgstr "[%s] 把門推開一條縫看"
+
+msgid "Heavy and slow. Equip it in place of the knife. Splits crates and barricades in one blow."
+msgstr "又重又慢。裝備後取代小刀。木箱、木板一斧就劈開。"
+
+msgid "Crowbar"
+msgstr "鐵撬"
+
+msgid "A metre of hooked steel. Equip it in place of the knife. Long reach, floors most things, pries crates open."
+msgstr "一公尺長、帶鉤的鋼條。裝備後取代小刀。打得遠、能把大多數東西打倒在地，木箱一撬就開。"
+
+msgid "Revolver"
+msgstr "左輪手槍"
+
+msgid "Six-shot .357 from an officer's desk. Stops almost anything in one round. Slow to reload and very loud."
+msgstr "軍官抽屜裡的 .357 六發左輪。一發幾乎什麼都停得下來。裝填很慢，而且非常大聲。"
+
+msgid ".357 rounds"
+msgstr ".357 子彈"
+
+msgid "Fat brass for the revolver. Rare."
+msgstr "左輪用的粗彈殼。很少見。"
+
+msgid "Submachine gun"
+msgstr "衝鋒槍"
+
+msgid "Compact 9mm, folding stock. Hold the trigger to keep firing. Eats pistol rounds fast."
+msgstr "折疊槍托的 9mm 短槍。按住扳機連發，手槍子彈消耗得很快。"
+
+msgid "Crossbow"
+msgstr "十字弓"
+
+msgid "A hunter's crossbow. Silent, hits hard, one bolt at a time. Bolts that hit can be pulled back out."
+msgstr "獵人的十字弓。沒有聲音、很痛、一次一支。射中的箭可以從屍體上拔回來。"
+
+msgid "Crossbow bolts"
+msgstr "弩箭"
+
+msgid "Carbon shafts, broadhead tips. Reusable if you can reach the body."
+msgstr "碳纖箭桿、寬刃箭頭。走得到屍體旁邊就能回收。"
+
+msgid "Combat knife"
+msgstr "戰鬥刀"
+
+msgid "Fixed blade, always on your vest. Slash, slash, thrust. Sheathe it to fight bare-handed instead: jab, hook, kick."
+msgstr "固定刃，一直插在背心上。揮、揮、刺。收起來就改用拳腳：刺拳、鉤拳、踢。"
+
+msgid "Brass petrol lighter. Lights oil drums, firebombs and kindling. It never leaves your pocket."
+msgstr "黃銅煤油打火機。點油桶、汽油彈、木柴都靠它。一直在口袋裡。"
+
+msgid "Kindling"
+msgstr "木柴"
+
+msgid "Split pallet wood and oily rags. Use it to light a small fire at your feet: warmth for a while - and light anyone can see."
+msgstr "劈開的棧板木頭和沾了油的破布。使用＝用打火機在腳邊生一小堆火：暖一陣子——火光誰都看得到。"
+
+msgid "You light a small fire. Warmth - and light anyone can see."
+msgstr "你生了一小堆火。很暖——火光誰都看得到。"
+
+msgid "Bare hands"
+msgstr "空手"
+
+msgid "Melee: %s"
+msgstr "近戰：%s"
+
+msgid "Knife sheathed. Bare hands: jab, hook, kick."
+msgstr "把刀收起來。空手：刺拳、鉤拳、踢。"
+
+msgid "Knife drawn: slash, slash, thrust."
+msgstr "拔刀：揮、揮、刺。"
+
+msgid "Slash, slash, thrust. Sheathe it from the weapon menu to fight bare-handed: jab, hook, kick."
+msgstr "揮、揮、刺。在武器選單把刀收起來就改用拳腳：刺拳、鉤拳、踢。"
+
+msgid "Heavy, red, reliable. Carried in place of the knife."
+msgstr "沉、紅、可靠。拿它就不拿刀。"
+
+msgid "A metre of hooked steel from the fuel depot. Long reach; puts most things on the floor."
+msgstr "燃料庫的鐵撬，一公尺長。打得遠，大多數東西一下就倒。"
+
+msgid "Knock them down, then finish it - or walk away."
+msgstr "先打倒，再補上一下——或者直接走人。"
+
+msgid "A .357 six-shot from an officer's desk at Gate One. One round stops almost anything."
+msgstr "守門一號軍官抽屜裡的 .357 六發左輪。一發幾乎什麼都停得下來。"
+
+msgid "Six shots, a long reload, and everyone hears it. Make each one count."
+msgstr "六發、裝填很久、所有人都聽得到。每一發都要算清楚。"
+
+msgid "Compact 9mm with a folding stock, Accord issue. Shares ammunition with the pistol."
+msgstr "協定部隊配發的 9mm 短槍，折疊槍托。和手槍共用子彈。"
+
+msgid "Hold the trigger. Short bursts - the magazine is gone in three seconds."
+msgstr "按住扳機。短點放——一個彈匣三秒就打完。"
+
+msgid "A hunter's crossbow. No report at all, and it hits like a rifle at close range."
+msgstr "獵人的十字弓。完全沒有槍聲，近距離的威力像步槍。"
+
+msgid "Pull your bolts back out of what you drop. One bolt at a time - do not miss twice."
+msgstr "放倒之後把箭拔回來。一次只有一支——不要連續落空。"
+
+msgid "BACKPACK"
+msgstr "背包"
+
+msgid "BACKPACK  >>  STORAGE BOX"
+msgstr "背包　⇄　儲物箱"
+
+msgid "ALWAYS CARRIED"
+msgstr "隨身裝備"
+
+msgid "IN THE BOX  (shared by all safe rooms)"
+msgstr "箱子裡（所有安全屋共用）"
+
+msgid "Empty."
+msgstr "空的。"
+
+msgid "[%s] use   [%s] move   [%s] close"
+msgstr "[%s] 使用　[%s] 搬位置　[%s] 關閉"
+
+msgid "[%s] transfer   [%s] move   [%s] close"
+msgstr "[%s] 存／取　[%s] 搬位置　[%s] 關閉"
+
+msgid "Knife sheathed. Jab, hook, kick: weak, but it knocks them back and down. Select to draw the knife."
+msgstr "刀收著。刺拳、鉤拳、踢：傷害低，但能把人打退、踢倒。選這格＝拔刀。"
+
+msgid "Bright and narrow. Everything in the beam can see where it comes from."
+msgstr "又亮又窄。被照到的東西都知道光從哪來。"
+
+msgid "[%s] arrow on/off"
+msgstr "[%s] 開／關指引箭頭"
+
+msgid "Backpack"
+msgstr "背包"
+
+msgid "Phone"
+msgstr "手機"

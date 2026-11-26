@@ -19,7 +19,8 @@ import sys
 import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.normpath(os.path.join(HERE, "..", "assets", "sprites"))
+# PIXEL_ART_OUT：試畫時輸出到別的資料夾（不動到遊戲的圖）
+OUT = os.environ.get("PIXEL_ART_OUT") or os.path.normpath(os.path.join(HERE, "..", "assets", "sprites"))
 
 # ── 小工具 ────────────────────────────────────────────────
 
@@ -165,13 +166,14 @@ MATS = {
     # 主角的頭盔（一律戴著，不露臉）：消光深色外殼、亮面深色面罩、琥珀色指示燈、耳罩式通訊
     "helm": ["#0d0f14", "#1b1f28", "#2d333f", "#49525f"],
     "helm_trim": ["#1e2229", "#383f4a", "#566070", "#7c8898"],
-    "visor": ["#04060a", "#08101a", "#0f1e2e", "#3a6c8c"],
+    "visor": ["#07121c", "#0e2c40", "#1a5a78", "#58b0d0"],
     "amber": ["#b85a08", "#f08c14", "#ffb428", "#ffe08a"],
     "glove": ["#0e0e12", "#1d1e24", "#30323a", "#4a4c56"],
+    "mitt": ["#4a4238", "#857a68", "#beb29c", "#e8e0cc"],
     "blade": ["#7c8a9a", "#b4c2d0", "#e4eef8", "#ffffff"],
     # 感染體：髒掉的白袍、死灰的皮膚、乾掉的血、整片的冰甲、深色結晶（陰影面）、裸露的肌肉
     "labcoat": ["#3e4448", "#767e82", "#b4bab8", "#e2e4dc"],
-    "dead": ["#2a3236", "#52605f", "#869894", "#bccac2"],
+    "dead": ["#1e2628", "#3e4c4c", "#667a76", "#98aaa2"],
     "blood": ["#1c0608", "#40090e", "#681418", "#8e2420"],
     "ice": ["#1e3a52", "#427090", "#7eaeca", "#cfeaf6"],
     "crystal_d": ["#102e40", "#1c5878", "#3494b8", "#7cd0ec"],
@@ -198,6 +200,21 @@ LIGHT = norm((-0.55, -0.6, 0.85))
 
 
 # ── 形狀（射線求交）─────────────────────────────────────────
+
+def _keep(o, src):
+    """複製形狀時保留標記：layer（裝備圖層）、part（身體部位：描邊用）"""
+    o.layer = getattr(src, "layer", False)
+    o.part = getattr(src, "part", None)
+    return o
+
+
+def tag(prims, part):
+    """把一批形狀標成同一個身體部位（還沒標過的才標）"""
+    for q in prims:
+        if getattr(q, "part", None) is None:
+            q.part = part
+    return prims
+
 
 class Ell:
     def __init__(self, c, r, mat, basis=IDENT):
@@ -227,8 +244,7 @@ class Ell:
 
     def moved(self, f):
         o = Ell(f(self.c), self.r, self.mat, tuple(f(v, True) for v in self.b))
-        o.layer = getattr(self, "layer", False)
-        return o
+        return _keep(o, self)
 
     def lowest(self):
         return self.c[2] - math.sqrt(sum((self.r[i] * self.b[i][2]) ** 2 for i in range(3)))
@@ -306,8 +322,7 @@ class Cap:
 
     def moved(self, f):
         o = Cap(f(self.a), f(self.bp), self.r, self.mat, self.rb)
-        o.layer = getattr(self, "layer", False)
-        return o
+        return _keep(o, self)
 
     def lowest(self):
         return min(self.a[2] - self.r, self.bp[2] - self.rb)
@@ -347,11 +362,24 @@ class Box:
 
     def moved(self, f):
         o = Box(f(self.c), self.h, self.mat, tuple(f(v, True) for v in self.b))
-        o.layer = getattr(self, "layer", False)
-        return o
+        return _keep(o, self)
 
     def lowest(self):
         return self.c[2] - sum(abs(self.h[i] * self.b[i][2]) for i in range(3))
+
+
+# 身體部位的描邊：深度差超過這個值 = 一前一後；PART_PRIO = 並排時線畫在誰身上（小的被畫）
+PART_EDGE = 0.9
+PART_PRIO = {"torso": 0, "hip": 1, "head": 3, "leg": 4, "arm": 6, "gear": 7}
+
+
+def _part_prio(p):
+    return PART_PRIO.get(p.rstrip("-1"), 2) * 4 + (1 if p.endswith("-1") else 2 if p.endswith("1") else 0)
+
+
+def _same_limb(a, b):
+    """腰和腿是同一條褲子：不描（不然大腿上會多一條橫線）"""
+    return (a == "hip" and b.startswith("leg")) or (b == "hip" and a.startswith("leg"))
 
 
 # ── 算圖 ──────────────────────────────────────────────────
@@ -366,6 +394,7 @@ def render(prims, w, h, pitch=PITCH, anchor=None, outline=True, light=LIGHT, lev
     nrm = [None] * n
     mats = [None] * n
     lay = [False] * n
+    parts = [None] * n
     for p in prims:
         c, rad = p.bound()
         sx = ax + dot(c, right)
@@ -386,6 +415,7 @@ def render(prims, w, h, pitch=PITCH, anchor=None, outline=True, light=LIGHT, lev
                     nrm[i] = r[1]
                     mats[i] = p.mat
                     lay[i] = getattr(p, "layer", False)
+                    parts[i] = getattr(p, "part", None)
     out = [(0, 0, 0, 0)] * n
     idx = [0] * n
     for i in range(n):
@@ -404,19 +434,36 @@ def render(prims, w, h, pitch=PITCH, anchor=None, outline=True, light=LIGHT, lev
         out[i] = (c[0], c[1], c[2], 255)
     if not outline:
         return out
-    # 內部描邊：前面有東西明顯比較近（手臂擋在身體前面）→ 這一格用最暗的顏色，分得出前後
+    # 內部描邊（角色看起來不會糊成一團的關鍵）：
+    # 1. 不同的身體部位（手臂／軀幹／腿／頭，形狀上的 part 標記）交界：比較後面的那一格畫成最暗的顏色。
+    #    就算材質一樣（橘色的手臂擋在橘色的外套前面）也分得出來。
+    # 2. 兩個部位並排、深度差不多（正面看手臂貼著身體、兩條腿併在一起）：畫在比較「底層」的部位上（PART_PRIO 小的）。
+    # 3. 沒有標部位的東西照舊：前面的東西明顯比較近、材質又不一樣才畫。
     res = list(out)
     for y in range(h):
         for x in range(w):
             i = y * w + x
             if mats[i] is None:
                 continue
+            pi = parts[i]
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 xx, yy = x + dx, y + dy
                 if 0 <= xx < w and 0 <= yy < h:
                     j = yy * w + xx
-                    if mats[j] is not None and depth[j] < depth[i] - 3.0 and mats[j] != mats[i]:
+                    if mats[j] is None:
+                        continue
+                    pj = parts[j]
+                    edge = False
+                    if pi is not None and pj is not None and pi != pj and not _same_limb(pi, pj):
+                        dd = depth[i] - depth[j]
+                        if dd > PART_EDGE or (dd > -PART_EDGE and _part_prio(pi) < _part_prio(pj)):
+                            edge = True
+                    elif depth[j] < depth[i] - 3.0 and mats[j] != mats[i]:
+                        edge = True
+                    if edge:
                         c = MATS[mats[i]][0]
+                        if idx[i] == 0 and mats[i] not in EMISSIVE:
+                            c = (c[0] * 2 // 3, c[1] * 2 // 3, c[2] * 2 // 3 + 2)
                         res[i] = (c[0], c[1], c[2], 255)
                         break
     if layer_only:
@@ -491,7 +538,7 @@ HUMAN = {
 def default_pose():
     return {
         "legs": {1: (0.0, 0.08), -1: (0.0, 0.08)},          # (大腿角度, 膝蓋彎)
-        "arms": {1: (0.05, 0.12, 0.2), -1: (0.05, 0.12, 0.2)},  # (往前抬, 往外張, 手肘)
+        "arms": {1: (0.05, 0.2, 0.2), -1: (0.05, 0.2, 0.2)},  # (往前抬, 往外張, 手肘)
         "lean": 0.0, "head_pitch": 0.0, "head_roll": 0.0, "head_fwd": 0.0, "hip_drop": 0.0,
     }
 
@@ -502,7 +549,7 @@ def walk_pose(f, n, stride=0.5, knee=0.9, arm=0.45, lean=0.05):
     s = math.sin(p)
     pose["legs"] = {1: (stride * s, 0.1 + knee * max(0.0, math.cos(p))),
                     -1: (-stride * s, 0.1 + knee * max(0.0, -math.cos(p)))}
-    pose["arms"] = {1: (-arm * s, 0.1, 0.25 + 0.2 * max(0, -s)), -1: (arm * s, 0.1, 0.25 + 0.2 * max(0, s))}
+    pose["arms"] = {1: (-arm * s, 0.2, 0.25 + 0.2 * max(0, -s)), -1: (arm * s, 0.2, 0.25 + 0.2 * max(0, s))}
     pose["lean"] = lean
     return pose
 
@@ -574,6 +621,7 @@ def build_human(spec, pose, mats, extras=None):
         fd = norm((lerp(1.0, math.cos(th), fw), 0, lerp(0.0, math.sin(th), fw)))
         toe = add(foot, add(mul(fd, 1.9), (0, 0, -0.2)))
         prims.append(Cap(add(foot, mul(fd, -0.6)), toe, 1.35 * P.get("boot_k", 1.0), M("boot", side)))
+        tag(prims, "leg%d" % side)
         J["foot%d" % side] = foot
         J["knee%d" % side] = knee
         J["hip%d" % side] = hip
@@ -592,8 +640,10 @@ def build_human(spec, pose, mats, extras=None):
     tr = P["torso_r"]
     prims.append(Ell(L(add(pelvis, (0, 0, tl * 0.22))), (tr[0] * 0.85, tr[1] * 0.82, tr[2] * 0.45), mats["hip"],
                      tuple(rot_z(v, twist * 0.5) for v in IDENT)))
+    tag(prims, "hip")
     chest_c = L(add(pelvis, (0, 0, tl * 0.6)))
     prims.append(Ell(chest_c, tr, mats["torso"], tb))
+    tag(prims, "torso")
     J["chest"] = chest_c
     J["torso_basis"] = tb
     # 頭（頭只跟著身體轉一半：眼睛還是看著前面）
@@ -608,6 +658,7 @@ def build_human(spec, pose, mats, extras=None):
     if not P.get("no_head"):
         prims.append(Cap(L(add(pelvis, (0, 0, tl * 0.9))), head_c, P.get("neck_r", 1.2), M("neck", None, "skin")))
         prims.append(Ell(head_c, hr, M("head", None, "skin"), hb))
+    tag(prims, "head")
     # 手臂
     for side in (1, -1):
         sh0 = add(pelvis, (0.0, side * P["sh_w"], tl * 0.86))
@@ -623,17 +674,30 @@ def build_human(spec, pose, mats, extras=None):
         prims.append(Cap(sh, el, ar * 1.1, M("arm", side), ar))
         prims.append(Cap(el, hand, ar, M("fore", side, "arm"), ar * 0.9))
         hk = P.get("hand_k", {}).get(side, 1.0) if isinstance(P.get("hand_k"), dict) else P.get("hand_k", 1.0)
-        prims.append(Ell(hand, (1.2 * hk, 1.1 * hk, 1.2 * hk), M("hand", side)))
+        # 手掌比前臂粗一點、往前突出去：顏色又和袖子不一樣，才看得出「手」
+        prims.append(Ell(add(hand, mul(df, 0.7)), (1.35 * hk, 1.25 * hk, 1.35 * hk), M("hand", side)))
         claw = P.get("claw", 0.0)
         if claw > 0:
             for off in (0.5, -0.5):
                 tip = add(hand, add(mul(df, claw), (0, off * 1.2, -claw * 0.25)))
                 prims.append(Cap(hand, tip, 0.5, M("claw", side, "hand"), 0.2))
+        tag(prims, "arm%d" % side)
         J["hand%d" % side] = hand
         J["fore%d" % side] = df
         J["sh%d" % side] = sh
         J["elbow%d" % side] = el
     return prims, J
+
+
+def auto_tag(prims, J):
+    """還沒標部位的形狀：靠近頭的算頭、其他算軀幹（結晶、背包、衣服下襬……）。武器要先自己標成 gear"""
+    head = J["head"]
+    for q in prims:
+        if getattr(q, "part", None) is None:
+            c = q.c if not isinstance(q, Cap) else mul(add(q.a, q.bp), 0.5)
+            d = sub(c, head)
+            q.part = "head" if dot(d, d) < 30.0 else "torso"
+    return prims
 
 
 def chest_local(J, off):
@@ -694,10 +758,69 @@ DIRS = {"right": 0.0, "downright": -math.pi / 4, "down": -math.pi / 2, "upright"
 
 # ── 武器（區域座標的形狀；x = 槍管方向）───────────────────────
 
+def _P(at, basis):
+    return lambda o: add(at, add(add(mul(basis[0], o[0]), mul(basis[1], o[1])), mul(basis[2], o[2])))
+
+
 def pistol(at, basis):
-    def P(o): return add(at, add(add(mul(basis[0], o[0]), mul(basis[1], o[1])), mul(basis[2], o[2])))
-    return [Box(P((2.2, 0, 1.0)), (2.8, 0.55, 0.85), "gunmetal", basis),
-            Box(P((0.2, 0, -0.6)), (0.8, 0.5, 1.3), "black", basis)]
+    """制式手槍：方正的滑套（比槍身亮一階，才看得出槍的形狀）、深色槍身、往後斜的握把"""
+    P = _P(at, basis)
+    return [Box(P((2.6, 0, 0.75)), (3.0, 0.6, 0.6), "cabinet", basis),
+            Box(P((2.0, 0, -0.05)), (2.2, 0.55, 0.35), "gunmetal", basis),
+            Box(P((-0.1, 0, -1.0)), (0.8, 0.5, 1.2), "black", basis_along(add(basis[0], mul(basis[2], -0.3))))]
+
+
+def revolver(at, basis):
+    """左輪：長槍管、鼓起來的彈巢、木頭握把"""
+    P = _P(at, basis)
+    return [Box(P((4.2, 0, 0.9)), (2.8, 0.42, 0.42), "steel", basis),
+            Ell(P((1.5, 0, 0.6)), (1.3, 1.0, 1.05), "steel", basis),
+            Box(P((0.6, 0, 0.6)), (1.6, 0.5, 0.75), "cabinet", basis),
+            Box(P((-0.5, 0, -1.0)), (0.75, 0.5, 1.15), "wood", basis_along(add(basis[0], mul(basis[2], -0.45))))]
+
+
+def nailgun(at, basis):
+    P = _P(at, basis)
+    return [Box(P((2.2, 0, 0.9)), (3.0, 0.8, 1.1), "yellow", basis), Box(P((5.4, 0, 0.5)), (0.5, 0.5, 0.6), "steel", basis),
+            Box(P((2.6, 0, -1.2)), (0.9, 0.6, 1.2), "gunmetal", basis), Box(P((0.0, 0, -0.9)), (0.8, 0.6, 1.3), "black", basis)]
+
+
+def flare_gun(at, basis):
+    P = _P(at, basis)
+    return [Box(P((2.0, 0, 0.8)), (2.4, 0.9, 0.95), "orange", basis), Box(P((4.5, 0, 0.8)), (0.4, 1.0, 1.05), "black", basis),
+            Box(P((0.0, 0, -0.9)), (0.8, 0.6, 1.3), "orange", basis_along(add(basis[0], mul(basis[2], -0.3))))]
+
+
+def smg(at, basis):
+    """衝鋒槍：短槍身、機匣下面一根直彈匣、伸縮槍托、短槍管"""
+    P = _P(at, basis)
+    return [Box(P((2.6, 0, 0.5)), (3.4, 0.7, 0.95), "cabinet", basis),
+            Box(P((6.8, 0, 0.6)), (1.0, 0.38, 0.38), "steel", basis),
+            Box(P((3.2, 0, -1.9)), (0.6, 0.5, 1.6), "black", basis),
+            Box(P((-2.4, 0, 0.6)), (1.9, 0.45, 0.4), "gunmetal", basis),
+            Box(P((-4.1, 0, 0.1)), (0.35, 0.55, 1.0), "gunmetal", basis),
+            Box(P((2.4, 0, 1.75)), (1.2, 0.4, 0.3), "black", basis)]
+
+
+def crossbow(at, basis):
+    """十字弓：木頭槍托、前端橫著的弓臂（看得出「十字」）、拉到後面的弦、上好的箭"""
+    P = _P(at, basis)
+    p = [Box(P((1.5, 0, 0.2)), (5.6, 0.6, 0.7), "wood", basis),
+         Box(P((-3.4, 0, -0.3)), (1.6, 0.6, 1.1), "wood", basis),
+         Cap(P((1.0, 0, 1.1)), P((8.2, 0, 1.1)), 0.32, "blade")]
+    for sgn in (1, -1):
+        p.append(Cap(P((6.6, 0, 0.8)), P((5.2, sgn * 5.4, 0.8)), 0.6, "gunmetal", 0.4))   # 弓臂（往後彎）
+        p.append(Cap(P((5.2, sgn * 5.4, 0.8)), P((1.2, 0, 1.0)), 0.22, "steel"))           # 弦
+    return p
+
+
+def crowbar(at, d, k=1.0):
+    """鐵撬：一根長鐵條，前端彎鉤、尾端扁平。k = 揮出去那幾格放大"""
+    b = basis_along(d)
+    P = _P(at, b)
+    return [Cap(P((-1.6, 0, 0)), P((8.8 * k, 0, 0)), 0.55, "steel"),
+            Cap(P((8.8 * k, 0, 0)), P((9.8 * k, 0, 1.9 * k)), 0.6, "steel", 0.4),
+            Box(P((4.0 * k, 0, 0)), (1.6, 0.62, 0.62), "red", b)]
 
 
 def long_gun(at, basis, length=11.0, stock="wood"):
@@ -705,6 +828,16 @@ def long_gun(at, basis, length=11.0, stock="wood"):
     return [Box(P((length * 0.35, 0, 0.6)), (length * 0.5, 0.55, 0.7), "gunmetal", basis),
             Box(P((length * 0.45, 0, -0.3)), (length * 0.22, 0.6, 0.6), stock, basis),
             Box(P((-2.6, 0, -0.4)), (2.4, 0.6, 1.0), stock, basis)]
+
+
+def assault_rifle(at, basis):
+    """武裝人員的突擊步槍：深色槍身、彎彈匣、槍托、亮一點的槍管和瞄具（在深色背心前面也看得出來）"""
+    def P(o): return add(at, add(add(mul(basis[0], o[0]), mul(basis[1], o[1])), mul(basis[2], o[2])))
+    return [Box(P((1.5, 0, 0.6)), (4.6, 0.7, 0.95), "gunmetal", basis),            # 機匣＋護木
+            Box(P((8.2, 0, 0.8)), (2.4, 0.4, 0.4), "steel", basis),                # 槍管
+            Box(P((-4.6, 0, 0.1)), (2.0, 0.6, 1.0), "gunmetal", basis),            # 槍托
+            Box(P((1.6, 0, -1.6)), (0.75, 0.55, 1.5), "black", basis_along(add(basis[0], mul(basis[2], 0.25)))),  # 彈匣
+            Box(P((1.0, 0, 1.9)), (1.5, 0.45, 0.4), "steel", basis)]               # 瞄具
 
 
 def axe(at, d, k=1.0):
@@ -734,14 +867,14 @@ def knife(at, d, k=1.0):
 ## 主角一律戴頭盔、面罩遮住臉（臉留到續作才揭曉）：頭部裝備都是「頭盔的外罩／配件」，不會露出臉或頭髮。
 OUTFIT = {"body": "parka", "head": "", "feet": "", "layer": ""}
 BODY_STYLE = {
-    "parka": ({"leg": "pants", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "glove"}, {}),
-    "hazmat": ({"leg": "hazmat", "hip": "hazmat", "torso": "hazmat", "arm": "hazmat", "hand": "black"},
+    "parka": ({"leg": "pants", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "mitt"}, {}),
+    "hazmat": ({"leg": "hazmat", "hip": "hazmat", "torso": "hazmat", "arm": "hazmat", "hand": "glove"},
                {"torso_r": (3.7, 4.5, 5.6)}),
-    "eod": ({"leg": "eod", "hip": "eod", "torso": "eod", "arm": "eod", "hand": "black"},
+    "eod": ({"leg": "eod", "hip": "eod", "torso": "eod", "arm": "eod", "hand": "mitt"},
             {"torso_r": (4.4, 5.2, 6.0), "arm_r": 2.0, "leg_r": 2.4, "leg_r2": 2.0, "sh_w": 4.8}),
-    "sneak": ({"leg": "sneak", "hip": "sneak", "torso": "sneak", "arm": "sneak", "hand": "sneak"},
+    "sneak": ({"leg": "sneak", "hip": "sneak", "torso": "sneak", "arm": "sneak", "hand": "helm_trim"},
               {"torso_r": (3.0, 3.9, 5.2), "arm_r": 1.35}),
-    "arctic": ({"leg": "white", "hip": "white", "torso": "white", "arm": "white", "hand": "black"},
+    "arctic": ({"leg": "white", "hip": "white", "torso": "white", "arm": "white", "hand": "glove"},
                {"torso_r": (3.6, 4.4, 5.5)}),
 }
 
@@ -811,23 +944,65 @@ def gear_prims(J, slot, gear_id):
 
 
 ## 近戰每一招的節奏（時間 0～1）：預備 → 出手 → 收招。出手那一段（STRIKE）武器會放大、身體轉最多
-STRIKE = {"slash": (0.2, 0.56), "slash_axe": (0.3, 0.62), "punch": (0.22, 0.55), "kick": (0.3, 0.62)}
+STRIKE = {"slash": (0.2, 0.56), "slash_axe": (0.3, 0.62), "punch": (0.22, 0.55), "kick": (0.3, 0.62),
+          "slash_back": (0.2, 0.56), "stab": (0.26, 0.64), "hook": (0.26, 0.64), "slash_crowbar": (0.3, 0.66)}
+
+## 槍：手槍類（雙手握）、長槍類（抵肩）
+HANDGUNS = ("pistol", "revolver", "nailgun", "flare_gun")
+LONGGUNS = ("shotgun", "rifle", "smg", "crossbow")
+GUNS = ("pistol", "shotgun", "rifle", "nailgun", "flare_gun", "revolver", "smg", "crossbow")
+
+
+def aim_pose(gun):
+    """瞄準姿勢。手槍：雙手在身體中線前方合握（慣用手握槍、輔助手包住），手肘微彎不鎖死，槍舉到視線高度，
+    上身微微前傾、膝蓋微彎、輔助手那側的腳在前。長槍：槍托抵右肩，右手握把（手肘彎）、左手往前托護木。"""
+    pose = default_pose()
+    pose["lean"] = 0.1
+    pose["hip_drop"] = 0.45
+    if gun in HANDGUNS:
+        pose["legs"] = {1: (0.24, 0.22), -1: (-0.2, 0.2)}
+        pose["arms"] = {-1: (1.44, -0.46, 0.08), 1: (1.4, -0.52, 0.12)}
+        pose["head_pitch"] = 0.08
+    else:
+        pose["legs"] = {1: (0.3, 0.22), -1: (-0.22, 0.2)}
+        fwd = {"smg": (1.2, -0.4, 0.5), "crossbow": (1.3, -0.32, 0.3)}.get(gun, (1.35, -0.3, 0.2))
+        pose["arms"] = {1: fwd, -1: (0.75, 0.05, 1.3)}
+        pose["head_pitch"] = 0.12
+        pose["head_roll"] = -0.12
+    return pose
+
+
+def gun_prims(gun, J):
+    X = basis_along((1, 0, 0))
+    if gun in HANDGUNS:
+        at = add(mul(add(J["hand1"], J["hand-1"]), 0.5), (1.0, 0, 0.7))
+        return {"pistol": pistol, "revolver": revolver, "nailgun": nailgun, "flare_gun": flare_gun}[gun](at, X)
+    at = add(J["hand-1"], (0.4, 0.0, 0.8))
+    b = basis_along((1, 0, 0.04))
+    if gun == "shotgun":
+        return long_gun(at, b, 13.0)
+    if gun == "rifle":
+        return long_gun(at, b, 17.0) + [Box(add(at, (4.0, 0, 1.6)), (2.0, 0.5, 0.5), "black")]  # 瞄準鏡
+    if gun == "smg":
+        return smg(at, b)
+    return crossbow(at, b)
 
 
 def player_model(anim, f, n, pose_only=False):
     body_mats, body_spec = BODY_STYLE[OUTFIT["body"]]
-    mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "glove",
+    mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "mitt",
             "skin": "glove", "head": "helm"}
     mats.update(body_mats)
-    spec = {"torso_r": (3.4, 4.2, 5.4), "lu": 6.3, "ll": 6.3}
+    spec = {"torso_r": (3.3, 4.0, 5.3), "lu": 6.4, "ll": 6.4, "sh_w": 4.7, "hip_w": 2.3, "arm_r": 1.55,
+            "hand_k": 1.2, "boot_k": 1.15}
     spec.update(body_spec)
     weapon = []
     t = f / max(n - 1, 1)
     blade_k = 1.0
     if anim == "idle":
         pose = default_pose()
-        pose["arms"][1] = (0.05, 0.14 + 0.03 * bf(f, n), 0.25)
-        pose["arms"][-1] = (0.05, 0.14 + 0.03 * bf(f, n), 0.25)
+        pose["arms"][1] = (0.05, 0.22 + 0.03 * bf(f, n), 0.25)
+        pose["arms"][-1] = (0.05, 0.22 + 0.03 * bf(f, n), 0.25)
         pose["hip_drop"] = 0.3 * bf(f, n)
     elif anim == "walk":
         pose = walk_pose(f, n)
@@ -839,16 +1014,22 @@ def player_model(anim, f, n, pose_only=False):
             pose["legs"][s] = (a + 0.75, k + 1.25)
         pose["arms"] = {1: (0.3, 0.25, 0.45), -1: (0.35 + 0.08 * math.sin(2 * math.pi * f / n), 0.2, 0.45)}
         pose["head_fwd"] = 0.6
-    elif anim == "aim_pistol":
-        pose = default_pose()
-        pose["legs"] = {1: (0.2, 0.15), -1: (-0.2, 0.15)}
-        pose["arms"] = {1: (1.5, -0.42, 0.0), -1: (1.5, -0.45, 0.0)}
+    elif anim.startswith("aim_"):
+        pose = aim_pose(anim[4:])
+    elif anim.startswith("aimwalk_"):
+        # 舉槍移動：上半身 = 瞄準姿勢（槍口不晃），腳 = 小步、壓低重心的走路循環
+        pose = aim_pose(anim[8:])
+        w_ = walk_pose(f, n, stride=0.36, knee=0.75, arm=0.0)
+        ph = 2 * math.pi * f / n
+        pose["legs"] = {s_: (w_["legs"][s_][0], w_["legs"][s_][1] + 0.12) for s_ in (1, -1)}
+        pose["hip_drop"] = 0.55 + 0.25 * math.cos(2 * ph)
+        pose["twist"] = pose.get("twist", 0.0) + 0.05 * math.sin(ph)
     elif anim.startswith("shoot_"):
         # 開槍：從瞄準姿勢往上、往後彈（後座力），再回到瞄準
         base = player_model("aim_" + anim[6:], 0, 1, pose_only=True)
         pose = base
         r = kf([1.0, 0.55, 0.15], f, n)
-        heavy = 1.6 if anim[6:] in ("shotgun", "rifle") else 1.0
+        heavy = {"shotgun": 1.6, "rifle": 1.6, "revolver": 1.4, "smg": 0.7, "crossbow": 0.6, "nailgun": 0.7}.get(anim[6:], 1.0)
         for s_ in (1, -1):
             a, b, e = pose["arms"][s_]
             pose["arms"][s_] = (a + 0.22 * r * heavy, b, e + 0.3 * r * heavy)
@@ -878,14 +1059,6 @@ def player_model(anim, f, n, pose_only=False):
         pose["head_pitch"] = -0.4 * r
         pose["legs"] = {1: (-0.2 * r, 0.2), -1: (0.15 * r, 0.3)}
         pose["twist"] = 0.3 * r
-    elif anim in ("aim_nailgun", "aim_flare_gun"):
-        pose = default_pose()
-        pose["legs"] = {1: (0.2, 0.15), -1: (-0.2, 0.15)}
-        pose["arms"] = {1: (1.5, -0.42, 0.0), -1: (1.5, -0.45, 0.0)}
-    elif anim in ("aim_shotgun", "aim_rifle"):
-        pose = default_pose()
-        pose["legs"] = {1: (0.25, 0.15), -1: (-0.2, 0.15)}
-        pose["arms"] = {1: (1.35, -0.3, 0.2), -1: (0.75, 0.05, 1.3)}
     elif anim == "slash":
         # 橫砍（右手反手往左前方掃）：右肩往後收 → 轉腰、踏步、手臂掃過身體前方 → 掃到左邊收住 → 回正
         pose = default_pose()
@@ -912,6 +1085,59 @@ def player_model(anim, f, n, pose_only=False):
         pose["hip_drop"] = kt([(0.0, 0.4), (0.2, 0.3), (0.6, 2.4), (0.8, 2.4), (1.0, 0.7)], t)
         pose["legs"] = {1: kt([(0.0, (0.2, 0.3)), (0.2, (0.05, 0.3)), (0.6, (0.75, 1.1)), (1.0, (0.4, 0.5))], t),
                         -1: kt([(0.0, (-0.2, 0.25)), (0.2, (-0.2, 0.4)), (0.6, (-0.6, 0.3)), (1.0, (-0.3, 0.3))], t)}
+    elif anim == "slash_back":
+        # 反手回砍（接在橫砍後面）：刀從左邊收著 → 轉腰往右掃回來 → 掃到右邊收住 → 回正。路線和 slash 左右相反
+        pose = default_pose()
+        pose["twist"] = kt([(0.0, 0.7), (0.12, 0.95), (0.36, 0.1), (0.5, -0.6), (0.7, -0.75), (1.0, -0.2)], t)
+        pose["arms"] = {
+            -1: kt([(0.0, (1.05, -0.9, 0.5)), (0.12, (1.1, -1.15, 0.9)), (0.36, (1.45, -0.3, 0.15)),
+                    (0.5, (1.35, 0.7, 0.05)), (0.7, (1.1, 1.05, 0.3)), (1.0, (0.7, 0.4, 1.0))], t),
+            1: kt([(0.0, (0.3, 0.5, 1.3)), (0.12, (0.4, 0.4, 1.4)), (0.45, (0.9, 0.1, 1.5)), (1.0, (0.7, 0.3, 1.3))], t)}
+        pose["lean"] = kt([(0.0, 0.2), (0.12, 0.1), (0.45, 0.3), (0.7, 0.24), (1.0, 0.08)], t)
+        pose["hip_x"] = kt([(0.0, 1.2), (0.12, 0.6), (0.45, 2.4), (0.7, 2.2), (1.0, 0.6)], t)
+        pose["hip_drop"] = kt([(0.0, 0.8), (0.12, 1.0), (0.45, 1.5), (1.0, 0.5)], t)
+        pose["legs"] = {1: kt([(0.0, (0.45, 0.55)), (0.45, (0.6, 0.75)), (1.0, (0.35, 0.4))], t),
+                        -1: kt([(0.0, (-0.4, 0.25)), (0.45, (-0.55, 0.2)), (1.0, (-0.3, 0.25))], t)}
+    elif anim == "stab":
+        # 直刺：右手收到腰邊（手肘往後拉）→ 轉腰送肩、整隻手臂打直刺出去 → 停一下 → 抽回
+        pose = default_pose()
+        pose["twist"] = kt([(0.0, -0.3), (0.16, -0.7), (0.42, 0.75), (0.62, 0.8), (1.0, 0.15)], t)
+        pose["arms"] = {
+            -1: kt([(0.0, (0.5, 0.35, 1.5)), (0.16, (-0.35, 0.3, 1.9)), (0.42, (1.5, -0.12, 0.0)),
+                    (0.62, (1.48, -0.12, 0.05)), (1.0, (0.7, 0.2, 1.3))], t),
+            1: kt([(0.0, (1.0, -0.2, 1.1)), (0.16, (1.25, -0.3, 0.7)), (0.42, (0.3, 0.55, 1.5)), (1.0, (0.7, 0.3, 1.3))], t)}
+        pose["lean"] = kt([(0.0, 0.05), (0.16, -0.04), (0.42, 0.34), (0.62, 0.34), (1.0, 0.1)], t)
+        pose["hip_x"] = kt([(0.0, 0.0), (0.16, -1.0), (0.42, 2.8), (0.62, 2.8), (1.0, 0.6)], t)
+        pose["hip_drop"] = kt([(0.0, 0.5), (0.16, 0.9), (0.42, 1.4), (1.0, 0.5)], t)
+        pose["legs"] = {1: kt([(0.0, (0.2, 0.3)), (0.16, (0.1, 0.5)), (0.42, (0.7, 0.85)), (1.0, (0.35, 0.4))], t),
+                        -1: kt([(0.0, (-0.2, 0.25)), (0.16, (-0.25, 0.5)), (0.42, (-0.6, 0.15)), (1.0, (-0.3, 0.25))], t)}
+    elif anim == "hook":
+        # 右勾拳（接在左直拳後面）：右拳往外拉開、手肘彎著 → 轉腰，拳頭畫一個大弧掃到身體前面 → 停一下 → 收回
+        pose = default_pose()
+        pose["twist"] = kt([(0.0, -0.5), (0.16, -0.85), (0.42, 0.7), (0.62, 0.85), (1.0, 0.15)], t)
+        pose["arms"] = {
+            -1: kt([(0.0, (0.8, 0.5, 1.6)), (0.16, (0.9, 1.25, 1.5)), (0.3, (1.25, 0.9, 1.35)), (0.42, (1.4, -0.1, 1.3)),
+                    (0.62, (1.4, -0.45, 1.35)), (1.0, (0.9, 0.3, 1.5))], t),
+            1: kt([(0.0, (1.3, -0.1, 0.5)), (0.16, (1.0, 0.1, 1.3)), (0.42, (0.6, 0.45, 1.7)), (1.0, (0.9, 0.3, 1.5))], t)}
+        pose["lean"] = kt([(0.0, 0.2), (0.16, 0.05), (0.42, 0.28), (0.62, 0.28), (1.0, 0.1)], t)
+        pose["hip_x"] = kt([(0.0, 1.2), (0.16, 0.3), (0.42, 2.2), (0.62, 2.2), (1.0, 0.6)], t)
+        pose["hip_drop"] = kt([(0.0, 0.7), (0.42, 1.2), (1.0, 0.5)], t)
+        pose["legs"] = {1: kt([(0.0, (0.45, 0.55)), (0.42, (0.5, 0.7)), (1.0, (0.35, 0.4))], t),
+                        -1: kt([(0.0, (-0.45, 0.2)), (0.42, (-0.35, 0.45)), (1.0, (-0.3, 0.25))], t)}
+    elif anim == "slash_crowbar":
+        # 鐵撬（雙手橫掃，打得遠）：雙手握著拉到右後方 → 整個人轉過去掃一大圈到左邊 → 順勢帶過去 → 拉回來
+        pose = default_pose()
+        pose["twist"] = kt([(0.0, -0.4), (0.22, -1.0), (0.44, 0.0), (0.6, 0.85), (0.8, 1.0), (1.0, 0.25)], t)
+        pose["arms"] = {
+            -1: kt([(0.0, (1.0, 0.5, 1.2)), (0.22, (1.15, 1.0, 1.1)), (0.44, (1.45, 0.2, 0.15)),
+                    (0.6, (1.35, -0.6, 0.1)), (0.8, (1.1, -0.95, 0.4)), (1.0, (0.7, -0.1, 1.0))], t),
+            1: kt([(0.0, (1.1, -0.5, 1.0)), (0.22, (1.25, -0.9, 0.9)), (0.44, (1.4, -0.55, 0.5)),
+                   (0.6, (1.3, -0.1, 0.7)), (0.8, (1.0, 0.3, 1.1)), (1.0, (0.7, 0.2, 1.1))], t)}
+        pose["lean"] = kt([(0.0, 0.05), (0.22, -0.08), (0.5, 0.32), (0.8, 0.3), (1.0, 0.1)], t)
+        pose["hip_x"] = kt([(0.0, 0.0), (0.22, -1.2), (0.5, 2.4), (0.8, 2.2), (1.0, 0.6)], t)
+        pose["hip_drop"] = kt([(0.0, 0.4), (0.22, 1.0), (0.5, 1.6), (1.0, 0.5)], t)
+        pose["legs"] = {1: kt([(0.0, (0.2, 0.3)), (0.22, (0.05, 0.5)), (0.5, (0.65, 0.8)), (1.0, (0.35, 0.4))], t),
+                        -1: kt([(0.0, (-0.2, 0.25)), (0.22, (-0.3, 0.6)), (0.5, (-0.6, 0.2)), (1.0, (-0.3, 0.25))], t)}
     elif anim == "punch":
         # 左直拳（接在橫砍後面：腰往反方向轉回來）：左肩往後收 → 轉腰送肩、手臂打直 → 停一下 → 收回
         pose = default_pose()
@@ -944,47 +1170,50 @@ def player_model(anim, f, n, pose_only=False):
     if anim in STRIKE:
         s0, s1 = STRIKE[anim]
         blade_k = 1.0 + 0.55 * max(0.0, 1.0 - abs((t - (s0 + s1) * 0.5) / ((s1 - s0) * 0.75)))
-        if anim == "punch":
-            spec["hand_k"] = {1: 1.0 + 0.5 * (blade_k - 1.0) / 0.55, -1: 1.0}
+        if anim == "hook":
+            spec["hand_k"] = {-1: 1.2 + 0.5 * (blade_k - 1.0) / 0.55, 1: 1.2}
+        elif anim == "punch":
+            spec["hand_k"] = {1: 1.2 + 0.5 * (blade_k - 1.0) / 0.55, -1: 1.2}
         elif anim == "kick":
-            spec["boot_k"] = 1.0 + 0.25 * (blade_k - 1.0) / 0.55
+            spec["boot_k"] = 1.15 + 0.25 * (blade_k - 1.0) / 0.55
     prims, J = build_human(spec, pose, mats)
-    gun = anim[6:] if anim.startswith("shoot_") else (anim[4:] if anim.startswith("aim_") else "")
+    gun = anim[6:] if anim.startswith("shoot_") else anim[4:] if anim.startswith("aim_") else anim[8:] if anim.startswith("aimwalk_") else ""
     anim = ("aim_" + gun) if gun else anim
     # 頭盔（一律戴著）、外套的毛領和下襬、背上的無線電包、腰帶
-    prims += helmet_prims(J)
+    prims += tag(helmet_prims(J), "head")
     body = OUTFIT["body"]
+    tb = J["torso_basis"]
     if body in ("parka", "arctic"):
-        prims.append(Ell(chest_local(J, (-0.4, 0, 3.6)), (3.2, 4.0, 1.4), "parka_trim" if body == "parka" else "fur", J["torso_basis"]))
-        prims.append(Ell(chest_local(J, (0.0, 0, -3.4)), (3.5, 4.3, 2.0), "parka" if body == "parka" else "white", J["torso_basis"]))
-        prims.append(Box(chest_local(J, (3.1, 1.7, 0.3)), (0.5, 1.0, 1.1), "strap", J["torso_basis"]))  # 胸前的對講機
+        prims.append(Ell(chest_local(J, (-0.4, 0, 3.6)), (3.2, 4.0, 1.4), "parka_trim" if body == "parka" else "fur", tb))
+        prims.append(Ell(chest_local(J, (0.0, 0, -3.6)), (3.5, 4.3, 1.9), "parka" if body == "parka" else "white", tb))
+        prims.append(Box(chest_local(J, (3.1, 1.7, 0.6)), (0.5, 1.0, 1.1), "strap", tb))  # 胸前的對講機
     elif body == "eod":
-        prims.append(Box(chest_local(J, (0.6, 0, 0.5)), (4.4, 4.6, 3.6), "eod", J["torso_basis"]))
-        prims.append(Ell(chest_local(J, (-0.2, 0, 4.2)), (3.6, 4.8, 1.6), "eod", J["torso_basis"]))
+        prims.append(Box(chest_local(J, (0.6, 0, 0.5)), (4.4, 4.6, 3.6), "eod", tb))
+        prims.append(Ell(chest_local(J, (-0.2, 0, 4.2)), (3.6, 4.8, 1.6), "eod", tb))
     elif body == "hazmat":
-        prims.append(Ell(chest_local(J, (-0.4, 0, 3.8)), (3.0, 3.8, 1.2), "hazmat", J["torso_basis"]))
+        prims.append(Ell(chest_local(J, (-0.4, 0, 3.8)), (3.0, 3.8, 1.2), "hazmat", tb))
+    # 腰帶（深色一圈，把上半身和腿分開）＋右腰的槍套
+    wide = 1.0 if body != "eod" else 1.2
+    prims.append(Ell(chest_local(J, (0.0, 0, -2.2)), (3.8 * wide, 4.6 * wide, 0.8), "strap", tb))
+    prims.append(Box(chest_local(J, (0.4, -4.3 * wide, -3.6)), (1.0, 0.6, 1.4), "strap", tb))
+    tag(prims, "torso")
     back = -3.6 - (0.9 if body == "eod" else 0.0)
-    prims.append(Box(chest_local(J, (back, 0.0, -0.2)), (1.3, 2.7, 2.9), "strap", J["torso_basis"]))
-    prims.append(Box(chest_local(J, (back - 0.2, 0.0, 2.2)), (1.0, 2.2, 0.5), "helm_trim", J["torso_basis"]))
+    prims.append(Box(chest_local(J, (back, 0.0, -0.2)), (1.3, 2.7, 2.9), "strap", tb))
+    prims.append(Box(chest_local(J, (back - 0.2, 0.0, 2.2)), (1.0, 2.2, 0.5), "helm_trim", tb))
+    tag(prims, "pack")
     if OUTFIT["layer"] in ("head", "feet"):
         gid = OUTFIT[OUTFIT["layer"]]
-        prims += gear_prims(J, OUTFIT["layer"], gid)
-    if anim == "aim_pistol":
-        hand = mul(add(J["hand1"], J["hand-1"]), 0.5)
-        prims += pistol(add(hand, (0.4, 0, 0.3)), basis_along((1, 0, 0)))
-    elif anim == "aim_shotgun":
-        prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.6)), basis_along((1, 0, 0.04)), 13.0)
-    elif anim == "aim_rifle":
-        prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.6)), basis_along((1, 0, 0.04)), 17.0)
-        prims.append(Box(add(J["hand-1"], (4.0, 0, 2.0)), (2.0, 0.5, 0.5), "black"))  # 瞄準鏡
-    elif anim in ("aim_nailgun", "aim_flare_gun"):
-        hand = mul(add(J["hand1"], J["hand-1"]), 0.5)
-        mat = "yellow" if anim == "aim_nailgun" else "orange"
-        prims += [Box(add(hand, (2.6, 0, 1.3)), (3.0, 0.8, 1.1), mat), Box(add(hand, (0.4, 0, -0.3)), (0.8, 0.6, 1.3), "black")]
-    elif anim == "slash":
-        prims += knife(J["hand-1"], J["fore-1"], blade_k)
+        prims += tag(gear_prims(J, OUTFIT["layer"], gid), "head" if OUTFIT["layer"] == "head" else "boots")
+    held = []
+    if gun:
+        held = gun_prims(gun, J)
+    elif anim in ("slash", "slash_back", "stab"):
+        held = knife(J["hand-1"], J["fore-1"], blade_k)
     elif anim == "slash_axe":
-        prims += axe(J["hand-1"], J["fore-1"], 1.0 + (blade_k - 1.0) * 0.5)
+        held = axe(J["hand-1"], J["fore-1"], 1.0 + (blade_k - 1.0) * 0.5)
+    elif anim == "slash_crowbar":
+        held = crowbar(J["hand-1"], J["fore-1"], 1.0 + (blade_k - 1.0) * 0.25)
+    prims += tag(held, "gear")
     return prims
 
 
@@ -1033,7 +1262,9 @@ def watcher_model(anim, f, n):
     tb = J["torso_basis"]
     # 白袍的下襬（背後比較長、破破的）、胸口乾掉的血
     prims.append(Ell(chest_local(J, (-0.9, 0.3, -5.6)), (2.6, 4.0, 3.2), "labcoat", tb))
-    prims.append(Ell(chest_local(J, (2.7, -1.2, -0.8)), (0.9, 1.7, 2.3), "blood", tb))
+    prims.append(Box(chest_local(J, (2.75, 0.0, -0.6)), (0.6, 1.25, 4.4), "coverall", tb))   # 白袍敞開：中間露出深色工作服
+    prims.append(Ell(chest_local(J, (0.2, 0, 4.3)), (2.6, 3.3, 0.9), "coverall", tb))       # 領口
+    prims.append(Ell(chest_local(J, (3.0, -1.6, -0.2)), (0.8, 1.5, 2.0), "blood", tb))
     # 冰晶：左肩一大叢、背上幾根
     sh = J["sh1"]
     for d, ln, r in (((-0.3, 0.5, 1.0), 4.6, 1.0), ((-0.9, 0.9, 0.6), 3.4, 0.85), ((0.4, 0.8, 0.8), 2.8, 0.75),
@@ -1043,6 +1274,7 @@ def watcher_model(anim, f, n):
         prims.append(spike(chest_local(J, off), d, ln, 0.8))
     prims.append(Ell(head_local(J, (-1.2, 0.5, 1.9)), (1.9, 2.0, 1.2), "frost", J["head_basis"]))
     prims += eyeless(J)
+    auto_tag(prims, J)
     return prims
 
 
@@ -1094,12 +1326,14 @@ def listener_model(anim, f, n):
     for z in (-2.5, 0.0, 2.5):
         prims.append(spike(chest_local(J, (-2.3, 0, z)), add(mul(tb[0], -1.0), mul(tb[2], 0.5)), 2.6, 0.75, "bone"))
     prims.append(Ell(chest_local(J, (-0.2, 0, -5.6)), (2.6, 3.3, 2.6), "rag", tb))
+    auto_tag(prims, J)
     return prims
 
 
 def guard_model(anim, f, n):
     """武裝人員（守門派）：雪地迷彩、頭盔＋橘色雪鏡＋黑色面罩、戰術背心和彈匣袋、背後的無線電、步槍"""
-    mats = {"leg": "camo", "boot": "boot", "hip": "camo", "torso": "camo", "arm": "camo", "hand": "glove",
+    # 配色分三塊：白色的外套和頭盔、灰色的褲子、深色的背心／手套／靴子／面罩 → 遠遠看也分得出頭、身體、手、腳
+    mats = {"leg": "camo_d", "boot": "boot", "hip": "camo_d", "torso": "camo", "arm": "camo", "hand": "glove",
             "skin": "black", "fore": "camo"}
     spec = {"torso_r": (3.5, 4.4, 5.4), "sh_w": 4.6, "leg_r": 2.0, "arm_r": 1.6}
     if anim == "walk":
@@ -1125,30 +1359,32 @@ def guard_model(anim, f, n):
     hb = J["head_basis"]
     tb = J["torso_basis"]
     # 戰術背心＋胸前三個彈匣袋、腰帶
-    prims.append(Ell(chest_local(J, (0.2, 0, -0.2)), (3.8, 4.6, 3.9), "rig", tb))
+    prims.append(Ell(chest_local(J, (0.2, 0, -0.4)), (4.0, 4.75, 4.3), "rig", tb))
     for y in (-2.0, 0.0, 2.0):
-        prims.append(Box(chest_local(J, (3.7, y, -1.3)), (0.7, 0.75, 1.3), "camo_d", tb))
+        prims.append(Box(chest_local(J, (3.9, y, -1.5)), (0.7, 0.75, 1.3), "olive", tb))
     prims.append(Ell(chest_local(J, (0.0, 0, -4.4)), (3.3, 4.0, 0.8), "rig", tb))
     # 迷彩的灰斑
     for off, r in (((-0.5, 3.4, 2.6), (1.6, 1.4, 1.2)), ((0.5, -3.6, 2.2), (1.4, 1.3, 1.4))):
         prims.append(Ell(chest_local(J, off), r, "camo_d", tb))
     for side in (1, -1):
         prims.append(Ell(add(J["knee%d" % side], (0.9, 0, 0.2)), (1.4, 1.7, 1.5), "rig"))            # 護膝
-        prims.append(Ell(add(J["hip%d" % side], (0.3, side * 1.2, -2.6)), (1.5, 1.2, 1.8), "camo_d"))  # 腿上的斑
+        prims.append(Box(add(J["hip%d" % side], (0.2, side * 1.9, -2.4)), (1.1, 0.6, 1.3), "rig"))  # 腿掛的彈匣袋
     # 頭盔（白色盔罩＋灰斑）、雪鏡、面罩
     prims.append(Ell(head_local(J, (-0.3, 0, 1.7)), (3.55, 3.45, 2.35), "camo", hb))
+    prims.append(Ell(head_local(J, (-0.3, 0, 0.75)), (3.65, 3.55, 0.55), "rig", hb))   # 盔緣的深色帶子
     prims.append(Ell(head_local(J, (-1.2, 1.4, 2.6)), (1.6, 1.5, 1.0), "camo_d", hb))
     prims.append(Box(head_local(J, (2.8, 0, 0.3)), (0.55, 2.2, 0.8), "lens", hb))
     prims.append(Ell(head_local(J, (0.3, 0, -0.9)), (3.0, 3.0, 2.4), "black", hb))
     # 背後的無線電＋天線
     prims.append(Box(chest_local(J, (-3.9, -0.8, 0.6)), (1.2, 2.2, 2.8), "rig", tb))
     prims.append(Cap(chest_local(J, (-4.2, -2.4, 3.0)), chest_local(J, (-4.8, -2.8, 8.5)), 0.3, "helm_trim", 0.25))
+    auto_tag(prims, J)
     if aim:
-        prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.3)), basis_along((1, 0, 0.02)), 13.0, "black")
-        prims.append(Box(add(J["hand-1"], (3.0, 0, 1.7)), (1.6, 0.45, 0.45), "black"))
+        prims += assault_rifle(add(J["hand-1"], (0.0, 0.0, 0.3)), basis_along((1, 0, 0.02)))
     else:
         d = norm((1.0, 0.25, -0.5))
-        prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.0)), basis_along(d), 13.0, "black")
+        prims += assault_rifle(add(J["hand-1"], (0.0, 0.0, 0.0)), basis_along(d))
+    tag(prims, "gear")
     return prims
 
 
@@ -1180,8 +1416,8 @@ def hound_model(anim, f, n):
         raise ValueError(anim)
     L = lean_fn((-4.0, 0, bz), -lean)
     # 身體：深灰的背、白色的肚子和胸口（哈士奇的配色）
-    prims.append(Ell(L((-1.5, 0, bz + 1.1)), (7.6, 3.2, 3.5), "husky"))
-    prims.append(Ell(L((-1.5, 0, bz + 0.1)), (7.0, 2.9, 2.9), "white"))
+    prims.append(Ell(L((-1.5, 0, bz + 1.1)), (7.6, 3.7, 3.5), "husky"))
+    prims.append(Ell(L((-1.5, 0, bz + 0.1)), (7.0, 3.3, 2.9), "white"))
     prims.append(Ell(L((4.4, 0, bz + 1.4)), (3.8, 3.7, 4.2), "husky"))
     prims.append(Ell(L((5.0, 0, bz + 0.2)), (3.0, 3.0, 3.4), "white"))
     prims.append(Ell(L((-7.0, 0, bz + 1.0)), (3.2, 3.0, 3.3), "husky"))
@@ -1192,6 +1428,7 @@ def hound_model(anim, f, n):
     prims.append(Ell(L((-2.2, 2.2, bz + 0.8)), (3.0, 1.5, 2.2), "gum"))
     for x in (-3.6, -2.2, -0.8):
         prims.append(Box(L((x, 3.3, bz + 0.9)), (0.35, 0.5, 1.8), "bone"))
+    tag(prims, "torso")
     # 頭：寬額頭、尖耳朵、白色口鼻、裂開的下巴
     hc = L((9.2, 0, bz + 3.4 - head_drop))
     prims.append(Ell(hc, (3.0, 2.7, 2.6), "husky"))
@@ -1202,20 +1439,23 @@ def hound_model(anim, f, n):
     prims.append(Box(add(hc, (1.6, 0, 0.9)), (0.5, 2.0, 0.4), "frost"))  # 眼睛被霜封住
     for y in (1.6, -1.6):
         prims.append(Cap(add(hc, (-0.9, y, 1.6)), add(hc, (-1.5, y * 1.25, 4.4)), 1.0, "husky", 0.3))
+    tag(prims, "head")
     # 背上的冰晶：肩膀最大，往後越來越小
     for x, ln, r in ((3.2, 4.6, 1.1), (0.6, 3.8, 1.0), (-2.2, 3.0, 0.9), (-5.0, 2.4, 0.8), (-7.6, 1.8, 0.7)):
         prims.append(spike(L((x, 0.3 * math.sin(x), bz + 4.0)), (-0.35, 0.1 * math.sin(x * 2), 1.0), ln, r))
     # 尾巴（捲起來的）
     t1, t2, t3 = L((-9.5, 0, bz + 2.0)), L((-12.0, 0, bz + 4.6)), L((-10.6, 0, bz + 6.6))
     prims += [Cap(t1, t2, 1.25, "husky", 1.1), Cap(t2, t3, 1.1, "white", 0.6)]
+    tag(prims, "back")
     # 腳
-    for name, x, y in (("fl", 5.0, 2.2), ("fr", 5.0, -2.2), ("bl", -6.6, 2.1), ("br", -6.6, -2.1)):
+    for name, x, y in (("fl", 5.0, 2.7), ("fr", 5.0, -2.7), ("bl", -6.6, 2.6), ("br", -6.6, -2.6)):
         a, k = legs[name]
         hip = L((x, y, bz))
         kn, ft = leg_points(hip, a + (0.25 if name[0] == "b" else 0.0), k if name[0] == "b" else -k, 4.2, 4.6)
-        prims.append(Cap(hip, kn, 1.55, "husky", 1.15))
-        prims.append(Cap(kn, ft, 1.0, "white", 0.85))
-        prims.append(Ell(add(ft, (0.6, 0, 0.0)), (1.3, 1.0, 0.8), "white"))
+        prims.append(Cap(hip, kn, 1.7, "husky", 1.25))
+        prims.append(Cap(kn, ft, 1.15, "white", 0.95))
+        prims.append(Ell(add(ft, (0.6, 0, 0.0)), (1.5, 1.2, 0.9), "white"))
+        tag(prims, "leg" + name)
     return prims
 
 
@@ -1251,12 +1491,14 @@ def crawler_model(anim, f, n):
     prims.append(Ell((-2.6, 0, bz + 1.0 + lift * 0.4), (4.4, 3.2, 2.3), "coverall"))
     prims.append(Ell((-6.6, 0, bz + 0.2), (2.8, 3.0, 2.0), "coverall"))
     prims.append(Ell((-0.4, 0.4, bz + 2.6 + lift * 0.6), (2.6, 2.2, 1.2), "dead"))  # 背上衣服破了露出來的皮
+    tag(prims, "torso")
     for s in (1, -1):
         k1 = (-11.0, s * (1.7 + 0.5 * drag * s), 1.6)
         k2 = (-15.0, s * (1.0 + 0.9 * drag * s), 1.3)
         prims.append(Cap((-7.6, s * 1.6, bz - 0.4), k1, 1.6, "coverall", 1.3))
         prims.append(Cap(k1, k2, 1.2, "dead", 0.9))
         prims.append(Ell(add(k2, (-0.9, 0, 0)), (1.3, 0.9, 0.8), "dead"))
+        tag(prims, "leg%d" % s)
     # 頭：抬起來、歪一邊，嘴張著
     hc = (7.4, 0, bz + 3.6 + lift * 1.2)
     hb = head_basis(-0.35, 0.3)
@@ -1265,22 +1507,25 @@ def crawler_model(anim, f, n):
     J = {"head": hc, "head_basis": hb}
     prims += eyeless(J, mouth=0.9, hr=2.8)
     prims.append(Ell(head_local(J, (-1.0, 0.3, 1.6)), (1.8, 1.9, 1.1), "frost", hb))
+    tag(prims, "head")
     # 脊椎的結晶
     for x, ln, r in ((3.6, 2.6, 0.8), (1.2, 3.8, 1.0), (-1.4, 3.2, 0.9), (-4.0, 2.4, 0.8), (-6.4, 1.8, 0.7)):
         z = bz + 3.9 + lift * max(0.0, min(1.0, (x + 7) / 10))
         prims.append(spike((x, 0, z - 0.6), (-0.4, 0.15 * math.sin(x), 1.0), ln, r))
+    tag(prims, "back")
     # 手臂：上臂往外撐、前臂很長、手指是結晶爪
     for s in (1, -1):
-        sh = add(chest, (1.8, s * 3.3, 0.0))
-        hand = (6.0 + 7.5 * reach[s], s * (4.6 - 1.0 * reach[s]), 1.0 + up[s])
+        sh = add(chest, (1.8, s * 3.6, 0.0))
+        hand = (6.0 + 7.5 * reach[s], s * (6.2 - 1.2 * reach[s]), 1.0 + up[s])
         mid = mul(add(sh, hand), 0.5)
         el = add(mid, (-1.2, s * 2.6, 3.6 - 1.4 * reach[s]))
         prims.append(Ell(sh, (1.7, 1.6, 1.6), "coverall"))
-        prims.append(Cap(sh, el, 1.3, "coverall", 1.1))
-        prims.append(Cap(el, hand, 1.05, "dead", 0.85))
-        prims.append(Ell(hand, (1.3, 1.2, 0.9), "dead"))
+        prims.append(Cap(sh, el, 1.5, "coverall", 1.3))
+        prims.append(Cap(el, hand, 1.25, "dead", 1.05))
+        prims.append(Ell(hand, (1.7, 1.6, 1.1), "dead"))
         for off in (-0.9, 0.0, 0.9):
-            prims.append(Cap(hand, add(hand, (2.3, off, -0.5)), 0.5, "crystal", 0.2))
+            prims.append(Cap(hand, add(hand, (2.6, off * 1.3, -0.5)), 0.6, "crystal", 0.25))
+        tag(prims, "arm%d" % s)
     return prims
 
 
@@ -1332,6 +1577,7 @@ def husk_model(anim, f, n):
         prims.append(Ell(chest_local(J, off), (r, r, r), "pus"))
     prims.append(Ell(add(J["elbow1"], (0.4, 1.4, 0.4)), (1.5, 1.5, 1.5), "pus"))
     prims += eyeless(J, mouth=0.7, jaw=1.0, hr=2.8)
+    auto_tag(prims, J)
     return prims
 
 
@@ -1385,6 +1631,7 @@ def chorister_model(anim, f, n):
     # 長袍一樣的破布
     prims.append(Ell(chest_local(J, (-0.3, 0, -6.2)), (2.7, 3.5, 4.6), "rag", tb))
     prims.append(Ell(chest_local(J, (-1.0, 0, 2.6)), (2.4, 3.8, 2.6), "rag", tb))
+    auto_tag(prims, J)
     return prims
 
 
@@ -1428,6 +1675,7 @@ def bear_model(anim, f, n):
     prims.append(Ell(L((12.6, 0, bz + 2.6 - head_drop * 0.4)), (4.6, 4.6, 4.8), "white"))
     # 毛上結的髒霜、肚子下面的陰影
     prims.append(Ell(L((-3.0, 0, bz - 3.6)), (9.0, 5.4, 2.4), "frost"))
+    tag(prims, "torso")
     # 頭：寬額頭、長口鼻、黑鼻子、小耳朵、裂開的嘴
     hc = L((17.4, 0, bz + 4.6 - head_drop))
     prims.append(Ell(hc, (4.4, 4.0, 3.8), "white"))
@@ -1442,6 +1690,7 @@ def bear_model(anim, f, n):
     prims.append(Box(add(hc, (2.6, 0, 1.3)), (0.7, 3.0, 0.5), "crystal_d"))   # 眼睛的位置：一條結晶
     for y in (2.0, -2.0):
         prims.append(spike(add(hc, (2.4, y, 1.4)), (0.2, y * 0.3, 1.0), 2.0, 0.6))
+    tag(prims, "head")
     # 背上的冰晶森林（肩膀最高），中間裂開的肉是弱點
     rnd = random.Random(7)
     for x, y, ln, r in ((8, 2.5, 9.5, 1.9), (6, -2.6, 8.0, 1.7), (3, 0.6, 10.5, 2.0), (0, 3.6, 7.0, 1.6), (-1, -3.4, 7.5, 1.6),
@@ -1455,6 +1704,7 @@ def bear_model(anim, f, n):
     prims.append(Ell(L((-1.0, 6.4, bz + 1.0)), (4.0, 1.4, 3.2), "gum"))
     for x in (-3.0, -1.0, 1.0):
         prims.append(Box(L((x, 7.4, bz + 1.0)), (0.5, 0.5, 2.6), "bone"))
+    tag(prims, "back")
     # 腳：粗腿、大腳掌、黑爪子
     for name, x, y in (("fl", 8.5, 4.4), ("fr", 8.5, -4.4), ("bl", -11.5, 4.4), ("br", -11.5, -4.4)):
         a, k = legs[name]
@@ -1465,6 +1715,7 @@ def bear_model(anim, f, n):
         prims.append(Ell(add(ft, (1.4, 0, 0)), (3.0, 2.6, 1.4), "white"))
         for dy in (-1.4, 0.0, 1.4):
             prims.append(Cap(add(ft, (3.6, dy, -0.2)), add(ft, (5.0, dy, -0.8)), 0.5, "black", 0.2))
+        tag(prims, "leg" + name)
     return prims
 
 
@@ -1515,6 +1766,7 @@ def runner_model(anim, f, n):
     for k in (0.3, 0.65):
         prims.append(spike(add(el, mul(sub(hd, el), k)), (-0.3, -0.8, 0.7), 2.2, 0.6))
     prims += eyeless(J, mouth=0.9)
+    auto_tag(prims, J)
     return prims
 
 
@@ -1562,6 +1814,7 @@ def spitter_model(anim, f, n):
         prims.append(Ell(b, (1.35, 1.35, 1.2), "spore"))
     prims += eyeless(J, crust="spore", mouth=0.8, jaw=1.2, hr=2.6)
     prims.append(Ell(chest_local(J, (-0.2, 0, -5.0)), (2.9, 3.6, 2.6), "rag", tb))
+    auto_tag(prims, J)
     return prims
 
 
@@ -1608,12 +1861,11 @@ def brute_model(anim, f, n):
     for side in (1, -1):
         sh = J["sh%d" % side]
         prims.append(Ell(add(sh, (0.4, side * 1.0, 1.4)), (3.4, 3.3, 2.5), "ice"))
-        for d, ln in (((0.0, side * 0.5, 1.0), 4.4), ((-0.5, side * 1.0, 0.7), 3.4), ((0.5, side * 0.9, 0.8), 2.8)):
-            prims.append(spike(add(sh, (0.2, side * 1.4, 2.6)), rot_z(d, pose.get("twist", 0.0)), ln, 1.0))
+        for d, ln in (((0.0, side * 0.5, 1.0), 4.8),):
+            prims.append(spike(add(sh, (0.2, side * 1.4, 2.6)), rot_z(d, pose.get("twist", 0.0)), ln, 1.5))
         # 前臂的護甲比手臂粗一圈，手肘一根刺
         el, hd = J["elbow%d" % side], J["hand%d" % side]
         prims.append(Cap(add(el, mul(sub(hd, el), 0.3)), add(el, mul(sub(hd, el), 0.8)), 2.9, "ice", 2.7))
-        prims.append(spike(el, add(mul(sub(el, hd), 0.2), (-0.6, side * 0.4, 0.3)), 3.0, 0.9))
     # 面甲：整片蓋住臉，只有一條發光的縫
     prims.append(Ell(head_local(J, (0.5, 0, 0.3)), (2.9, 2.8, 2.7), "ice", hb))
     prims.append(Box(head_local(J, (3.2, 0, 0.2)), (0.5, 1.7, 0.4), "crystal", hb))
@@ -1624,13 +1876,18 @@ def brute_model(anim, f, n):
     prims.append(Ell(chest_local(J, (-4.9, 0, 0.8)), (1.3, 1.9, 2.4), "flesh", tb))
     for side in (1, -1):
         prims.append(Box(chest_local(J, (-4.0, side * 4.6, 1.0)), (1.2, 1.4, 3.6), "ice", tb))
+    auto_tag(prims, J)
     return prims
 
 CHARACTERS = {
-    "player": (player_model, dict({"idle": 4, "walk": 8, "sneak": 8, "slash": 8, "slash_axe": 8, "punch": 7, "kick": 9,
+    # 近戰：刀 slash → slash_back → stab；空手 punch → hook → kick；重武器 slash_axe、slash_crowbar
+    # 每把槍：aim_（1 格）、shoot_（3 格，後座力）、aimwalk_（6 格，舉槍移動：上半身瞄準、腳走路）
+    "player": (player_model, dict({"idle": 4, "walk": 8, "sneak": 8, "slash": 8, "slash_back": 8, "stab": 7,
+                                   "slash_axe": 8, "slash_crowbar": 9, "punch": 7, "hook": 8, "kick": 9,
                                    "hurt": 3, "dodge": 5, "dodge_back": 5},
-                                  **{"aim_" + w: 1 for w in ("pistol", "shotgun", "rifle", "nailgun", "flare_gun")},
-                                  **{"shoot_" + w: 3 for w in ("pistol", "shotgun", "rifle", "nailgun", "flare_gun")})),
+                                  **{"aim_" + w: 1 for w in GUNS},
+                                  **{"shoot_" + w: 3 for w in GUNS},
+                                  **{"aimwalk_" + w: 6 for w in GUNS})),
     "watcher": (watcher_model, {"walk": 8, "idle": 4, "attack": 5, "hurt": 3}),
     "listener": (listener_model, {"walk": 8, "listen": 4, "attack": 5, "hurt": 3}),
     "guard": (guard_model, {"walk": 8, "idle": 4, "aim": 1, "hurt": 3}),
@@ -1645,15 +1902,27 @@ CHARACTERS = {
 }
 # 人形敵人的受傷動作（共用姿勢修正）
 HURT_BASE = {"runner": "idle", "spitter": "idle", "brute": "idle", "watcher": "idle", "listener": "listen", "guard": "idle", "husk": "idle", "chorister": "listen"}
-CANVAS = {"player": (44, 34), "watcher": (36, 36), "listener": (38, 44), "guard": (40, 36), "hound": (42, 36),
-          "crawler": (48, 38), "husk": (42, 38), "chorister": (40, 44), "bear": (72, 60),
-          "runner": (36, 36), "spitter": (36, 36), "brute": (48, 46)}
+# 畫布大小由 `python3 tools/gen_pixel_art.py measure` 量出來（所有格子都放得下、不會被切）
+CANVAS = {"player": (66, 56), "watcher": (50, 46), "listener": (52, 54), "guard": (46, 46), "hound": (40, 36),
+          "crawler": (46, 36), "husk": (48, 46), "chorister": (46, 46), "bear": (64, 64),
+          "runner": (48, 46), "spitter": (42, 42), "brute": (52, 54)}
+
+
+# 角色放大倍率（模型單位 → 像素）：整個角色等比例放大，手腳才有足夠的像素分開畫。腳印（碰撞大小）在別的檔案，不受影響
+CHAR_SCALE = {}
+DEFAULT_SCALE = 1.15
+
+
+def char_prims(name, prims, yaw):
+    k = CHAR_SCALE.get(name, DEFAULT_SCALE)
+    out = finish(prims, yaw)
+    return scale_prims(out, k, (0, 0, 0)) if abs(k - 1.0) > 1e-6 else out
 
 
 # 腳底離圖的下緣幾個像素（character_sprite.gd 的 FOOT_PAD 要一樣）：往鏡頭方向踢、撲的時候腳會畫到腳底線下面，留空間才不會被切掉
-FOOT_PAD = 4
+FOOT_PAD = 9
 # 四隻腳、趴著的角色身體很長，面向鏡頭時前腳和頭會畫到腳底線下面很多，要留更多（character_sprite.gd 的 FOOT_PADS 要一樣）
-FOOT_PADS = {"bear": 12, "hound": 7, "crawler": 12}
+FOOT_PADS = {"bear": 15, "crawler": 13}
 
 # 紙娃娃：本體套裝、頭部圖層、腳部圖層（遊戲裡依裝備組合疊起來）
 OUTFIT_SETS = {
@@ -1669,6 +1938,51 @@ OUTFIT_SETS = {
     "player_feet_crampons": {"layer": "feet", "feet": "crampons"},
     "player_feet_soft_soles": {"layer": "feet", "feet": "soft_soles"},
 }
+
+
+def check_clip(name, fn, img, w, h):
+    """圖碰到畫布邊緣 = 可能被切掉，印出來提醒（要加大 CANVAS）"""
+    for x in range(w):
+        if img[x][3] or img[(h - 1) * w + x][3]:
+            print("  !! %s %s 上下被切" % (name, fn))
+            return
+    for y in range(h):
+        if img[y * w][3] or img[y * w + w - 1][3]:
+            print("  !! %s %s 左右被切" % (name, fn))
+            return
+
+
+def measure(names):
+    """量每個角色所有格子的範圍 → 印出需要的畫布大小和腳底留白（調 CANVAS、FOOT_PAD 用）：
+    python3 tools/gen_pixel_art.py measure [角色…]"""
+    W = 220
+    for name in names:
+        sets = [None]
+        if name == "player":
+            sets += ["player_eod", "player_head_wool_hat", "player_head_eod_helmet", "player_feet_eod_boots"]
+        model, anims = CHARACTERS[name]
+        ext = [0, 0, 0, 0]  # 左、右、上、下（相對腳底中心）
+        worst = ["", "", "", ""]
+        for st in sets:
+            OUTFIT.update({"body": "parka", "head": "", "feet": "", "layer": ""})
+            if st:
+                OUTFIT.update(OUTFIT_SETS[st])
+            for anim, n in anims.items():
+                for d, yaw in DIRS.items():
+                    for f in range(n):
+                        m = hurt_of(model, HURT_BASE[name]) if anim == "hurt" and name in HURT_BASE else model
+                        img = render(char_prims(name, m(anim, f, n), yaw), W, W, anchor=(W / 2.0, W - 60.0))
+                        for y in range(W):
+                            for x in range(W):
+                                if img[y * W + x][3]:
+                                    v = (W // 2 - x, x + 1 - W // 2, W - 60 - y, y + 1 - (W - 60))
+                                    for i in range(4):
+                                        if v[i] > ext[i]:
+                                            ext[i] = v[i]
+                                            worst[i] = "%s_%s_%d" % (anim, d, f)
+        OUTFIT.update({"body": "parka", "head": "", "feet": "", "layer": ""})
+        half = max(ext[0], ext[1]) + 1
+        print("%s: canvas (%d, %d) pad %d   %s %s" % (name, half * 2, ext[2] + ext[3] + 2, ext[3] + 1, ext, worst))
 
 
 def gen_outfit(name):
@@ -1687,15 +2001,18 @@ def gen_outfit(name):
     for anim, n in anims.items():
         for d, yaw in DIRS.items():
             for f in range(n):
-                prims = finish(player_model(anim, f, n), yaw)
-                write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h,
-                          render(prims, w, h, anchor=(w / 2.0, h - FOOT_PAD), layer_only=layer))
+                prims = char_prims("player", player_model(anim, f, n), yaw)
+                img = render(prims, w, h, anchor=(w / 2.0, h - FOOT_PAD), layer_only=layer)
+                check_clip(name, "%s_%s_%d" % (anim, d, f), img, w, h)
+                write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h, img)
                 count += 1
     OUTFIT.update({"body": "parka", "head": "", "feet": "", "layer": ""})
     print("%s: %d 張" % (name, count))
 
 
 def gen_character(name):
+    if name == "player":
+        OUTFIT.update({"body": "parka", "head": "", "feet": "", "layer": ""})
     model, anims = CHARACTERS[name]
     base_model = model
     w, h = CANVAS[name]
@@ -1709,9 +2026,10 @@ def gen_character(name):
         for d, yaw in DIRS.items():
             for f in range(n):
                 m = hurt_of(base_model, HURT_BASE[name]) if anim == "hurt" and name in HURT_BASE else base_model
-                prims = finish(m(anim, f, n), yaw)
-                write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h,
-                          render(prims, w, h, anchor=(w / 2.0, h - FOOT_PADS.get(name, FOOT_PAD))))
+                prims = char_prims(name, m(anim, f, n), yaw)
+                img = render(prims, w, h, anchor=(w / 2.0, h - FOOT_PADS.get(name, FOOT_PAD)))
+                check_clip(name, "%s_%s_%d" % (anim, d, f), img, w, h)
+                write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h, img)
                 count += 1
     print("%s: %d 張" % (name, count))
 
@@ -1790,14 +2108,24 @@ def gen_items():
         write_png(os.path.join(folder, name + ".png"), w, h, img)
 
     X = basis_along((1, 0, 0))
-    save("pistol", [Box((1.2, 0, 1.4), (4.0, 0.7, 1.1), "cabinet", X), Box((-1.6, 0, -1.2), (1.1, 0.6, 2.2), "black",
-                    basis_along((1, 0, -0.25))), Box((0.6, 0, -0.4), (0.9, 0.3, 0.6), "gunmetal", X),
-                    Box((5.0, 0, 1.6), (0.5, 0.5, 0.5), "black", X)], 16, 12)
+    # 手槍：制式半自動（方正的滑套、扳機護弓、往後斜的握把、滑套上的防滑紋）
+    GR = basis_along((1, 0, -0.3))
+    save("pistol", [Box((0.8, 0, 2.0), (5.6, 0.7, 1.15), "cabinet", X),            # 滑套
+                    Box((1.4, 0, 0.55), (4.4, 0.65, 0.5), "gunmetal", X),          # 槍身
+                    Box((-3.4, 0, -1.9), (1.45, 0.65, 2.6), "black", GR),          # 握把
+                    Box((0.2, 0, -0.9), (1.5, 0.3, 0.3), "gunmetal", X),           # 扳機護弓
+                    Box((1.6, 0, -0.3), (0.3, 0.3, 0.7), "gunmetal", X),
+                    Box((-3.6, 0.0, 2.0), (0.9, 0.75, 0.8), "gunmetal", X),        # 滑套後段的防滑紋
+                    Box((6.3, 0, 2.2), (0.3, 0.5, 0.55), "black", X)], 18, 14)
     save("shotgun", [Box((2.5, 0, 0.9), (8.0, 0.6, 0.6), "gunmetal", X), Box((4.0, 0, -0.3), (3.0, 0.7, 0.6), "wood", X),
                      Box((-7.2, 0, -0.4), (3.2, 0.7, 1.2), "wood", basis_along((1, 0, 0.2))),
                      Box((-3.2, 0, 0.2), (1.4, 0.7, 1.0), "gunmetal", X)], 26, 10)
-    save("knife", [Box((-3.0, 0, 0), (2.2, 0.6, 0.8), "black", X), Box((2.2, 0, 0.1), (3.2, 0.3, 0.9), "steel", X),
-                   Box((-0.6, 0, 0), (0.3, 0.6, 1.4), "steel", X)], 16, 8)
+    # 求生刀：深色握把、護手、單刃的刀身（刀尖往上收）、刀背一段鋸齒
+    save("knife", [Box((-5.0, 0, -0.2), (2.6, 0.7, 1.0), "black", X), Box((-7.4, 0, -0.2), (0.5, 0.75, 1.2), "gunmetal", X),
+                   Box((-2.2, 0, -0.2), (0.45, 0.8, 1.9), "steel", X),
+                   Box((1.6, 0, 0.0), (3.6, 0.3, 1.25), "blade", X),
+                   Box((6.0, 0, 0.45), (1.2, 0.3, 0.8), "blade", basis_along((1, 0, 0.35))),
+                   Box((0.4, 0, 1.2), (1.6, 0.32, 0.3), "steel", X)], 20, 10)
     # 9mm 子彈盒、散彈盒
     save("ammo", [Box((0, 0, 0), (4.0, 2.5, 2.2), "olive"), Box((0, -2.55, 0.4), (2.6, 0.1, 1.0), "brass")], 14, 12,
          yaw=0.35)
@@ -1819,8 +2147,9 @@ def gen_items():
                      Cap((0, 0, 3.0), (0, 0, 4.4), 0.7, "black")], 10, 14, yaw=0.3)
     save("stone", [Ell((0, 0, 0), (3.2, 2.6, 2.0), "rock")], 10, 8, yaw=0.4)
     # 手電筒（快捷選單的「光源」）
-    save("flashlight", [Cap((-3.5, 0, 0), (2.5, 0, 0), 1.3, "black"), Cap((2.5, 0, 0), (4.5, 0, 0), 2.1, "gunmetal"),
-                        Ell((4.9, 0, 0), (0.4, 1.7, 1.7), "goggle"), Box((-0.5, -1.3, 0.3), (0.8, 0.2, 0.4), "orange")], 14, 8)
+    save("flashlight", [Cap((-5.0, 0, 0), (1.5, 0, 0), 1.7, "gunmetal"), Cap((2.0, 0, 0), (4.6, 0, 0), 2.9, "cabinet"),
+                        Ell((5.6, 0, 0), (0.7, 2.5, 2.5), "amber"), Box((-1.5, -1.7, 0.4), (1.0, 0.25, 0.6), "orange"),
+                        Box((-3.8, 0, 0), (0.35, 1.85, 1.85), "black")], 18, 12)
     # 獵槍（栓動、瞄準鏡）、釘槍（工地用，很安靜）、信號槍、消防斧，和它們的彈藥
     save("rifle", [Box((4.0, 0, 0.9), (10.0, 0.55, 0.55), "gunmetal", X), Box((-1.0, 0, 0.0), (6.0, 0.7, 0.8), "wood", X),
                    Box((-8.5, 0, -0.6), (3.0, 0.7, 1.3), "wood", basis_along((1, 0, 0.2))),
@@ -1841,6 +2170,105 @@ def gen_items():
                     Cap((-2.5, 2.0, 0.3), (2.5, 2.0, 0.3), 1.6, "red")], 14, 10, yaw=0.3)
     save("heat_pack", [Box((0, 0, 0), (3.8, 0.8, 2.6), "orange"), Box((0, -0.85, 0), (2.4, 0.1, 1.0), "white")], 12, 10,
          yaw=0.3)
+    # ── v0.7 新增：鐵撬、左輪、衝鋒槍、十字弓和彈藥、打火機、柴火、空手、營火 ──
+    save("crowbar", [Cap((-8.0, 0, -0.6), (5.5, 0, -0.6), 0.75, "red"), Cap((5.5, 0, -0.6), (7.6, 0, 2.2), 0.8, "steel", 0.55),
+                     Cap((-8.0, 0, -0.6), (-9.2, 0, 0.1), 0.7, "steel", 0.5)], 22, 10)
+    save("revolver", [Box((3.6, 0, 1.9), (3.6, 0.5, 0.6), "steel", X),               # 槍管
+                      Box((3.2, 0, 0.9), (2.6, 0.3, 0.3), "cabinet", X),             # 退殼桿
+                      Ell((-1.2, 0, 1.3), (1.9, 1.1, 1.6), "steel"),                 # 彈巢
+                      Box((-1.6, 0, 1.4), (2.6, 0.55, 1.5), "cabinet", X),           # 槍框
+                      Box((-4.2, 0, -1.7), (1.3, 0.65, 2.3), "wood", basis_along((1, 0, -0.5))),
+                      Box((-1.0, 0, -1.0), (1.3, 0.3, 0.3), "cabinet", X),
+                      Box((-3.9, 0, 2.9), (0.5, 0.3, 0.5), "gunmetal", X)], 18, 14)
+    save("magnum_rounds", [Box((0, 0, -0.6), (3.8, 2.3, 1.7), "wood")] +
+         [Cap((-2.4 + i * 1.6, -0.9, 1.0), (-2.4 + i * 1.6, -0.9, 2.6), 0.7, "brass") for i in range(4)] +
+         [Ell((-2.4 + i * 1.6, -0.9, 3.0), (0.6, 0.6, 0.6), "steel") for i in range(4)], 14, 12, yaw=0.35)
+    save("smg", [Box((0.5, 0, 1.4), (5.0, 0.8, 1.3), "cabinet", X),                  # 機匣
+                 Box((6.6, 0, 1.5), (1.5, 0.45, 0.45), "steel", X),                  # 槍管
+                 Box((1.4, 0, -2.3), (0.85, 0.6, 2.6), "black", X),                  # 直彈匣
+                 Box((-2.6, 0, -1.2), (0.95, 0.6, 1.6), "gunmetal", basis_along((1, 0, -0.3))),  # 握把
+                 Box((-6.8, 0, 1.6), (2.0, 0.45, 0.4), "gunmetal", X),               # 伸縮槍托
+                 Box((-8.7, 0, 0.6), (0.4, 0.6, 1.5), "gunmetal", X),
+                 Box((0.0, 0, 3.1), (1.6, 0.4, 0.35), "black", X)], 22, 14)
+    # 十字弓：稍微從上面看（看得到橫著的弓臂）
+    cb = [Box((-1.0, 0, 0), (7.0, 0.7, 0.8), "wood", X), Box((-7.0, 0, -0.7), (1.8, 0.7, 1.3), "wood", X),
+          Cap((-2.0, 0, 1.0), (7.6, 0, 1.0), 0.35, "blade")]
+    for sg in (1, -1):
+        cb.append(Cap((6.2, 0, 0.6), (4.0, sg * 5.6, 0.6), 0.7, "gunmetal", 0.5))
+        cb.append(Cap((4.0, sg * 5.6, 0.6), (-2.2, 0, 0.9), 0.28, "steel"))
+    prims_cb = [q.moved(lambda v, d=False: rot_z(v, 0.25)) for q in cb]
+    write_png(os.path.join(folder, "crossbow.png"), 20, 16, render(prims_cb, 20, 16, pitch=math.radians(60), anchor=(10.5, 9.5)))
+    bolts = []
+    for i in range(3):
+        y = -1.6 + i * 1.6
+        bolts += [Cap((-5.0, y, i * 0.5), (4.0, y, i * 0.5), 0.45, "wood"), Cap((4.0, y, i * 0.5), (6.0, y, i * 0.5), 0.7, "blade", 0.15),
+                  Box((-5.0, y, i * 0.5), (1.0, 0.2, 0.95), "red", X)]
+    save("bolts", bolts, 16, 10, yaw=0.3)
+    # 打火機（黃銅煤油打火機，蓋子掀開）
+    save("lighter", [Box((0, 0, -1.6), (2.4, 1.1, 3.0), "brass"), Box((2.9, 0, 3.0), (0.6, 1.1, 2.2), "brass", basis_along((1, 0, 0.5))),
+                     Box((-0.2, 0, 2.2), (1.5, 0.8, 0.9), "steel"), Ell((-1.0, -0.2, 2.6), (0.8, 0.8, 0.8), "gunmetal"),
+                     Ell((0.4, 0, 4.4), (0.9, 0.7, 1.5), "fire")], 12, 16)
+    # 柴火（一捆劈好的木柴，用繩子綁著）
+    kd = []
+    for i, (y, z) in enumerate(((-1.6, -1.2), (1.4, -1.2), (-0.1, 1.2))):
+        kd += [Cap((-5.0, y, z), (5.0, y, z), 1.6, "wood"), Ell((5.4, y, z), (0.5, 1.4, 1.4), "cloth")]
+    kd.append(Box((-1.0, 0, 0), (0.5, 3.4, 3.2), "strap"))
+    save("kindling", kd, 18, 12, yaw=0.3)
+    # 空手（握拳的手套）：拳面朝右、拇指壓在前面、一截袖口
+    save("fists", [Box((0.6, 0, 0.4), (3.2, 2.2, 2.8), "mitt"), Box((3.6, 0, 1.0), (0.7, 2.2, 2.0), "mitt"),
+                   Box((1.2, -2.3, -1.2), (2.0, 0.5, 0.9), "mitt"), Box((-3.6, 0, 0.0), (1.6, 2.0, 2.4), "parka"),
+                   Box((-2.3, 0, 0.0), (0.4, 2.3, 2.7), "parka_trim")] +
+         [Box((3.9, 0, -1.2 + i * 1.5), (0.45, 2.3, 0.12), "strap") for i in range(3)], 16, 12, yaw=0.3)
+    # 營火的木柴堆（遊戲的 3/4 視角；火焰由程式畫在上面）：三根交叉的木柴＋底下的炭和石頭
+    cf = [Ell((0, 0, 0.4), (6.0, 4.0, 0.8), "black")]
+    for ang, tilt in ((0.3, 0.35), (2.2, 0.3), (4.3, 0.4), (5.4, 0.2)):
+        d = (math.cos(ang), math.sin(ang), 0)
+        cf.append(Cap(add(mul(d, 5.4), (0, 0, 1.0)), add(mul(d, -1.6), (0, 0, 1.0 + 6.0 * tilt)), 1.25, "wood", 1.05))
+    for ang in (1.2, 3.3, 5.0, 0.0, 2.4, 4.1):
+        cf.append(Ell((math.cos(ang) * 6.2, math.sin(ang) * 4.2, 0.7), (1.3, 1.2, 0.9), "rock"))
+    write_png(os.path.join(folder, "campfire.png"), 18, 14, render(cf, 18, 14, anchor=(9.0, 11.0)))
+    # ── 裝備圖示（Gear.DATA 的每一件）：身體 = 攤開的上衣、頭 = 頭盔外罩、腳 = 一雙靴子 ──
+    def suit(mat, trim, extra=()):
+        p = [Box((0, 0, -0.4), (3.6, 1.4, 4.4), mat), Box((0, 0, 4.3), (2.0, 1.5, 0.7), trim),
+             Box((0, -1.5, -0.4), (0.3, 0.15, 4.2), trim)]
+        for sg in (1, -1):
+            p.append(Cap((sg * 3.6, 0, 3.0), (sg * 6.6, 0, -2.4), 1.5, mat, 1.3))
+            p.append(Ell((sg * 6.8, 0, -3.2), (1.3, 1.2, 0.9), trim))
+        return p + list(extra)
+    save("parka", suit("parka", "parka_trim"), 18, 14)
+    save("hazmat_suit", suit("hazmat", "black", [Box((0, -1.5, 1.6), (1.6, 0.15, 1.0), "glass")]), 18, 14)
+    save("eod_armor", suit("eod", "rig", [Box((0, -1.6, 0.2), (2.8, 0.3, 3.0), "rig"), Box((0, 0, 5.0), (2.9, 1.7, 0.9), "eod")]), 18, 14)
+    save("sneaking_suit", suit("sneak", "helm_trim", [Box((0, -1.5, 1.0), (3.4, 0.15, 0.35), "helm_trim")]), 18, 14)
+    save("arctic_suit", suit("white", "fur"), 18, 14)
+
+    def helm(prims):
+        return [q.moved(lambda v, d=False: rot_z(v, -1.0)) for q in prims]
+    dome = lambda mat: [Ell((0, 0, 0.6), (5.2, 5.0, 4.8), mat), Ell((0.8, 0, -2.2), (4.2, 4.0, 2.6), mat)]
+    hsave = lambda name, prims: write_png(os.path.join(folder, name + ".png"), 16, 16,
+                                          render(helm(prims), 16, 16, pitch=side, anchor=(8.0, 9.0)))
+    hsave("wool_hat", [Ell((0, 0, 1.4), (5.3, 5.1, 4.0), "knit"), Ell((0, 0, -1.0), (5.5, 5.3, 1.3), "knit"),
+                       Ell((-0.5, 0, 5.8), (1.7, 1.7, 1.7), "white"), Ell((1.0, 0, -2.6), (4.2, 4.0, 2.0), "helm")])
+    hsave("gas_mask", dome("hazmat") + [Box((4.6, 0, 0.6), (0.5, 2.9, 1.3), "goggle"), Ell((2.0, 0, -2.6), (3.8, 3.4, 2.0), "black"),
+                                        Cap((3.6, 2.2, -2.8), (5.6, 3.0, -3.4), 1.5, "steel"), Cap((3.6, -2.2, -2.8), (5.6, -3.0, -3.4), 1.5, "steel")])
+    hsave("eod_helmet", dome("eod") + [Box((4.8, 0, 0.2), (0.6, 3.4, 2.4), "glass"), Ell((0, 0, -3.6), (5.4, 5.4, 1.5), "eod")])
+    hsave("balaclava", dome("black") + [Box((4.7, 0, 0.6), (0.4, 2.6, 0.9), "sneak")])
+    hsave("snow_goggles", dome("white") + [Box((4.7, 0, 0.6), (0.5, 3.0, 1.2), "orange"), Ell((0, 0, 0.6), (5.3, 5.1, 0.6), "black")])
+
+    def boots(mat, sole="black", extra=None):
+        p = []
+        for y, x0 in ((2.6, -2.2), (-2.6, 1.2)):   # 後面那隻往左錯開，兩隻都看得到
+            p += [Box((x0 - 1.6, y, 1.2), (1.6, 1.5, 3.6), mat), Box((x0 + 0.6, y, -1.5), (3.6, 1.5, 1.5), mat),
+                  Box((x0 + 0.5, y, -3.2), (3.9, 1.6, 0.5), sole), Box((x0 - 1.6, y, 4.6), (1.8, 1.7, 0.5), sole)]
+            if extra:
+                p += extra(y)
+        return [q.moved(lambda v, d=False: rot_z(v, 0.3)) for q in p]
+    bsave = lambda name, prims: write_png(os.path.join(folder, name + ".png"), 16, 14,
+                                          render(prims, 16, 14, pitch=side, anchor=(8.0, 7.5)))
+    bsave("snow_boots", boots("white", "strap", lambda y: [Box(((-3.8 if y > 0 else -0.4), y, 3.4), (1.9, 1.8, 0.8), "fur")]))
+    bsave("hazmat_boots", boots("hazmat"))
+    bsave("eod_boots", boots("eod", "black", lambda y: [Box(((1.2 if y > 0 else 4.4), y, -0.6), (1.6, 1.7, 0.9), "rig")]))
+    bsave("soft_soles", boots("sneak", "helm_trim"))
+    bsave("crampons", boots("boot", "steel", lambda y: [Box(((-1.7 if y > 0 else 1.7) + dx, y, -4.0), (0.35, 1.2, 0.5), "steel") for dx in (-2.6, 0.0, 2.6)]))
     print("items: ok")
 
 
@@ -1941,6 +2369,43 @@ def gen_fx():
                     continue
                 px[y * SW + x] = col + (int(255 * min(1.0, al * a_)),)
         write_png(os.path.join(folder, "slash_%d.png" % f), SW, SW, px)
+    # 直刺 4 格：一道往前衝的細長白光（尖端最亮最粗，尾巴抖色淡出），和橫砍的弧光一眼分得出來
+    TW, TH = 30, 9
+    for f, (tail, head, fade) in enumerate([(0.0, 0.5, 1.0), (0.12, 1.0, 1.0), (0.5, 1.0, 0.7), (0.78, 1.0, 0.35)]):
+        px = [_] * (TW * TH)
+        for y in range(TH):
+            for x in range(TW):
+                u = (x + 0.5) / TW
+                if u < tail or u > head:
+                    continue
+                k = (u - tail) / max(head - tail, 1e-6)
+                half = (0.5 + 2.6 * k) if k < 0.82 else 3.1 * (1.0 - k) / 0.18 + 0.3
+                d = abs(y + 0.5 - TH / 2)
+                if d > half:
+                    continue
+                if k < 0.4 and BAYER_FX[y % 4][x % 4] / 16.0 > k / 0.4 + 0.1:
+                    continue
+                col = (255, 255, 255) if d < half * 0.5 else (196, 232, 255) if d < half * 0.8 else (104, 176, 255)
+                px[y * TW + x] = col + (int(255 * fade * (0.35 + 0.65 * k)),)
+        write_png(os.path.join(folder, "thrust_%d.png" % f), TW, TH, px)
+    # 拳、勾拳、踢 3 格：出手那一下在拳頭前面的小衝擊（短短的放射線，越來越散、越來越淡）
+    BW = 13
+    for f, (r0, r1, al) in enumerate([(0.0, 3.2, 1.0), (2.0, 5.2, 0.85), (4.2, 6.4, 0.45)]):
+        px = [_] * (BW * BW)
+        for y in range(BW):
+            for x in range(BW):
+                dx, dy = x - BW // 2, y - BW // 2
+                r = math.hypot(dx, dy)
+                if r < r0 - 0.3 or r > r1 + 0.3:
+                    continue
+                on = dx == 0 or dy == 0 or (abs(dx) == abs(dy) and f > 0)
+                if not on:
+                    continue
+                if f == 2 and (x + y) % 2:
+                    continue
+                col = (255, 255, 255) if r < (r0 + r1) * 0.5 + 0.5 else (255, 226, 150)
+                px[y * BW + x] = col + (int(255 * al),)
+        write_png(os.path.join(folder, "burst_%d.png" % f), BW, BW, px)
     # 命中：第一格是一個白色的四角星閃光，接著冰晶碎片＋暗紅飛濺往外噴（感染體被打中）4 格
     rnd = random.Random(11)
     shards = [(rnd.uniform(0, 6.28), rnd.uniform(0.55, 1.0), rnd.random() < 0.6) for _ in range(14)]
@@ -2008,6 +2473,8 @@ def gen_fx():
                     px[y * w + x] = Y if core else (O if abs(dy) < half else R)
         write_png(os.path.join(folder, "muzzle_big_%d.png" % f), w, h, px)
     # 釘子、信號彈
+    # 十字弓的箭：深色箭桿、亮的箭頭
+    write_png(os.path.join(folder, "bolt.png"), 8, 1, [(90, 70, 50, 255)] * 2 + [(60, 48, 40, 255)] * 4 + [(200, 210, 222, 255), (240, 246, 250, 255)])
     write_png(os.path.join(folder, "nail.png"), 5, 1, [(120, 128, 140, 255), (160, 168, 180, 255), (160, 168, 180, 255),
                                                     (200, 208, 220, 255), (230, 235, 240, 255)])
     flare = [[_, (255, 120, 80, 120), _], [(255, 120, 80, 120), (255, 230, 200, 255), (255, 120, 80, 120)],
@@ -2112,11 +2579,11 @@ def scale_prims(prims, k, origin):
     out = []
     for p in prims:
         if isinstance(p, Ell):
-            out.append(Ell(mul(sub(p.c, origin), k), mul(p.r, k), p.mat, p.b))
+            out.append(_keep(Ell(mul(sub(p.c, origin), k), mul(p.r, k), p.mat, p.b), p))
         elif isinstance(p, Cap):
-            out.append(Cap(mul(sub(p.a, origin), k), mul(sub(p.bp, origin), k), p.r * k, p.mat, p.rb * k))
+            out.append(_keep(Cap(mul(sub(p.a, origin), k), mul(sub(p.bp, origin), k), p.r * k, p.mat, p.rb * k), p))
         elif isinstance(p, Box):
-            out.append(Box(mul(sub(p.c, origin), k), mul(p.h, k), p.mat, p.b))
+            out.append(_keep(Box(mul(sub(p.c, origin), k), mul(p.h, k), p.mat, p.b), p))
     return out
 
 
@@ -2453,6 +2920,9 @@ def gen_decor():
 
 def main():
     want = sys.argv[1:]
+    if want and want[0] == "measure":
+        measure(want[1:] or list(CHARACTERS))
+        return
     jobs = list(CHARACTERS) + list(OUTFIT_SETS) + ["props", "items", "fx", "tiles", "portraits", "objects", "well", "decor"]
     for j in jobs:
         if want and j not in want:

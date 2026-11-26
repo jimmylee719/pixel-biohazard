@@ -89,7 +89,7 @@
 
 ## 像素解析度
 - 內部 viewport：480x270，預設視窗 1280x720
-- stretch mode = viewport、aspect = expand、scale mode = fractional（整個畫面等比例放大，任何視窗大小介面都完整；不要改回 integer）
+- stretch mode = canvas_items、aspect = expand、scale mode = fractional（基準還是 480x270，但用視窗的解析度算圖：鏡頭縮放、捲動才會平滑，不會一格一格跳；不要改回 viewport／integer）
 - 畫在 CanvasLayer 底下的 HUD 用 `get_viewport_rect().size` 排版，不要用節點自己的 `size`
 - 預設貼圖過濾：Nearest（不要模糊像素）
 - 美術素材以 480x270 為基準設計，保持像素對齊
@@ -171,3 +171,20 @@
   `WorldState.suppressor_on()`，槍聲 12 → 3.5 格）。背後一擊：`PlayerCombat.takedown_target()` 有對象時畫面提示。
 - 標題畫面：監聽站夜景＋標誌（調頻刻度環、繞回來的波形，`TitleBackdrop._draw_emblem`）。不要再用雪地當主視覺。
 - 音樂：`tools/synth_audio.py` 的訊號動機（D、E、降 B、停、A，取自 126.05）貫穿標題、安全屋、追逐、結局；音樂和環境音是立體聲。
+
+## v0.7：操作與介面調整（使用者試玩後的要求，一定要先讀）
+- **鏡頭只有一種視角**（一開始那種斜上方俯視）：不傾斜（`tilt` 固定 0）、不切固定機位。走進小房間自動推近（`main.room_zoom()`，依 `RoomFog.room_size()`），
+  縮放用彈簧阻尼（`FollowCamera._smooth_zoom`）。不要再加斜角、固定機位、第一人稱。
+- **沒有第一人稱、沒有敲牆**：躲櫃子維持俯視（四周變暗）；站到窗戶旁邊就看得到另一邊的房間（`Player.peek_cells()` → `RoomFog.peek_cells`）。
+- **門**：平常走過去自己開；潛行（`Player.is_quiet()`）靠近不會開，要往門推 0.3 秒，或按互動「把門推開一條縫看」（`Player.toggle_peek()`，
+  只看得到門後正前方的窄扇形）。隔著牆聽腳步：`SoundCues._draw_through_walls`（腳步聲波＋前幾步的痕跡看得出方向；貼著門靜靜聽才有呼吸聲）。
+- **近戰看手上拿什麼**（`WorldState.melee()`）：knife＝揮→反手揮→刺（`KNIFE_COMBO`）、fists＝刺拳→鉤拳→踢（`FIST_COMBO`）、
+  重兵器 fire_axe／crowbar（`MELEE_WEAPONS`，物品 kind melee）。在武器選單（按住 Q）或背包的隨身裝備切換（`main.set_melee()`）。
+  小刀、打火機是隨身裝備（物品 kind kit）：一直帶著、不佔格子。
+- 新武器：revolver（.357）、smg（`auto` 按住連發，吃手槍子彈）、crossbow（無聲，`retrieve` 箭插在敵人身上，倒下後可以撿回）。地圖符號見 areas.gd 開頭。
+- **生火**：可燃物 kindling（kind campfire，地圖符號 `;`）＋打火機 = `Player.light_campfire()`（`Fire.campfire`，不燒人、會發光發熱）。主角比較耐冷（`Player.cold_resistance`）。
+- **按鍵**：Tab＝格子背包 `BackpackPanel`（惡靈古堡式：圖示格子、裝填鍵拿起／放下搬位置、滑鼠可拖；儲物箱也是它的 storage 模式）、
+  M＝全螢幕地圖 `MapPanel`（縮放、拖曳、換地圖）、P＝手機（任務、訊息、檔案、小地圖、裝備；物品 App 已拿掉）。
+- **任務指引箭頭**：手機任務清單 `MissionList` 選任務按確認＝開／關箭頭（`WorldState.toggle_pin`、`Missions.pinned()`）；主線黃色，支線藍紫紅綠白。
+  `ObjectiveArrows` 在主角腳邊畫小箭頭（沿導航路徑的方向；目標在別張地圖＝指向門／樓梯／雪地車，`main.objective_doors()`）。箭頭要小。
+- 音樂預設 60%（`OPTIONS_VERSION` 2 會把舊設定檔改一次）。舉槍移動有 `aimwalk_<武器>` 動畫。

@@ -2,7 +2,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from painter import Map
+from painter import Map, legacy_map
 
 AREAS = {}
 
@@ -23,8 +23,10 @@ for x in (5, 12, 28, 36):
     m.put(x, 4, "C")
 m.put(12, 6, "y").put(30, 18, "k").put(8, 19, "w").put(20, 17, "x").put(18, 20, "o").put(9, 21, "u").put(11, 22, "l").put(14, 12, "r")
 m.put(3, 5, "1").put(40, 5, "2").put(19, 7, "3").put(19, 13, "4").put(5, 17, "5").put(31, 17, "6").put(16, 21, "7").put(40, 21, "8")
+m.put(38, 12, "|").put(6, 14, ";").put(28, 20, ";")   # 弩箭（裝備籠）、木柴（木箱堆、貨櫃旁）
 AREAS["north_harbor"] = {
     "map": m.rows(),
+    "allow_diff": True,
     "doors": {"harbor": (8, 23), "caves": (43, 18), "gangway": (20, 0)},
     "fields": {
         "zones": '{\n\t\t\t"outside": {"rect": Rect2i(0, 0, 44, 24), "heated": false},\n\t\t}',
@@ -36,28 +38,16 @@ AREAS["north_harbor"] = {
     },
 }
 
-AREAS["ice_caves"] = {"rekey": {"42,5": "41,5"}, "fields": {}}
-AREAS["gate_one_yard"] = {"fields": {"sets": '[{"rect": Rect2i(19, 41, 7, 4), "set": "comms"}]'}}
-AREAS["gate_one_base"] = {"fields": {"sets": '''[
-			{"rect": Rect2i(1, 1, 10, 7), "set": "barracks"}, {"rect": Rect2i(12, 1, 7, 7), "set": "barracks"},
-			{"rect": Rect2i(20, 1, 17, 7), "set": "comms"}, {"rect": Rect2i(38, 1, 10, 7), "set": "office"},
-			{"rect": Rect2i(1, 12, 10, 8), "set": "mess"}, {"rect": Rect2i(21, 12, 7, 8), "set": "medical"},
-			{"rect": Rect2i(29, 12, 12, 8), "set": "lab"}, {"rect": Rect2i(21, 20, 20, 12), "set": "lab"},
-			{"rect": Rect2i(42, 20, 19, 11), "set": "garage"},
-		]'''}}
-AREAS["gate_one_safe"] = {"fields": {"set": '"barracks"'}}
+# 冰洞：地圖不變，只多放弩箭（獵人的筆記旁）和兩份木柴
+ice = legacy_map("ice_caves").put(39, 6, "|").put(5, 13, ";").put(22, 17, ";")
+AREAS["ice_caves"] = {"map": ice.rows(), "allow_diff": True, "rekey": {"42,5": "41,5"}, "fields": {}}
+# 守門一號（廣場、基地、安全屋）和郵輪北極星號在 batch4.py 重畫了。
 AREAS["lantern_1962"] = {"fields": {"sets": '''[
 			{"rect": Rect2i(1, 1, 6, 6), "set": "barracks"}, {"rect": Rect2i(8, 1, 14, 6), "set": "comms"},
 			{"rect": Rect2i(23, 1, 16, 6), "set": "comms"}, {"rect": Rect2i(1, 12, 10, 5), "set": "barracks"},
 			{"rect": Rect2i(12, 12, 14, 5), "set": "mess"}, {"rect": Rect2i(27, 12, 12, 5), "set": "office"},
-		]''', "props": '{"25,2": "set/tape_drive", "25,3": "set/tape_drive", "33,2": "set/radio_rack", "36,3": "set/server", "36,4": "set/tape_drive"}'}}
-AREAS["cruise_deck"] = {"fields": {"outdoor_set": '"deck"', "sets": '[{"rect": Rect2i(58, 5, 5, 3), "set": "hold"}]'}}
-AREAS["cruise_sundeck"] = {"fields": {"outdoor_set": '"deck"', "props": '{"19,7": "set/funnel"}'}}
-AREAS["cruise_interior"] = {"fields": {"hidden": None, "set": '"cabin"', "sets": '''[
-			{"rect": Rect2i(1, 8, 10, 12), "set": "saloon"}, {"rect": Rect2i(12, 8, 25, 13), "set": "saloon"},
-			{"rect": Rect2i(38, 8, 17, 12), "set": "theater"}, {"rect": Rect2i(1, 21, 54, 2), "set": "office"},
-		]'''}}
-AREAS["cruise_hold"] = {"fields": {"hidden": '{"37,13": "reveal:cache_ship", "40,13": "reveal:cache_ship"}', "set": '"hold"', "sets": '[{"rect": Rect2i(32, 1, 13, 6), "set": "utility"}, {"rect": Rect2i(1, 1, 6, 13), "set": "storage"}]'}}
+		]''', "props": '{"25,2": "set/tape_drive", "25,3": "set/tape_drive", "33,2": "set/radio_rack", "36,3": "set/server", "36,4": "set/tape_drive"}',
+    "camera_zones": None}}   # 原本只有鏡頭傾斜＋固定機位：拿掉
 
 if __name__ == "__main__":
     m.show()

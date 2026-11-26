@@ -27,13 +27,31 @@ extends Node
 @export var slam_down_time := 2.5
 
 ## 近戰連段：每一招的傷害、距離、硬直、擊退力道（像素／秒）、冷卻、聲音
-## knockdown = 踢倒（倒地時可以補刀）；擊退撞到牆會額外受傷、暈更久
-const COMBO := [
-	{"name": "slash", "damage": 20.0, "range": 22.0, "stagger": 0.5, "knock": 60.0, "cooldown": 0.32, "noise": 2.0},
-	{"name": "punch", "damage": 12.0, "range": 18.0, "stagger": 0.6, "knock": 110.0, "cooldown": 0.3, "noise": 2.0},
-	{"name": "kick", "damage": 18.0, "range": 21.0, "stagger": 1.1, "knock": 240.0, "cooldown": 0.55, "noise": 3.0,
-		"knockdown": true},
+## knockdown = 打倒（倒地時可以補刀）；擊退撞到牆會額外受傷、暈更久；smash = 一下劈開木箱木板
+## 手上拿什麼就打什麼（WorldState.melee()）：
+##   knife    小刀：揮 → 反手揮 → 刺（最後一刺最痛）。安靜、割得開木箱（要割幾下）
+##   fists    空手：刺拳 → 鉤拳 → 踢（踢倒在地）。傷害低，但能把人打退、打倒再抓住
+##   fire_axe／crowbar  重兵器：一下一下揮，慢但很痛
+const KNIFE_COMBO := [
+	{"name": "slash", "damage": 20.0, "range": 22.0, "stagger": 0.5, "knock": 50.0, "cooldown": 0.32, "noise": 2.0},
+	{"name": "slash_back", "damage": 20.0, "range": 22.0, "stagger": 0.5, "knock": 50.0, "cooldown": 0.32, "noise": 2.0},
+	{"name": "stab", "damage": 32.0, "range": 25.0, "stagger": 0.9, "knock": 90.0, "cooldown": 0.5, "noise": 2.0},
 ]
+const FIST_COMBO := [
+	{"name": "punch", "damage": 12.0, "range": 18.0, "stagger": 0.6, "knock": 110.0, "cooldown": 0.3, "noise": 2.0},
+	{"name": "hook", "damage": 15.0, "range": 18.0, "stagger": 0.7, "knock": 140.0, "cooldown": 0.34, "noise": 2.0},
+	{"name": "kick", "damage": 18.0, "range": 21.0, "stagger": 1.1, "knock": 240.0, "cooldown": 0.55, "noise": 3.0,
+		"knockdown": true, "smash": true},
+]
+## 重兵器（物品 kind = melee）：只有一招，連按就一直揮
+const MELEE_WEAPONS := {
+	"fire_axe": {"name": "slash_axe", "damage": 38.0, "range": 24.0, "stagger": 0.9, "knock": 120.0, "cooldown": 0.6,
+		"noise": 3.0, "smash": true},
+	"crowbar": {"name": "slash_crowbar", "damage": 30.0, "range": 28.0, "stagger": 1.0, "knock": 200.0, "cooldown": 0.55,
+		"noise": 3.0, "smash": true, "knockdown": true},
+}
+## 舊名稱（空手的連段）
+const COMBO := FIST_COMBO
 
 @export_group("瞄準")
 @export var aim_half_angle_deg := 45.0
@@ -59,15 +77,23 @@ const WEAPONS := {
 	# 信號槍：打到的地方起火、照亮一大片（引開、燒怪、看清楚黑暗）
 	"flare_gun": {"ammo": "flares", "mag": 1, "reload": 1.5, "cooldown": 0.8, "range": 150.0,
 		"damage_min": 15.0, "damage_max": 25.0, "stagger": 0.6, "noise_tiles": 7.0, "falloff": false, "fire": true},
+	# 左輪：六發、一發幾乎什麼都停得下來；裝填很慢、非常大聲
+	"revolver": {"ammo": "magnum_rounds", "mag": 6, "reload": 2.6, "cooldown": 0.6, "range": 190.0,
+		"damage_min": 70.0, "damage_max": 125.0, "stagger": 0.9, "noise_tiles": 16.0, "falloff": false},
+	# 衝鋒槍：按住扳機連發（auto），吃手槍子彈吃得很快；每一發傷害低、準心收不太起來
+	"smg": {"ammo": "ammo", "mag": 24, "reload": 1.9, "cooldown": 0.1, "range": 150.0,
+		"damage_min": 14.0, "damage_max": 26.0, "stagger": 0.18, "noise_tiles": 12.0, "falloff": false, "auto": true,
+		"recoil": 0.55},
+	# 十字弓：沒有聲音、很痛、一次一支；射中的箭可以從屍體上拔回來（retrieve）
+	"crossbow": {"ammo": "bolts", "mag": 1, "reload": 1.7, "cooldown": 0.3, "range": 200.0,
+		"damage_min": 60.0, "damage_max": 110.0, "stagger": 0.8, "noise_tiles": 1.5, "falloff": false, "quiet": true,
+		"retrieve": true},
 }
 ## 子彈穿牆：薄牆（連續牆格數 ≤ 第一個數字）打得穿，每穿一道牆傷害乘上第二個數字。
 ## 牆、櫃子、置物櫃、關著的門都算；厚的外牆、岩壁打不穿。散彈、釘槍、信號彈不會穿。
-const PIERCE := {"pistol": [1, 0.55], "rifle": [2, 0.8]}
+const PIERCE := {"pistol": [1, 0.55], "rifle": [2, 0.8], "revolver": [1, 0.75], "smg": [1, 0.5]}
 ## 子彈打到敵人的判定寬度（像素）
 const SHOT_HIT_WIDTH := 7.0
-
-## 近戰武器：有的話第一下（揮砍）換成它（傷害倍率、可以一下劈開木箱木板）
-const MELEE_WEAPONS := {"fire_axe": {"mult": 1.9, "noise": 3.0}}
 
 ## 目前武器的彈匣容量（沒有武器時為 0）
 var magazine_size: int:
@@ -111,12 +137,18 @@ func current_weapon() -> String:
 	return ""
 
 
-## 身上有的近戰武器（沒有 = 小刀）
+## 手上的重兵器（消防斧、鐵撬）；小刀、空手 = ""
 func melee_weapon() -> String:
-	for w in MELEE_WEAPONS:
-		if WorldState.inv_count(w) > 0:
-			return w
-	return ""
+	var m := WorldState.melee()
+	return m if MELEE_WEAPONS.has(m) else ""
+
+
+## 現在這種近戰的連段
+func melee_moves() -> Array:
+	var m := WorldState.melee()
+	if MELEE_WEAPONS.has(m):
+		return [MELEE_WEAPONS[m]]
+	return FIST_COMBO if m == "fists" else KNIFE_COMBO
 
 
 func has_weapon() -> bool:
@@ -162,7 +194,7 @@ func _physics_process(delta: float) -> void:
 	aiming = Input.is_action_pressed("aim") and has_weapon() and not reloading
 	if aiming:
 		_update_aim(delta)
-		if Input.is_action_just_pressed("fire"):
+		if Input.is_action_just_pressed("fire") or (stats().get("auto", false) and Input.is_action_pressed("fire")):
 			shoot()
 	else:
 		target = null
@@ -245,9 +277,9 @@ func shoot() -> bool:
 	var silenced := weapon == "pistol" and WorldState.suppressor_on()
 	NoiseBus.emit_noise(origin, (SUPPRESSED_NOISE_TILES if silenced else s.noise_tiles) * Player.TILE, player)
 	match weapon:
-		"shotgun", "rifle":
+		"shotgun", "rifle", "revolver":
 			Sfx.play("shotgun_shot", origin, 0.04, 2.0 if weapon == "rifle" else 0.0)
-		"nailgun":
+		"nailgun", "crossbow":
 			Sfx.play("knife_swing", origin, 0.1, -6.0)
 		"flare_gun":
 			Sfx.play("pistol_shot", origin, 0.1, -6.0)
@@ -266,6 +298,7 @@ func shoot() -> bool:
 			var dist := origin.distance_to(target.global_position)
 			damage *= clampf(1.3 - dist / s.range, 0.3, 1.0)
 		target.take_damage(damage, origin, s.stagger)
+		_stick_bolt(target, s)
 		Sfx.play("bullet_hit_flesh", target.global_position)
 		end = target.global_position
 		hit = true
@@ -294,6 +327,7 @@ func shoot() -> bool:
 					walls += 1
 			var dmg: float = s.damage_min * pow(PIERCE.get(weapon, [0, 1.0])[1], walls)
 			victim.take_damage(dmg, origin, s.stagger * (0.5 if walls > 0 else 1.0))
+			_stick_bolt(victim, s)
 			Sfx.play("bullet_hit_flesh", victim.global_position)
 			end = victim.global_position
 			hit = true
@@ -315,8 +349,30 @@ func shoot() -> bool:
 		fire.light_radius = 130.0
 		player.level.add_child(fire)
 		fire.global_position = end - (end - origin).normalized() * 4.0
-	aim_focus = minf(aim_focus, 0.3)  # 後座力：準心重新收束
+	aim_focus = minf(aim_focus, float(s.get("recoil", 0.3)))  # 後座力：準心重新收束
 	return true
+
+
+## 十字弓的箭插在敵人身上：牠倒下後可以拔回來（Enemy 死的時候 main 會在屍體旁放一個可以撿的箭）
+func _stick_bolt(enemy: Enemy, s: Dictionary) -> void:
+	if s.get("retrieve", false):
+		enemy.set_meta("bolts", int(enemy.get_meta("bolts", 0)) + 1)
+		if enemy.is_dead:
+			drop_bolts(enemy)
+
+
+## 把插在敵人身上的箭變成地上可以撿的東西
+func drop_bolts(enemy: Enemy) -> void:
+	var n := int(enemy.get_meta("bolts", 0))
+	if n <= 0 or player.level == null:
+		return
+	enemy.set_meta("bolts", 0)
+	var pickup := ItemPickup.new()
+	pickup.pickup_item = "bolts"
+	pickup.pickup_count = n
+	pickup.item_id = "bolt:%d:%d" % [Time.get_ticks_msec(), enemy.get_instance_id()]
+	pickup.position = enemy.global_position - player.level.global_position
+	player.level.add_interactable(pickup)
 
 
 ## 沿著直線追子彈：碰到牆時，如果牆夠薄（連續牆格 ≤ pierce[0]）就穿過去繼續飛。
@@ -389,13 +445,18 @@ func _finish_reload() -> void:
 func melee() -> bool:
 	if _cooldown > 0.0:
 		return false
-	combo_step = combo_step + 1 if _since_melee <= combo_window and combo_step < COMBO.size() - 1 else 0
+	var moves := melee_moves()
+	combo_step = combo_step + 1 if _since_melee <= combo_window and combo_step < moves.size() - 1 else 0
+	combo_step = mini(combo_step, moves.size() - 1)
 	_since_melee = 0.0
-	var move: Dictionary = COMBO[combo_step]
+	var move: Dictionary = moves[combo_step]
 	_cooldown = move.cooldown
 	var origin := player.global_position
 	var half := deg_to_rad(melee_half_angle_deg)
-	var reach: float = move.range if combo_step > 0 else melee_range
+	# 刺是直直往前：範圍窄一點、遠一點
+	if move.name == "stab":
+		half *= 0.6
+	var reach: float = move.range
 	var takedown := false
 	var hit_any := false
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -404,11 +465,9 @@ func melee() -> bool:
 			continue
 		if not Sight.in_cone(origin, player.facing, enemy.global_position, half, reach):
 			continue
-		var damage: float = melee_damage if combo_step == 0 else move.damage
+		var damage: float = move.damage
 		if move.name == "kick":
 			damage *= Gear.stat("kick")
-		if combo_step == 0 and melee_weapon() != "":
-			damage *= MELEE_WEAPONS[melee_weapon()].mult
 		if enemy.can_be_taken_down_by(player):
 			damage *= takedown_mult
 			takedown = true
@@ -416,25 +475,27 @@ func melee() -> bool:
 		enemy.apply_knockback(player.facing, move.knock, move.get("knockdown", false))
 		hit_any = true
 	match move.name:
-		"slash":
+		"slash", "slash_back", "stab":
 			Sfx.play("knife_hit" if hit_any else "knife_swing", origin)
-		"punch":
+		"punch", "hook":
 			Sfx.play("punch_hit" if hit_any else "knife_swing", origin, 0.1, -4.0)
 		"kick":
 			Sfx.play("kick_hit" if hit_any else "knife_swing", origin, 0.1, -2.0)
+		_:
+			Sfx.play("kick_hit" if hit_any else "knife_swing", origin, 0.06, 0.0)
 	if hit_any:
-		Sfx.rumble(40 if combo_step < 2 else 90, 0.5)
-	# 小刀割得開木箱、木板（安靜，但要割好幾下）；踢一腳直接踢破（比較大聲）
+		Sfx.rumble(40 if not move.get("knockdown", false) else 90, 0.5)
+	# 小刀割得開木箱、木板（安靜，但要割好幾下）；踢、斧頭、鐵撬一下就破（比較大聲）；拳頭打不開
 	if player.level:
 		for item in player.level.get_interactables():
 			if item is Breakable and item.enabled \
-					and Sight.in_cone(origin, player.facing, item.global_position, half, reach + 8.0):
-				if move.name == "kick" or (combo_step == 0 and melee_weapon() != ""):
+					and Sight.in_cone(origin, player.facing, item.global_position, deg_to_rad(melee_half_angle_deg), reach + 8.0):
+				if move.get("smash", false):
 					item.smash(4.0)
-				else:
+				elif move.name.begins_with("slash") or move.name == "stab":
 					item.cut()
 	# 先結算傷害再發出聲音：不然被偷襲的敵人會在同一瞬間「聽到」揮刀聲而無法偷襲
-	NoiseBus.emit_noise(origin, (melee_noise_tiles if combo_step == 0 else move.noise) * Player.TILE, player)
+	NoiseBus.emit_noise(origin, float(move.noise) * Player.TILE, player)
 	last_melee = {"pos": origin, "dir": player.facing, "t": 0.0, "takedown": takedown, "move": move.name, "hit": hit_any}
 	return true
 

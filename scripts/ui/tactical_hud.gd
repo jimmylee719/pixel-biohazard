@@ -25,7 +25,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if main:
 		visible = not main.phone.visible and not (main.cutscene and main.cutscene.active) \
-			and not main._ending_panel.visible and not (main.first_person and main.first_person.active) \
+			and not main._ending_panel.visible and not main.backpack.visible and not main.map_panel.visible \
 			and not main._radio_panel.visible and not main._storage_panel.visible and not main._inventory_panel.visible \
 			and not main._signal_panel.visible and not main._pause_panel.visible \
 			and not (main.options_panel and main.options_panel.visible)
@@ -86,13 +86,24 @@ func _draw_item_box(at: Vector2) -> void:
 func _draw_weapon_box(at: Vector2) -> void:
 	var combat: PlayerCombat = main._player.combat
 	var weapon := combat.current_weapon()
+	var melee := WorldState.melee()
+	var melee_name := tr("Bare hands") if melee == "fists" else Items.display_name(melee)
 	if weapon == "":
-		_box(at, Art.tex("props/knife"), tr("KNIFE"), "")
+		_box(at, Art.tex("props/" + melee), melee_name, "")
 		return
 	var ammo := "%d / %d" % [WorldState.get_loaded(weapon), WorldState.inv_count(combat.stats().ammo)]
 	if combat.reloading:
 		ammo = tr("RELOAD")
 	_box(at, Art.tex("props/" + weapon), Items.display_name(weapon), ammo)
+	# 近戰用什麼：武器框上面一個小圖（小刀／拳頭／斧頭／鐵撬）
+	var mi := Art.tex("props/" + melee)
+	if mi:
+		var k := minf(1.0, minf(14.0 / mi.get_width(), 10.0 / mi.get_height()))
+		var r := Rect2(at + Vector2(BOX.x - 18, -13), Vector2(18, 12))
+		draw_rect(r, BG)
+		draw_rect(r, Color(FRAME, 0.5), false, 1.0)
+		var sz := (mi.get_size() * k).floor()
+		draw_texture_rect(mi, Rect2((r.get_center() - sz * 0.5).floor(), sz), false)
 	if weapon == "pistol" and WorldState.suppressor_on():
 		# 消音器：武器框右上角標 SUP
 		draw_rect(Rect2(at + Vector2(BOX.x - 24, 2), Vector2(22, 9)), Color(0.1, 0.12, 0.14, 0.9))

@@ -8,7 +8,7 @@ extends Control
 signal app_pressed(app: String)
 signal close_pressed
 
-const APPS := ["status", "items", "missions", "messages", "codex", "map", "gear"]
+const APPS := ["status", "missions", "messages", "codex", "map", "gear"]
 const APP_LABELS := {"status": "STAT", "items": "ITEM", "missions": "OPS", "messages": "MSG", "codex": "FILE",
 	"map": "MAP", "gear": "GEAR"}
 const APP_TITLES := {"status": "Status", "items": "Items", "missions": "Operations", "messages": "Messages",
@@ -20,7 +20,7 @@ const SCREEN := Rect2(144, 14, 192, 242)
 ## App 內容的範圍（App 列、標題下面）
 const CONTENT := Rect2(148, 58, 184, 194)
 
-var app := "items"
+var app := "missions"
 var level: Level
 var player_pos := Vector2.ZERO
 var portrait: Texture2D

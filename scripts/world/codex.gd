@@ -51,7 +51,7 @@ const ENTRIES := {
 		"tip": "Break line of sight when the laser thickens. He has to work the bolt after every shot. Noise draws his aim."},
 	# ── 武器 ──
 	"knife": {"group": "weapon", "name": "Survival knife", "sprite": "props/knife",
-		"desc": "Your own. Quiet, always there. From behind, one cut is enough.", "tip": "Slash, punch, kick - chain them."},
+		"desc": "Your own. Quiet, always there. From behind, one cut is enough.", "tip": "Slash, slash, thrust. Sheathe it from the weapon menu to fight bare-handed: jab, hook, kick."},
 	"pistol": {"group": "weapon", "name": "Pistol", "sprite": "props/pistol",
 		"desc": "Station security sidearm. Eight rounds.", "tip": "Hold aim to steady it before you fire."},
 	"shotgun": {"group": "weapon", "name": "Shotgun", "sprite": "props/shotgun",
@@ -63,7 +63,19 @@ const ENTRIES := {
 	"flare_gun": {"group": "weapon", "name": "Flare gun", "sprite": "props/flare_gun",
 		"desc": "Sets the landing spot burning and lights the dark.", "tip": "Fire it past them to pull them away - or into them."},
 	"fire_axe": {"group": "weapon", "name": "Fire axe", "sprite": "props/fire_axe",
-		"desc": "Heavy, red, reliable. Replaces the knife's first swing.", "tip": "Barricades come down in one blow."},
+		"desc": "Heavy, red, reliable. Carried in place of the knife.", "tip": "Barricades come down in one blow."},
+	"crowbar": {"group": "weapon", "name": "Crowbar", "sprite": "props/crowbar",
+		"desc": "A metre of hooked steel from the fuel depot. Long reach; puts most things on the floor.",
+		"tip": "Knock them down, then finish it - or walk away."},
+	"revolver": {"group": "weapon", "name": "Revolver", "sprite": "props/revolver",
+		"desc": "A .357 six-shot from an officer's desk at Gate One. One round stops almost anything.",
+		"tip": "Six shots, a long reload, and everyone hears it. Make each one count."},
+	"smg": {"group": "weapon", "name": "Submachine gun", "sprite": "props/smg",
+		"desc": "Compact 9mm with a folding stock, Accord issue. Shares ammunition with the pistol.",
+		"tip": "Hold the trigger. Short bursts - the magazine is gone in three seconds."},
+	"crossbow": {"group": "weapon", "name": "Crossbow", "sprite": "props/crossbow",
+		"desc": "A hunter's crossbow. No report at all, and it hits like a rifle at close range.",
+		"tip": "Pull your bolts back out of what you drop. One bolt at a time - do not miss twice."},
 }
 
 const GROUP_TITLES := {"infected": "INFECTED", "human": "HUMAN", "weapon": "WEAPONS"}

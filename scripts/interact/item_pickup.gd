@@ -16,7 +16,7 @@ const COLORS := {
 	"heat_pack": Color(1.0, 0.6, 0.25),
 }
 ## 撿到武器時彈匣裡已經有的子彈
-const START_LOADED := {"pistol": 6, "shotgun": 2, "rifle": 3, "nailgun": 12, "flare_gun": 1}
+const START_LOADED := {"pistol": 6, "shotgun": 2, "rifle": 3, "nailgun": 12, "flare_gun": 1, "revolver": 6, "smg": 24, "crossbow": 1}
 
 var pickup_item := ""
 var pickup_count := 1
@@ -58,7 +58,9 @@ func sync_from_state() -> void:
 const STASH := {"med": "medbox", "antibiotic": "cooler", "ammo": "ammo_box", "shells": "ammo_box", "rifle_rounds": "ammo_box",
 	"nails": "toolbox", "flares": "ammo_box", "pistol": "weapon_case", "shotgun": "weapon_case", "rifle": "weapon_case",
 	"flare_gun": "weapon_case", "nailgun": "toolbox", "fire_axe": "axe_case", "ethanol": "chem_crate", "heat_pack": "backpack",
-	"suppressor": "weapon_case", "bottle": "bottle_crate", "stone": "duffel"}
+	"suppressor": "weapon_case", "bottle": "bottle_crate", "stone": "duffel",
+	"revolver": "weapon_case", "smg": "weapon_case", "crossbow": "weapon_case", "magnum_rounds": "ammo_box", "bolts": "duffel",
+	"crowbar": "toolbox"}
 ## 生活區（辦公室、宿舍、實驗室……）的子彈、雜物收在抽屜裡，不是軍用彈藥箱
 const CIVIL_SETS := ["office", "dorm", "lab", "lounge", "mess", "medical", "cabin", "saloon", "theater", "hut"]
 

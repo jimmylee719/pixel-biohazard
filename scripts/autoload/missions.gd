@@ -219,6 +219,42 @@ func tracked_mission() -> Dictionary:
 	return {}
 
 
+## 任務指引的顏色：主線永遠是黃色；支線依勾選的順序：藍、紫、紅、綠、白
+const MAIN_COLOR := Color(1.0, 0.85, 0.25)
+const SIDE_COLORS := [Color(0.35, 0.65, 1.0), Color(0.75, 0.45, 1.0), Color(1.0, 0.35, 0.3), Color(0.4, 0.95, 0.5),
+	Color(0.95, 0.95, 0.95)]
+
+
+## 現在有箭頭的任務：[{mission, color}]。主線 = 目前進行中的那一個主線任務
+func pinned() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if WorldState.pin_main():
+		var m := tracked_mission()
+		if not m.is_empty():
+			out.append({"mission": m, "color": MAIN_COLOR})
+	var i := 0
+	for id in WorldState.pinned_sides():
+		var m := get_mission(id)
+		if not m.is_empty() and is_active(id):
+			out.append({"mission": m, "color": SIDE_COLORS[i % SIDE_COLORS.size()]})
+			i += 1
+	return out
+
+
+func is_pinned(mission_id: String) -> bool:
+	for p in pinned():
+		if p.mission.id == mission_id:
+			return true
+	return false
+
+
+func pin_color(mission_id: String) -> Color:
+	for p in pinned():
+		if p.mission.id == mission_id:
+			return p.color
+	return Color(0, 0, 0, 0)
+
+
 func list_visible() -> Array:
 	return DATA.filter(func(m): return is_available(m.id))
 

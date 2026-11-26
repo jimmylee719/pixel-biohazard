@@ -1,7 +1,8 @@
 ## 物品資料。物品欄、撿取、使用都從這裡查。
 ##   stack  一格最多疊幾個
 ##   kind   throwable（投擲；在物品欄「使用」= 準備投擲這種）、ammo（彈藥）、heal（補血）、cure（降低感染）、
-##          weapon（武器，在物品欄「使用」= 裝備）、craft（材料，在物品欄「使用」= 組合，見 recipe）
+##          weapon（武器，在物品欄「使用」= 裝備）、craft（材料，在物品欄「使用」= 組合，見 recipe）、
+##          melee（近戰武器：裝備後取代小刀）、attach（配件）、kit（隨身裝備：小刀、打火機，一直帶著、不佔格子）、campfire（可燃物：用打火機生一堆火）
 class_name Items
 extends RefCounted
 
@@ -43,7 +44,25 @@ const DATA := {
 	"flares": {"name": "Flares", "stack": 4, "kind": "ammo",
 		"desc": "Signal flares. Red, hot, and very bright."},
 	"fire_axe": {"name": "Fire axe", "stack": 1, "kind": "melee",
-		"desc": "Replaces the knife for your first swing. Splits crates and barricades in one blow."},
+		"desc": "Heavy and slow. Equip it in place of the knife. Splits crates and barricades in one blow."},
+	"crowbar": {"name": "Crowbar", "stack": 1, "kind": "melee",
+		"desc": "A metre of hooked steel. Equip it in place of the knife. Long reach, floors most things, pries crates open."},
+	"revolver": {"name": "Revolver", "stack": 1, "kind": "weapon",
+		"desc": "Six-shot .357 from an officer's desk. Stops almost anything in one round. Slow to reload and very loud."},
+	"magnum_rounds": {"name": ".357 rounds", "stack": 12, "kind": "ammo",
+		"desc": "Fat brass for the revolver. Rare."},
+	"smg": {"name": "Submachine gun", "stack": 1, "kind": "weapon",
+		"desc": "Compact 9mm, folding stock. Hold the trigger to keep firing. Eats pistol rounds fast."},
+	"crossbow": {"name": "Crossbow", "stack": 1, "kind": "weapon",
+		"desc": "A hunter's crossbow. Silent, hits hard, one bolt at a time. Bolts that hit can be pulled back out."},
+	"bolts": {"name": "Crossbow bolts", "stack": 8, "kind": "ammo",
+		"desc": "Carbon shafts, broadhead tips. Reusable if you can reach the body."},
+	"knife": {"name": "Combat knife", "stack": 1, "kind": "kit",
+		"desc": "Fixed blade, always on your vest. Slash, slash, thrust. Sheathe it to fight bare-handed instead: jab, hook, kick."},
+	"lighter": {"name": "Lighter", "stack": 1, "kind": "kit",
+		"desc": "Brass petrol lighter. Lights oil drums, firebombs and kindling. It never leaves your pocket."},
+	"kindling": {"name": "Kindling", "stack": 4, "kind": "campfire",
+		"desc": "Split pallet wood and oily rags. Use it to light a small fire at your feet: warmth for a while - and light anyone can see."},
 }
 
 ## 地圖符號 → [物品, 數量]
@@ -64,6 +83,13 @@ const MAP_PICKUPS := {
 	"y": ["flares", 2],
 	"z": ["fire_axe", 1],
 	"^": ["suppressor", 1],
+	"!": ["revolver", 1],
+	":": ["magnum_rounds", 4],
+	"$": ["smg", 1],
+	"*": ["crossbow", 1],
+	"|": ["bolts", 3],
+	"?": ["crowbar", 1],
+	";": ["kindling", 1],
 }
 
 ## 投擲物：落地聲音大小（格）、會不會起火

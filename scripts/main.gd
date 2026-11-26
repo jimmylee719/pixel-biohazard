@@ -60,6 +60,11 @@ var radio_dial: RadioDial
 var cutscene: CutscenePlayer
 ## 快捷選單（道具鍵、武器鍵：按一下用／換，按住＋方向選）
 var quick_menu: QuickMenu
+var backpack: BackpackPanel
+var map_panel: MapPanel
+var mission_list: MissionList
+var objective_arrows: ObjectiveArrows
+var _arrow_timer := 0.0
 var _qm_key := ""
 var _qm_pressed_ms := 0
 ## 生存模式（WorldState.mode == "survival" 時才有）
@@ -144,8 +149,7 @@ func _ready() -> void:
 			_end_attempt(tr("YOU DIED"), Color(0.9, 0.2, 0.2)))
 	_player.hurt.connect(func(_d):
 		_hurt_flash.color.a = 0.45
-		_hurt_timer = 4.0
-		close_window_view())
+		_hurt_timer = 4.0)
 	_banner.visible = false
 	_hint.text = _build_hint()
 	WorldState.codex_unlocked.connect(func(id: String):
@@ -207,9 +211,6 @@ func _ready() -> void:
 	film.material = mat
 	_film_mat = mat
 	film_layer.add_child(film)
-	first_person = FirstPersonView.new()
-	$HUD.add_child(first_person)
-	$HUD.move_child(first_person, _hint.get_index())
 	# 警戒狀態（ALERT／EVASION／CAUTION）在畫面上方正中間
 	_alert_label = Label.new()
 	_alert_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -240,6 +241,30 @@ func _ready() -> void:
 	quick_menu = QuickMenu.new()
 	quick_menu.name = "QuickMenu"
 	$HUD.add_child(quick_menu)
+	# 任務指引的小箭頭（畫在主角腳邊）
+	objective_arrows = ObjectiveArrows.new()
+	objective_arrows.name = "ObjectiveArrows"
+	objective_arrows.main = self
+	$HUD.add_child(objective_arrows)
+	$HUD.move_child(objective_arrows, 1)
+	# 格子背包（物品鍵、儲物箱）和全螢幕地圖（地圖鍵）
+	backpack = BackpackPanel.new()
+	backpack.name = "Backpack"
+	backpack.main = self
+	$HUD.add_child(backpack)
+	backpack.use_slot.connect(use_inventory_slot)
+	backpack.use_kit.connect(_use_kit)
+	backpack.closed.connect(func():
+		get_tree().paused = false
+		Sfx.play("ui_cancel"))
+	map_panel = MapPanel.new()
+	map_panel.name = "MapPanel"
+	map_panel.main = self
+	$HUD.add_child(map_panel)
+	map_panel.closed.connect(func():
+		get_tree().paused = false
+		Sfx.play("ui_cancel"))
+	map_panel.change_area.connect(_flip_map)
 	cutscene = CutscenePlayer.new()
 	cutscene.name = "Cutscene"
 	$HUD.add_child(cutscene)
@@ -274,12 +299,10 @@ func _process(delta: float) -> void:
 	elif _pause_panel.visible:
 		if Input.is_action_just_pressed("pause"):
 			_toggle_pause()
+	elif backpack.visible or map_panel.visible:
+		pass  # 背包、地圖自己處理按鍵
 	elif phone.visible:
 		_process_phone_input()
-	elif _inventory_panel.visible:
-		_process_inventory_input()
-	elif _storage_panel.visible:
-		_process_storage_input()
 	elif _radio_panel.visible:
 		_process_radio_input()
 	elif _signal_panel.visible:
@@ -294,9 +317,11 @@ func _process(delta: float) -> void:
 		elif Input.is_action_just_pressed("pause"):
 			_toggle_pause()
 		elif Input.is_action_just_pressed("map"):
-			_toggle_mission_panel()
+			open_map()
 		elif Input.is_action_just_pressed("inventory"):
 			_toggle_inventory_panel()
+		elif Input.is_action_just_pressed("phone"):
+			_toggle_mission_panel()
 
 	_hurt_flash.color.a = move_toward(_hurt_flash.color.a, 0.0, delta * 1.5)
 	# 感染值越高，畫面四周越白（症狀）
@@ -318,8 +343,10 @@ func _process(delta: float) -> void:
 		_prompt.text = tr("[%s] Silent takedown   [%s] Grab") % [_key_name("fire"), _key_name("interact")]
 	elif focus and _player.input_enabled:
 		_prompt.text = "[%s] %s" % [_key_name("interact"), tr(focus.get_prompt(_player))]
-	elif _player.input_enabled and _player.knock_point() != null and _player.velocity.length() < 5.0:
-		_prompt.text = tr("[%s] Knock on the wall") % _key_name("interact")
+	elif _player.input_enabled and _player.peeking != null:
+		_prompt.text = tr("[%s] Let the door close") % _key_name("interact")
+	elif _player.input_enabled and _player.peek_candidate() != null:
+		_prompt.text = tr("[%s] Ease the door open and look") % _key_name("interact")
 	else:
 		_prompt.text = ""
 	_items.text = _build_items_text()
@@ -351,10 +378,10 @@ func _process(delta: float) -> void:
 			show_message(tr("New objective: %s") % tr(tracked.title))
 		_last_objective = tracked_id
 	_update_status()
+	_update_arrows(delta)
 	_update_boss_bar()
 	_update_music(delta)
 	_update_alert_hud()
-	_process_window_view(delta)
 	_update_region()
 	if not _resetting and not _transitioning:
 		_mark_explored(delta)
@@ -367,8 +394,6 @@ func _process(delta: float) -> void:
 	_hint.visible = false  # 操作說明在手機「操作」App
 	if phone.visible:
 		_refresh_phone()
-	if first_person.active:
-		_prompt.text = ""
 
 
 # ── 音樂 ──────────────────────────────────────────────
@@ -377,69 +402,18 @@ func _process(delta: float) -> void:
 const CHASE_HOLD := 6.0
 var _chase_timer := 0.0
 var _region := ""
-## 第一人稱視角（櫃子、窗戶）
-var first_person: FirstPersonView
-var _fp_opened_frame := -1
-var _fp_closed_frame := -100
-var _window_push := 0.0
 var _reinforced := false
 var _alert_label: Label
 var _any_alert := false
 var _any_suspicious := false
 
 
-# ── 第一人稱：櫃子、窗戶 ─────────────────────────────
+# ── 躲櫃子（維持俯視：四周變暗，只看得到櫃子縫外面一小塊）──
 
 func _on_hiding_changed(is_hidden: bool) -> void:
 	_vignette.visible = is_hidden
-	if is_hidden and _player.hiding_in:
-		var out := (_player._hide_return - _player.hiding_in.global_position).normalized()
-		first_person.open(level, _player.hiding_in.global_position, out, "locker",
-			tr("[%s] Leave the locker") % _key_name("interact"))
-	else:
-		first_person.close()
 
 
-func _on_window_look(window: WindowPane, from_pos: Vector2) -> void:
-	# 剛離開窗邊的那一下互動鍵不要又打開
-	if first_person.active or Engine.get_physics_frames() - _fp_closed_frame <= 3:
-		return
-	_player.input_enabled = false
-	_player.velocity = Vector2.ZERO
-	_fp_opened_frame = Engine.get_process_frames()
-	first_person.open(level, from_pos, window.global_position - from_pos, "window",
-		tr("[%s] Step back") % _key_name("interact"))
-
-
-func close_window_view() -> void:
-	if first_person.mode != "window" or not first_person.active:
-		return
-	first_person.close()
-	_fp_closed_frame = Engine.get_physics_frames()
-	_player.input_enabled = true
-
-
-func _process_window_view(delta: float) -> void:
-	if first_person.active and first_person.mode == "window":
-		if Engine.get_process_frames() == _fp_opened_frame:
-			return
-		if Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_cancel") \
-				or Input.get_vector("move_left", "move_right", "move_up", "move_down").dot(-first_person._dir) > 0.5:
-			close_window_view()
-		return
-	# 往窗戶推一下（推著不動 0.25 秒）就自動靠過去看
-	var w := _player.focus as WindowPane if is_instance_valid(_player.focus) else null
-	var push := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	if w and _player.input_enabled and push.dot((w.global_position - _player.global_position).normalized()) > 0.7:
-		_window_push += delta
-		if _window_push >= 0.25:
-			_window_push = 0.0
-			_on_window_look(w, _player.global_position)
-	else:
-		_window_push = 0.0
-
-
-## 人類敵人無線電通報成功：區域有設定的話，從門口來增援
 func _on_radio_called(_caller: Node, target: Vector2) -> void:
 	show_message(tr("Enemy radio: \"Contact! All units, converge!\""), true)
 	var r := level.reinforcements()
@@ -523,27 +497,41 @@ func _update_boss_bar() -> void:
 		_boss_fill.size.x = 200.0 * clampf(boss.health / boss.max_health, 0.0, 1.0)
 
 
-## ── 潛龍諜影式的多種視角（2.5D）：區域的鏡頭設定、貼牆視角、斜角傾斜 ──
-var _tilt := 0.0
+## ── 鏡頭：一律是一開始那種斜上方俯視（不傾斜、不切固定機位）。只有遠近會變：
+##    走進小房間自動推近一點（房間越小推越近），回到走廊、大廳、戶外就拉回來；貼牆時往前方多看一點。
+## 幾格以下的房間算小房間 → 推近多少
+const ROOM_ZOOM := [[40, 1.3], [80, 1.2], [140, 1.1]]
 
 
-func _update_camera_view(delta: float) -> void:
+func _update_camera_view(_delta: float) -> void:
 	if level == null or _camera.fixed:
-		_set_tilt(lerpf(_tilt, 0.0, 1.0 - exp(-3.0 * delta)))
 		return
 	var zone: Dictionary = level.camera_zone_at(_player.global_position)
-	var zoom := float(zone.get("zoom", 1.0))
-	var tilt := float(zone.get("tilt", Areas.get_area(level.area_id).get("tilt", 0.0)))
-	_camera.frame_point = (Vector2(zone.frame) + Vector2(0.5, 0.5)) * Level.TILE if zone.has("frame") else null
+	var zoom := float(zone.get("zoom", room_zoom()))
 	if _player.wall_press != Vector2.ZERO and not _player.is_hiding:
-		# 貼牆：鏡頭推到主角前面、拉近、壓低成斜角
-		_camera.wall_offset = _player.wall_press * 84.0
-		zoom = maxf(zoom, 1.3)
-		tilt = maxf(tilt, 0.16)
+		# 貼牆：鏡頭往主角前面推出去一點（看得到走廊前面）
+		_camera.wall_offset = _player.wall_press * 56.0
 	else:
 		_camera.wall_offset = Vector2.ZERO
 	_camera.zoom_target = zoom
-	_set_tilt(lerpf(_tilt, tilt, 1.0 - exp(-3.0 * delta)))
+
+
+## 主角所在的房間有多大 → 鏡頭要推多近（戶外、大房間 = 1）
+func room_zoom() -> float:
+	if level == null or level.fog == null:
+		return 1.0
+	var cell := level.cell_of(_player.global_position)
+	if not level._is_indoor_cell(cell) or not level.room_of.has(cell):
+		return 1.0
+	var n: int = level.fog.room_size(level.room_of[cell])
+	for step in ROOM_ZOOM:
+		if n <= step[0]:
+			return step[1]
+	return 1.0
+
+
+## 舊的斜角視角已經取消：後製的 tilt 固定是 0
+var _tilt := 0.0
 
 
 func _set_tilt(v: float) -> void:
@@ -589,8 +577,6 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	if fade:
 		await _fade_to(1.0)
 
-	if first_person and first_person.active:
-		first_person.close()
 	if level:
 		# 馬上從場景移除（不然舊地圖的牆在這一幀還在，會把主角推開）
 		remove_child(level)
@@ -640,8 +626,6 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.drive.connect(func(target: String): load_area(target, "snowcat"))
 		elif item is ShaftLift:
 			item.message_shown.connect(func(text: String): show_message(text, true))
-		elif item is WindowPane:
-			item.look.connect(_on_window_look)
 		elif item is MemoryReel:
 			item.play_reel.connect(_on_play_reel)
 			item.message_shown.connect(func(text: String): show_message(text, true))
@@ -666,6 +650,7 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 	_player.reset_to(level.get_entry_position(entry_key(area_id, entry)))
 	_region = current_area_id()
 	if level.fog:
+		level.fog.peek_cells = _player.peek_cells()
 		level.fog.update(_player.global_position)
 	_apply_darkness()
 	_camera.setup(_player, level.bounds, level.camera_mode())
@@ -727,7 +712,11 @@ const BOSS_TYPES := {"tundra_mother": "bear", "deep_well": "well"}
 
 
 func objective_target() -> Dictionary:
-	var m := Missions.tracked_mission()
+	return mission_target(Missions.tracked_mission())
+
+
+## 這個任務現在這一步要去哪：{area: 主地圖 id, cell: 格子或 null}；不知道 = {}
+func mission_target(m: Dictionary) -> Dictionary:
 	if m.is_empty():
 		return {}
 	var i := Missions.step_index(m.id)
@@ -753,12 +742,30 @@ func objective_target() -> Dictionary:
 		"defeat":
 			for id in Areas.all():
 				for e in Areas.all()[id].get("enemies", []):
-					if e.type == BOSS_TYPES.get(step.target, ""):
+					if e.type == BOSS_TYPES.get(step.target, step.target):
 						return {"area": Areas.root_of(id), "cell": null}
 	return {}
 
 
-## 從 from 往 target 走的第一扇門（地圖上標金色）
+## 這張地圖通往其他地圖的出入口：門、樓梯、雪地車 → [{to: 主地圖 id, cell}]
+func area_links(area_id: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var d := Areas.get_area(area_id)
+	for door in d.doors.values():
+		out.append({"to": Areas.root_of(door.to), "cell": door.cell})
+	for key in d.get("stairs", {}):
+		var xy := String(key).split(",")
+		out.append({"to": Areas.root_of(d.stairs[key]), "cell": Vector2i(int(xy[0]), int(xy[1]))})
+	if d.get("snowcat_to", "") != "":
+		var rows: Array = d.map
+		for y in rows.size():
+			var x := String(rows[y]).find("Z")
+			if x >= 0:
+				out.append({"to": Areas.root_of(d.snowcat_to), "cell": Vector2i(x, y)})
+	return out
+
+
+## 從 from 往 target 走的第一個出入口（門、樓梯、雪地車；地圖上標出來、箭頭指過去）
 func objective_doors(from: String, target: String) -> Array[Vector2i]:
 	var prev := {from: ""}
 	var queue := [from]
@@ -766,33 +773,119 @@ func objective_doors(from: String, target: String) -> Array[Vector2i]:
 		var a: String = queue.pop_front()
 		if a == target:
 			break
-		for door in Areas.get_area(a).doors.values():
-			var to := Areas.root_of(door.to)
-			if not prev.has(to):
-				prev[to] = a
-				queue.append(to)
-	if not prev.has(target):
-		return []
+		for link in area_links(a):
+			if not prev.has(link.to):
+				prev[link.to] = a
+				queue.append(link.to)
+	var cells: Array[Vector2i] = []
+	if not prev.has(target) or from == target:
+		return cells
 	var hop := target
 	while prev[hop] != from and prev[hop] != "":
 		hop = prev[hop]
-	var cells: Array[Vector2i] = []
-	for door in Areas.get_area(from).doors.values():
-		if Areas.root_of(door.to) == hop:
-			cells.append(door.cell)
+	for link in area_links(from):
+		if link.to == hop:
+			cells.append(link.cell)
 	return cells
+
+
+## 勾了指引的任務在 view 這張地圖上要標在哪：[{color, title, cell, doors}]
+func map_pins(view: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for p in Missions.pinned():
+		var t := mission_target(p.mission)
+		if t.is_empty():
+			continue
+		var pin := {"color": p.color, "title": tr(p.mission.title), "cell": null, "doors": [] as Array[Vector2i]}
+		if t.area == view:
+			pin.cell = t.get("cell")
+		else:
+			pin.doors = objective_doors(view, t.area)
+		out.append(pin)
+	return out
+
+
+## 每 0.25 秒更新任務箭頭：目標（或往那邊的門）在哪、沿著走得到的路該往哪個方向
+func _update_arrows(delta: float) -> void:
+	objective_arrows.visible = tactical_hud.visible and WorldState.mode == "story" and not _transitioning and not _resetting
+	_arrow_timer -= delta
+	if _arrow_timer > 0.0 or level == null:
+		return
+	_arrow_timer = 0.25
+	var list: Array[Dictionary] = []
+	var from := _player.global_position
+	for pin in map_pins(level.area_id):
+		var goals: Array[Vector2] = []
+		if pin.cell != null:
+			goals.append((Vector2(pin.cell) + Vector2(0.5, 0.5)) * Level.TILE)
+		for c: Vector2i in pin.doors:
+			goals.append((Vector2(c) + Vector2(0.5, 0.5)) * Level.TILE)
+		if goals.is_empty():
+			# 目標就在這張地圖、沒有確切位置：Boss 的話指向牠
+			for e in enemies:
+				if is_instance_valid(e) and e.is_boss() and not e.is_dead:
+					goals.append(e.global_position)
+		var best := INF
+		var best_goal := Vector2.ZERO
+		var best_dir := Vector2.ZERO
+		for g in goals:
+			var path := NavigationServer2D.map_get_path(level.get_navigation_map(), from, g, true)
+			var length := 0.0
+			var dir := (g - from).normalized()
+			if path.size() >= 2:
+				var found := false
+				for i in range(1, path.size()):
+					length += path[i - 1].distance_to(path[i])
+					if not found and path[i].distance_to(from) > 20.0:
+						dir = (path[i] - from).normalized()
+						found = true
+			else:
+				length = from.distance_to(g) * 2.0
+			if length < best:
+				best = length
+				best_goal = g
+				best_dir = dir
+		if best < INF:
+			list.append({"color": pin.color, "pos": best_goal, "dir": best_dir})
+	objective_arrows.targets = list
+
+
+func open_map() -> void:
+	Sfx.play("ui_confirm")
+	map_view = level.area_id
+	get_tree().paused = true
+	map_panel.map = map_data(map_view)
+	map_panel.open()
+
+
+func _flip_map(step: int) -> void:
+	var areas := known_map_areas()
+	if areas.size() < 2:
+		return
+	map_view = areas[(areas.find(map_view) + step + areas.size()) % areas.size()]
+	Sfx.play("ui_move")
+	map_panel.map = map_data(map_view)
+	map_panel.fit()
+	map_panel.focus_player()
 
 
 func _refresh_map() -> void:
 	var areas := known_map_areas()
 	if map_view == "" or not areas.has(map_view):
 		map_view = level.area_id
-	var d := Areas.get_area(map_view)
-	var here := map_view == level.area_id
+	phone.map = map_data(map_view)
+	phone.queue_redraw()
+
+
+## 地圖畫面要的資料（手機的小地圖和全螢幕地圖共用）
+func map_data(view: String) -> Dictionary:
+	var areas := known_map_areas()
+	var d := Areas.get_area(view)
+	var here := view == level.area_id
 	var stars: Array[Vector2i] = []
 	for key in d.get("hidden", {}):
 		var flag: String = d.hidden[key]
-		var item_id: String = d.get("item_keys", {}).get(key, "%s:%s" % [map_view, key])
+		var item_id: String = d.get("item_keys", {}).get(key, "%s:%s" % [view, key])
 		if WorldState.has_flag(flag) and not WorldState.is_taken(item_id):
 			var xy := String(key).split(",")
 			stars.append(Vector2i(int(xy[0]), int(xy[1])))
@@ -803,18 +896,18 @@ func _refresh_map() -> void:
 				if level.is_safe_cell(Vector2i(x, y)):
 					safe_cells[Vector2i(x, y)] = true
 	var t := objective_target()
-	var known := WorldState.has_flag("map:" + map_view)
-	var idx := areas.find(map_view)
-	phone.map = {
-		"rows": d.map, "explored": WorldState.data.explored.get(map_view, PackedByteArray()), "known": known,
-		"player": _player.global_position if here else null,
-		"objective": t.get("cell") if t.get("area", "") == map_view else null,
-		"objective_doors": objective_doors(map_view, t.area) if not t.is_empty() and t.area != map_view else ([] as Array[Vector2i]),
-		"stars": stars, "safe_cells": safe_cells,
+	var known := WorldState.has_flag("map:" + view)
+	var idx := areas.find(view)
+	var main_pin := WorldState.pin_main()
+	return {
+		"rows": d.map, "explored": WorldState.data.explored.get(view, PackedByteArray()), "known": known,
+		"player": _player.global_position if here else null, "facing": _player.facing,
+		"objective": t.get("cell") if main_pin and t.get("area", "") == view else null,
+		"objective_doors": objective_doors(view, t.area) if main_pin and not t.is_empty() and t.area != view else ([] as Array[Vector2i]),
+		"stars": stars, "safe_cells": safe_cells, "pins": map_pins(view),
 		"title": tr(d.title) + (tr("  (you are here)") if here else ""),
-		"info": "%d/%d [%s]  %s" % [idx + 1, areas.size(), tr("Up/Down"), tr("Floor map") if known else tr("No map - explored only")],
+		"info": "%d/%d  %s" % [idx + 1, areas.size(), tr("Floor map") if known else tr("No map - explored only")],
 	}
-	phone.queue_redraw()
 
 
 # ── 裝備 App（紙娃娃）───────────────────────────────────
@@ -932,7 +1025,7 @@ func quick_items() -> Array[Dictionary]:
 		if slot.is_empty() or seen.has(slot.id):
 			continue
 		var kind: String = Items.get_item(slot.id).kind
-		if kind in ["throwable", "heal", "cure", "warm", "craft", "attach"]:
+		if kind in ["throwable", "heal", "cure", "warm", "craft", "attach", "campfire"]:
 			seen[slot.id] = true
 			out.append({"id": slot.id, "name": Items.display_name(slot.id), "icon": Art.tex("props/" + slot.id),
 				"count": WorldState.inv_count(slot.id)})
@@ -945,6 +1038,11 @@ func quick_weapons() -> Array[Dictionary]:
 		if WorldState.inv_count(w) > 0:
 			out.append({"id": w, "name": "%s  %d/%d" % [Items.display_name(w), WorldState.get_loaded(w),
 				PlayerCombat.WEAPONS[w].mag], "icon": Art.tex("props/" + w), "count": 0})
+	# 近戰：小刀／空手（把刀收起來用拳腳），加上身上有的重兵器。目前用的那個前面打勾
+	for m in WorldState.melee_options():
+		var label := tr("Bare hands") if m == "fists" else Items.display_name(m)
+		out.append({"id": "melee:" + m, "name": ("* " if WorldState.melee() == m else "") + tr("Melee: %s") % label,
+			"icon": Art.tex("props/" + ("fists" if m == "fists" else m)), "count": 0})
 	return out
 
 
@@ -964,7 +1062,8 @@ func use_quick_item() -> void:
 		_toggle_suppressor()
 	elif _player.use_item(id):
 		Sfx.play("ui_confirm")
-		show_message(tr("Used %s.") % Items.display_name(id))
+		show_message(tr("You light a small fire. Warmth - and light anyone can see.") if kind == "campfire"
+			else tr("Used %s.") % Items.display_name(id))
 	else:
 		Sfx.play("gun_empty")
 
@@ -979,17 +1078,38 @@ func _cycle_weapon() -> void:
 	var list := quick_weapons()
 	if list.size() < 2:
 		return
-	var ids := list.map(func(e): return e.id)
+	var ids := list.map(func(e): return e.id).filter(func(id): return not String(id).begins_with("melee:"))
+	if ids.size() < 2:
+		return
 	_equip_weapon(ids[(ids.find(WorldState.equipped) + 1) % ids.size()])
 
 
 func _equip_weapon(id: String) -> void:
+	if id.begins_with("melee:"):
+		set_melee(id.substr(6))
+		return
 	if id == WorldState.equipped:
 		return
 	_player.combat.interrupt()
 	WorldState.equipped = id
 	Sfx.play("reload", _player.global_position, 0.1, -6.0)
 	show_message(tr("Equipped %s.") % Items.display_name(id))
+
+
+## 換近戰方式：小刀 ⇄ 空手，或消防斧、鐵撬
+func set_melee(m: String) -> void:
+	if m == WorldState.melee():
+		return
+	WorldState.set_melee(m)
+	_player.combat.combo_step = 0
+	Sfx.play("knife_swing", _player.global_position, 0.1, -10.0)
+	match m:
+		"fists":
+			show_message(tr("Knife sheathed. Bare hands: jab, hook, kick."))
+		"knife":
+			show_message(tr("Knife drawn: slash, slash, thrust."))
+		_:
+			show_message(tr("Equipped %s.") % Items.display_name(m))
 
 
 # ── 過場 ──────────────────────────────────────────────
@@ -1240,6 +1360,7 @@ func _update_region() -> void:
 	if level == null or _transitioning:
 		return
 	if level.fog:
+		level.fog.peek_cells = _player.peek_cells()
 		level.fog.update(_player.global_position)
 	var region := current_area_id()
 	if region != _region:
@@ -1312,7 +1433,6 @@ func _end_attempt(text: String, color: Color, new_game := false, delay := RESET_
 
 ## 回到最近的檢查點（目前所在區域的入口）。
 func reset_attempt() -> void:
-	close_window_view()
 	# Boss 戰的演出還原：燈、叫出來的手下、還沒掉下來的冰
 	_boss_dark = false
 	if _boss_banner:
@@ -1387,6 +1507,11 @@ func _build_phone() -> void:
 	$HUD.move_child(phone, _mission_panel.get_index())
 	phone.app_pressed.connect(set_phone_app)
 	phone.close_pressed.connect(close_phone)
+	mission_list = MissionList.new()
+	mission_list.name = "MissionList"
+	mission_list.main = self
+	$HUD.add_child(mission_list)
+	$HUD.move_child(mission_list, phone.get_index() + 1)
 	# 物品、任務沿用原本的面板，擺進手機螢幕裡
 	for p in [_inventory_panel, _mission_panel]:
 		p.set_anchors_preset(Control.PRESET_TOP_LEFT)
@@ -1436,6 +1561,7 @@ func close_phone() -> void:
 	phone.visible = false
 	_inventory_panel.visible = false
 	_mission_panel.visible = false
+	mission_list.visible = false
 	get_tree().paused = false
 	Sfx.play("ui_cancel")
 
@@ -1446,14 +1572,11 @@ func set_phone_app(app: String) -> void:
 	if phone.app != app:
 		Sfx.play("ui_move")
 	phone.set_app(app)
-	_inventory_panel.visible = app == "items"
-	_mission_panel.visible = app == "missions"
-	if app == "items":
-		_inventory_cursor = 0
-		_refresh_inventory()
-	elif app == "missions":
-		_mission_text.text = _build_mission_text()
-	elif app == "messages":
+	_inventory_panel.visible = false
+	_mission_panel.visible = false
+	mission_list.visible = app == "missions"
+	mission_list.queue_redraw()
+	if app == "messages":
 		_message_cursor = 0
 	_refresh_phone()
 
@@ -1468,14 +1591,19 @@ func _process_phone_input() -> void:
 		set_phone_app(phone.next_app(step))
 		return
 	match phone.app:
-		"items":
-			_process_inventory_input()
 		"missions":
-			if Input.is_action_just_pressed("map") or Input.is_action_just_pressed("pause") \
+			if Input.is_action_just_pressed("phone") or Input.is_action_just_pressed("pause") \
 					or Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("inventory"):
 				close_phone()
+			elif Input.is_action_just_pressed("move_down") or Input.is_action_just_pressed("ui_down"):
+				mission_list.move(1)
+			elif Input.is_action_just_pressed("move_up") or Input.is_action_just_pressed("ui_up"):
+				mission_list.move(-1)
+			elif Input.is_action_just_pressed("interact") or Input.is_action_just_pressed("ui_accept"):
+				mission_list.toggle()
+				_arrow_timer = 0.0
 		_:
-			if Input.is_action_just_pressed("inventory") or Input.is_action_just_pressed("map") \
+			if Input.is_action_just_pressed("inventory") or Input.is_action_just_pressed("phone") \
 					or Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel"):
 				close_phone()
 			elif phone.app == "gear":
@@ -1716,63 +1844,12 @@ func _refresh_radio() -> void:
 
 
 func _toggle_storage_panel() -> void:
-	_storage_panel.visible = not _storage_panel.visible
-	get_tree().paused = _storage_panel.visible
-	_storage_cursor = 0
-	_refresh_storage()
-
-
-## 上面 6 行是物品欄，下面是儲物箱；選一行按確認就搬到另一邊。
-func _storage_rows() -> Array:
-	var rows := []
-	for i in WorldState.inventory().size():
-		rows.append({"side": "bag", "index": i})
-	var ids := WorldState.storage().keys()
-	ids.sort()
-	for id in ids:
-		rows.append({"side": "box", "id": id})
-	return rows
-
-
-func _process_storage_input() -> void:
-	var rows := _storage_rows()
-	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("inventory") \
-			or Input.is_action_just_pressed("pause"):
-		_toggle_storage_panel()
-		return
-	if Input.is_action_just_pressed("ui_down") or Input.is_action_just_pressed("move_down"):
-		_storage_cursor = (_storage_cursor + 1) % rows.size()
-	elif Input.is_action_just_pressed("ui_up") or Input.is_action_just_pressed("move_up"):
-		_storage_cursor = (_storage_cursor - 1 + rows.size()) % rows.size()
-	elif Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("interact"):
-		var row: Dictionary = rows[_storage_cursor]
-		if row.side == "bag":
-			WorldState.store_slot(row.index)
-		else:
-			if WorldState.retrieve(row.id) == 0:
-				show_message(tr("No room."))
-		_storage_cursor = mini(_storage_cursor, _storage_rows().size() - 1)
-	_refresh_storage()
-
-
-func _refresh_storage() -> void:
-	var rows := _storage_rows()
-	var lines: Array[String] = [tr("STORAGE BOX   (shared by all safe rooms)"), "", tr("-- carried --")]
-	for i in rows.size():
-		var row: Dictionary = rows[i]
-		var cursor := ">" if i == _storage_cursor else " "
-		if row.side == "box" and (i == 0 or rows[i - 1].side == "bag"):
-			lines.append("")
-			lines.append(tr("-- in box --"))
-		if row.side == "bag":
-			var slot: Dictionary = WorldState.inventory()[row.index]
-			lines.append("%s [%d] %s" % [cursor, row.index + 1,
-				"---" if slot.is_empty() else "%s x%d" % [Items.display_name(slot.id), slot.count]])
-		else:
-			lines.append("%s %s x%d" % [cursor, Items.display_name(row.id), WorldState.storage()[row.id]])
-	lines.append("")
-	lines.append(tr("[%s] move   [%s] close") % [_key_name("interact"), _key_name("inventory")])
-	_storage_text.text = "\n".join(lines)
+	if backpack.visible:
+		backpack.close()
+	else:
+		Sfx.play("ui_confirm")
+		get_tree().paused = true
+		backpack.open("storage")
 
 
 # ── 天線塔：發出訊號（結局方向）──────────────────────
@@ -2058,65 +2135,60 @@ func _build_items_text() -> String:
 # ── 物品欄 ────────────────────────────────────────────
 
 func _toggle_inventory_panel() -> void:
-	if phone.visible and phone.app == "items":
-		close_phone()
+	if backpack.visible:
+		backpack.close()
 	else:
-		open_phone("items")
+		Sfx.play("ui_confirm")
+		get_tree().paused = true
+		backpack.open("bag")
 
 
-func _process_inventory_input() -> void:
-	var slots := WorldState.inventory()
-	if Input.is_action_just_pressed("inventory") or Input.is_action_just_pressed("ui_cancel"):
-		_toggle_inventory_panel()
+## 使用背包裡第幾格的東西
+func use_inventory_slot(index: int) -> void:
+	var slot: Dictionary = WorldState.inventory()[index]
+	if slot.is_empty():
 		return
-	if Input.is_action_just_pressed("ui_down") or Input.is_action_just_pressed("move_down"):
-		_inventory_cursor = (_inventory_cursor + 1) % slots.size()
-		Sfx.play("ui_move")
-	elif Input.is_action_just_pressed("ui_up") or Input.is_action_just_pressed("move_up"):
-		_inventory_cursor = (_inventory_cursor - 1 + slots.size()) % slots.size()
-		Sfx.play("ui_move")
-	elif Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("interact"):
-		var slot: Dictionary = slots[_inventory_cursor]
-		if not slot.is_empty():
-			var kind: String = Items.get_item(slot.id).kind
-			var made: String = Items.get_item(slot.id).get("recipe", {}).get("makes", "")
-			if _player.use_item(slot.id):
-				Sfx.play("ui_confirm")
-				match kind:
-					"weapon":
-						show_message(tr("Equipped %s.") % Items.display_name(slot.id))
-					"throwable":
-						show_message(tr("%s ready to throw.") % Items.display_name(slot.id))
-					"warm":
-						show_message(tr("The heat pack spreads warmth through your chest."))
-					"craft":
-						show_message(tr("Made a %s. (Your lighter is always on you.)") % Items.display_name(made))
-					_:
-						show_message(tr("Used %s.") % Items.display_name(slot.id))
-			else:
-				Sfx.play("ui_cancel")
-				show_message(tr("Can't use that now."))
-	_refresh_inventory()
+	var kind: String = Items.get_item(slot.id).kind
+	var made: String = Items.get_item(slot.id).get("recipe", {}).get("makes", "")
+	var item_name := Items.display_name(slot.id)
+	if kind == "attach":
+		_toggle_suppressor()
+		return
+	if kind == "melee":
+		# 重兵器：拿在手上（再選一次 = 換回小刀）
+		set_melee("knife" if WorldState.melee() == slot.id else slot.id)
+		return
+	if _player.use_item(slot.id):
+		Sfx.play("ui_confirm")
+		match kind:
+			"weapon":
+				show_message(tr("Equipped %s.") % item_name)
+			"throwable":
+				show_message(tr("%s ready to throw.") % item_name)
+			"warm":
+				show_message(tr("The heat pack spreads warmth through your chest."))
+			"craft":
+				show_message(tr("Made a %s. (Your lighter is always on you.)") % Items.display_name(made))
+			"campfire":
+				show_message(tr("You light a small fire. Warmth - and light anyone can see."))
+				backpack.close()
+			_:
+				show_message(tr("Used %s.") % item_name)
+	else:
+		Sfx.play("ui_cancel")
+		show_message(tr("Can't use that now."))
 
 
-func _refresh_inventory() -> void:
-	var lines: Array[String] = [tr("ITEMS   Condition: %s") % tr(_player.get_condition()), ""]
-	var slots := WorldState.inventory()
-	for i in slots.size():
-		var slot: Dictionary = slots[i]
-		var cursor := ">" if i == _inventory_cursor else " "
-		if slot.is_empty():
-			lines.append("%s [%d] ---" % [cursor, i + 1])
-		else:
-			lines.append("%s [%d] %s x%d" % [cursor, i + 1, Items.display_name(slot.id), slot.count])
-	var selected: Dictionary = slots[_inventory_cursor]
-	lines.append("")
-	lines.append(tr(Items.get_item(selected.id).desc) if not selected.is_empty() else "")
-	lines.append("")
-	lines.append(tr("[%s] use   [%s] close") % [_key_name("interact"), _key_name("inventory")])
-	_inventory_text.text = "\n".join(lines)
-	phone.item_icon = Art.tex("props/" + selected.id) if not selected.is_empty() else null
-	phone.queue_redraw()
+## 隨身裝備：小刀 ⇄ 空手、打火機、手電筒
+func _use_kit(kit: String) -> void:
+	match kit:
+		"melee":
+			set_melee("fists" if WorldState.melee() != "fists" else "knife")
+		"lighter":
+			_player.set_light("" if _player.lighter_on else "lighter")
+		"flashlight":
+			_player.set_light("" if _player.flashlight_on else "flashlight")
+	backpack.queue_redraw()
 
 
 func _update_status() -> void:
@@ -2168,8 +2240,9 @@ func _build_hint() -> String:
 		"%s %s" % [_key_name("interact"), tr("Use")],
 		"%s %s" % [_key_name("aim"), tr("Aim")],
 		"%s %s" % [_key_name("fire"), tr("Fire")],
-		"%s %s" % [_key_name("inventory"), tr("Items")],
-		"%s %s" % [_key_name("map"), tr("Ops")],
+		"%s %s" % [_key_name("inventory"), tr("Backpack")],
+		"%s %s" % [_key_name("map"), tr("Map")],
+		"%s %s" % [_key_name("phone"), tr("Phone")],
 	]
 	return " ".join(parts)
 

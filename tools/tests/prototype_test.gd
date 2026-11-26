@@ -259,18 +259,18 @@ func _test_world_start() -> void:
 
 func _test_mission_panel() -> void:
 	print("[world / mission panel]")
-	var panel: Control = _main.get_node("HUD/MissionPanel")
-	Input.action_press("map")
+	var panel: Control = _main.mission_list
+	Input.action_press("phone")
 	await get_tree().process_frame
 	await get_tree().process_frame
-	Input.action_release("map")
+	Input.action_release("phone")
 	await get_tree().process_frame
-	_check(panel.visible, "按 map 打開任務清單")
+	_check(panel.visible, "按手機鍵打開任務清單")
 	_check(get_tree().paused, "打開任務清單時遊戲暫停")
-	Input.action_press("map")
+	Input.action_press("phone")
 	await get_tree().process_frame
 	await get_tree().process_frame
-	Input.action_release("map")
+	Input.action_release("phone")
 	await get_tree().process_frame
 	_check(not panel.visible and not get_tree().paused, "再按一次關閉並繼續")
 	await _test_phone()
@@ -872,7 +872,7 @@ func _test_inventory_slots() -> void:
 	_check(WorldState.inv_space_for("med") == 1, "急救包那格還能再放 1 個")
 	WorldState.inv_add("med", 1)
 	_check(WorldState.inv_space_for("med") == 0, "滿了就放不下")
-	var panel: Control = _main.get_node("HUD/InventoryPanel")
+	var panel: Control = _main.backpack
 	Input.action_press("inventory")
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -1037,8 +1037,8 @@ func _test_safe_room() -> void:
 	await _frames(3)
 	_check(_player.focus == box, "可以打開儲物箱")
 	await _press("interact")
-	var panel: Control = _main.get_node("HUD/StoragePanel")
-	_check(panel.visible and get_tree().paused, "儲物箱介面打開並暫停")
+	var panel: BackpackPanel = _main.backpack
+	_check(panel.visible and panel.mode == "storage" and get_tree().paused, "儲物箱介面（背包＋箱子的格子）打開並暫停")
 	var first: Dictionary = WorldState.inventory()[0].duplicate()
 	Input.action_press("ui_accept")
 	await get_tree().process_frame
@@ -1913,11 +1913,9 @@ func _test_environment() -> void:
 	_check(WorldState.inv_count("stone") > stones and WorldState.inv_count("stone") % 5 == 0, "從碎石堆撿石頭")
 	_place_player(_tile(1, 5), false, Vector2.LEFT)
 	await _frames(3)
-	_check(_player.focus == null and _player.knock_point() != null, "面對牆壁可以敲")
 	_listen_noise()
 	await _press("interact")
-	_check(_noises.size() == 1 and is_equal_approx(_noises[0].radius, 4.0 * Player.TILE), "敲牆發出聲音")
-	_check(_noises.size() == 1 and _noises[0].pos.x < _player.global_position.x, "聲音在牆的位置")
+	_check(_noises.is_empty(), "面對牆壁按互動不會敲牆（已取消）")
 	await _enter("south_shore", "depot", false)
 	await _enter("fuel_depot", "depot", false)
 	_level = _main.level
@@ -1940,7 +1938,7 @@ func _test_cold_and_huts() -> void:
 	WorldState.body_temp = 100.0
 	_place_player(_tile(30, 36), true, Vector2.UP)
 	await _seconds(1.0)
-	_check(WorldState.body_temp < 99.8 and WorldState.body_temp > 99.0, "戶外會慢慢失溫（%.1f）" % WorldState.body_temp)
+	_check(WorldState.body_temp < 99.95 and WorldState.body_temp > 99.5, "戶外會慢慢失溫（主角很耐冷：%.2f）" % WorldState.body_temp)
 	_check("Body:" in _main.get_node("HUD/Condition").text, "會失溫的地方顯示體溫")
 	var fire := Fire.new()
 	fire.harmful = false
@@ -2110,12 +2108,24 @@ func _test_combo_and_cqc() -> void:
 		await _press("fire")
 		moves.append(combat.last_melee.get("move", ""))
 		await _seconds(0.3)
-	_check(moves == ["slash", "punch", "kick"], "連按 = 刀 → 拳 → 踢（%s）" % [moves])
+	_check(moves == ["slash", "slash_back", "stab"], "拿刀連按 = 揮 → 反手揮 → 刺（%s）" % [moves])
+	_check(not _watcher.knocked_down, "刀不會把人打倒")
+	# 把刀收起來：刺拳 → 鉤拳 → 踢
+	_main.set_melee("fists")
+	_check(WorldState.melee() == "fists" and combat.melee_moves() == PlayerCombat.FIST_COMBO, "收刀 = 空手")
+	await _seconds(0.8)
+	moves = []
+	for i in 3:
+		_watcher.global_position = _tile(12, 6)
+		await _press("fire")
+		moves.append(combat.last_melee.get("move", ""))
+		await _seconds(0.3)
+	_check(moves == ["punch", "hook", "kick"], "空手連按 = 刺拳 → 鉤拳 → 踢（%s）" % [moves])
 	_check(_watcher.knocked_down, "最後一腳把敵人踢倒")
 	_check(_watcher.can_be_taken_down_by(_player), "倒地的敵人可以補刀")
 	await _seconds(0.8)
 	await _press("fire")
-	_check(combat.last_melee.get("move", "") == "slash", "停頓太久，連段從頭開始")
+	_check(combat.last_melee.get("move", "") == "punch", "停頓太久，連段從頭開始")
 	# 踢飛撞牆：額外受傷
 	_freeze(_watcher, _tile(12, 2), Vector2.DOWN)
 	_watcher.max_health = 500.0
@@ -2130,6 +2140,8 @@ func _test_combo_and_cqc() -> void:
 	await _seconds(0.3)
 	_check(Sfx.history.has("body_slam"), "踢到牆邊 = 撞牆")
 	_check(hp - _watcher.health > 30.0, "撞牆額外受傷（%.0f）" % (hp - _watcher.health))
+	_main.set_melee("knife")
+	_check(WorldState.melee() == "knife" and combat.melee_moves() == PlayerCombat.KNIFE_COMBO, "把刀拔出來")
 	# 擒拿：從背後抓住 → 摔倒；再抓 → 勒昏解決
 	_revive_watcher()
 	_freeze(_watcher, _tile(12, 6), Vector2.UP)  # 背對主角
@@ -2164,49 +2176,65 @@ func _test_combo_and_cqc() -> void:
 
 
 func _test_first_person() -> void:
-	print("[first person: locker, window]")
-	var fp: FirstPersonView = _main.first_person
+	print("[locker, window, door peek (no first person)]")
 	_only(_watcher)
 	_freeze(_watcher, _tile(7, 5), Vector2.UP)
 	_watcher.process_mode = Node.PROCESS_MODE_DISABLED
-	var locker := _find_item(Locker, Vector2i(7, 1))
 	_place_player(_tile(7, 2), false, Vector2.UP)
 	await _frames(3)
 	await _press("interact")
-	_check(_player.is_hiding and fp.active and fp.mode == "locker", "躲進櫃子 = 第一人稱視角")
-	await _frames(2)
-	_check(fp.visible_enemies.has(_watcher), "從櫃子縫看得到正前方的敵人")
-	_watcher.global_position = _tile(3, 18)
-	await _frames(2)
-	_check(not fp.visible_enemies.has(_watcher), "牆後面的敵人看不到（只聽得到）")
+	_check(_player.is_hiding and _main._vignette.visible, "躲進櫃子：維持俯視，四周變暗")
 	await _press("interact")
-	_check(not _player.is_hiding and not fp.active, "離開櫃子就回到一般視角")
-	# 窗戶：休息室和實驗室中間的觀察窗
-	_freeze(_watcher, _tile(26, 3), Vector2.LEFT)
-	_watcher.process_mode = Node.PROCESS_MODE_DISABLED
-	var window := _find_item(WindowPane, Vector2i(19, 3))
-	_check(window != null, "觀察窗 (19,3)")
+	_check(not _player.is_hiding and not _main._vignette.visible, "離開櫃子")
+	# 窗戶：休息室和實驗室中間的觀察窗。站到窗邊就看得到另一邊的房間（不用互動、不換視角）
+	var fog: RoomFog = _main.level.fog
+	var lab_room: int = _main.level.room_of[_main.level.cell_of(_tile(24, 3))]
+	_place_player(_tile(16, 3), false, Vector2.RIGHT)
+	await _frames(4)
+	_check(_player.peek_cells().is_empty(), "離窗戶遠：沒有從窗戶看進去")
 	_place_player(_tile(18, 3), false, Vector2.RIGHT)
-	await _frames(3)
-	_check(_player.focus == window, "站在窗前可以看")
-	await _press("interact")
-	_check(fp.active and fp.mode == "window", "看窗外 = 第一人稱視角")
-	_check(not _player.input_enabled, "看窗外時不能移動")
-	await _frames(2)
-	_check(fp.visible_enemies.has(_watcher), "透過玻璃看得到另一邊的敵人")
-	await _press("interact")
-	_check(not fp.active and _player.input_enabled, "按互動離開窗邊")
-	# 往窗戶推 = 自動靠過去看
-	_place_player(_tile(18, 3), false, Vector2.RIGHT)
-	Input.action_press("move_right")
-	await _seconds(0.2)
-	await _seconds(0.3)
-	Input.action_release("move_right")
-	_check(fp.active and fp.mode == "window", "往窗戶推一下就自動切換")
-	Input.action_press("move_left")
-	await _frames(3)
-	Input.action_release("move_left")
-	_check(not fp.active, "往後退就離開")
+	await _frames(4)
+	_check(_player.focus == null, "窗戶不用互動")
+	_check(fog.visible_rooms.has(lab_room) and _player.peek_cells().has(_main.level.cell_of(_tile(23, 3))), "站在窗邊：看得到另一邊的房間")
+	_check(_player.input_enabled, "看窗戶時照常可以移動")
+	# 門：平常走過去自己開；潛行靠近不會開，可以推開一條縫看
+	var door: InteriorDoor = null
+	for d in _main.level.get_inner_doors():
+		if d.access == 0 and not d.safe_door and d.is_horizontal():
+			door = d
+			break
+	_check(door != null, "有室內門")
+	if door:
+		var cell: Vector2i = door.cell
+		var below := "#C".find(_main.level.char_at(cell + Vector2i.DOWN)) < 0
+		var side := Vector2(0, 16) if below else Vector2(0, -16)
+		_place_player(door.global_position + side * 0.8, false, -side.normalized())
+		await _seconds(0.3)
+		_check(door.is_open, "平常走到門邊，門自己打開")
+		_place_player(door.global_position + side * 3.0, false, -side.normalized())
+		await _seconds(1.0)
+		_check(not door.is_open, "離開後門關上")
+		_place_player(door.global_position + side, false, -side.normalized())
+		_player.sneaking = true
+		await _seconds(0.4)
+		_check(not door.is_open, "潛行靠近：門不會自己開")
+		_check(_player.peek_candidate() == door, "可以把門推開一條縫")
+		var far := door.global_position - side * 2.5
+		_check(not _player.can_see_point(far), "門關著看不到裡面")
+		_listen_noise()
+		await _press("interact")
+		_check(_player.peeking == door and door.ajar and not door.is_open, "按互動 = 門縫（門還是關著的）")
+		_check(_noises.size() == 1 and _noises[0].radius <= 2.0 * Player.TILE, "門軸只響一小聲")
+		_check(fog.visible_rooms.has(_main.level.room_of.get(_main.level.cell_of(door.global_position - side), -1)), "看得到門後面的房間")
+		_check(_player.can_see_point(far), "從門縫看得到正前方")
+		_check(not _player.can_see_point(door.global_position - side + Vector2(40, 0)), "門縫看不到旁邊（只有窄窄的扇形）")
+		await _press("interact")
+		_check(_player.peeking == null and not door.ajar, "再按一次：門關回去")
+		Input.action_press("move_up" if below else "move_down")
+		await _seconds(0.6)
+		Input.action_release("move_up" if below else "move_down")
+		_check(door.is_open, "潛行時往門推一下，門才打開")
+		_player.sneaking = false
 	await _reset_world()
 	_enable_all()
 
@@ -2218,24 +2246,75 @@ func _test_phone() -> void:
 	await _frames(2)
 	_check(_main.message_log[0].begins_with("TAPE (test)"), "訊息記在手機裡")
 	_check(_main._message_more.visible, "長訊息提示到手機看全文")
+	# 物品鍵 = 格子背包（不是手機）
+	var bag: BackpackPanel = _main.backpack
+	WorldState.inv_add("med", 1)
+	WorldState.inv_add("bottle", 2)
 	await _press("inventory")
-	_check(phone.visible and phone.app == "items" and _main.get_node("HUD/InventoryPanel").visible, "物品鍵 = 打開手機的物品 App")
-	_check(get_tree().paused, "看手機時遊戲暫停")
+	_check(bag.visible and bag.mode == "bag" and not phone.visible and get_tree().paused, "物品鍵 = 打開格子背包（遊戲暫停）")
+	var first: String = WorldState.inventory()[0].get("id", "")
+	bag.zone = "bag"
+	bag.cursor = 0
+	await _press("reload")
+	_check(bag.held == 0, "裝填鍵 = 把這一格拿起來")
 	await _press("move_right")
-	_check(phone.app == "missions" and _main.get_node("HUD/MissionPanel").visible, "左右切換 App（任務）")
-	_check(not _main.get_node("HUD/InventoryPanel").visible, "切換後物品面板收起來")
+	await _press("move_right")
+	await _press("move_right")
+	await _press("reload")
+	_check(bag.held == -1 and WorldState.inventory()[3].get("id", "") == first and first != "", "放到別格 = 搬位置")
+	WorldState.move_slot(3, 0)
+	bag.zone = "kit"
+	bag.cursor = 0
+	await _press("interact")
+	_check(WorldState.melee() == "fists", "隨身裝備：選小刀 = 收起來（空手）")
+	await _press("interact")
+	_check(WorldState.melee() == "knife", "再選一次 = 拔刀")
+	await _press("inventory")
+	_check(not bag.visible and not get_tree().paused, "再按物品鍵關掉背包")
+	WorldState.inv_remove("med", 1)
+	WorldState.inv_remove("bottle", 2)
+	# 地圖鍵 = 全螢幕地圖（可以縮放）
+	await _press("map")
+	var mp: MapPanel = _main.map_panel
+	_check(mp.visible and get_tree().paused and mp.map.get("player") != null, "地圖鍵 = 直接打開地圖，看得到自己的位置")
+	var z0: int = mp.zoom_index
+	mp.zoom_by(1)
+	_check(mp.zoom_index == z0 + 1 or z0 == MapPanel.ZOOMS.size() - 1, "地圖可以放大")
+	mp.zoom_by(-2)
+	_check(mp.zoom_index < z0 + 1, "地圖可以縮小")
+	await _press("map")
+	_check(not mp.visible and not get_tree().paused, "再按一次關掉地圖")
+	# 手機（P）：任務、訊息、檔案、地圖、裝備
+	await _press("phone")
+	_check(phone.visible and phone.app == "missions" and _main.mission_list.visible, "手機鍵 = 打開手機的任務 App")
+	_check(get_tree().paused, "看手機時遊戲暫停")
+	# 任務指引：選任務按確認 = 開／關箭頭；主線永遠黃色
+	_check(WorldState.pin_main() and Missions.pinned().size() >= 1, "主線預設有指引箭頭")
+	_check(Missions.pinned()[0].color == Missions.MAIN_COLOR, "主線的箭頭是黃色")
+	_main.mission_list.cursor = 0
+	await _press("interact")
+	_check(not WorldState.pin_main(), "在任務清單按確認 = 關掉這個任務的箭頭")
+	await _press("interact")
+	_check(WorldState.pin_main(), "再按一次 = 打開")
+	WorldState.toggle_pin("__side_a", false)
+	WorldState.toggle_pin("__side_b", false)
+	_check(WorldState.pinned_sides() == ["__side_a", "__side_b"], "可以同時勾好幾個支線")
+	WorldState.toggle_pin("__side_a", false)
+	WorldState.toggle_pin("__side_b", false)
+	_check(Missions.SIDE_COLORS[0] != Missions.MAIN_COLOR and Missions.SIDE_COLORS[0] != Missions.SIDE_COLORS[1], "每個任務的顏色不同")
 	await _press("move_right")
 	_check(phone.app == "messages" and "very long message" in phone.get_text(), "訊息 App 看得到全文")
 	await _press("move_left")
 	await _press("move_left")
-	await _press("move_left")
 	_check(phone.app == "status" and "Condition" in phone.get_text(), "狀態 App")
+	await _frames(20)
+	_check(not _main.objective_arrows.targets.is_empty() or _main.mission_target(Missions.tracked_mission()).is_empty(), "主線有箭頭指路")
 	_main.set_phone_app("map")
 	_check(phone.app == "map", "地圖 App")
 	_main.set_phone_app("gear")
 	_check(phone.app == "gear" and "BODY" in "".join(phone.gear_header), "裝備 App（紙娃娃）")
-	await _press("inventory")
-	_check(not phone.visible and not get_tree().paused, "再按物品鍵關掉手機")
+	await _press("phone")
+	_check(not phone.visible and not get_tree().paused, "再按手機鍵關掉手機")
 	_check(not _main.get_node("HUD/Objective").visible and not _main.get_node("HUD/Hint").visible, "遊戲畫面上不擺目標和操作說明")
 
 
@@ -2298,13 +2377,14 @@ func _test_touch() -> void:
 	joy.release()
 	_main._toggle_inventory_panel()
 	await _frames(2)
-	var cursor: int = _main._inventory_cursor
+	_main.backpack.zone = "bag"
+	_main.backpack.cursor = 0
 	joy.touch_down(0, Vector2(60, 200))
-	joy.touch_move(Vector2(60, 240))
+	joy.touch_move(Vector2(100, 200))
 	await get_tree().process_frame
 	await get_tree().process_frame
 	joy.release()
-	_check(_main._inventory_cursor == cursor + 1, "物品欄裡用搖桿往下選")
+	_check(_main.backpack.cursor == 1, "背包裡用搖桿選格子")
 	_main._toggle_inventory_panel()
 	tc.set_enabled(false)
 
@@ -2474,8 +2554,25 @@ func _test_expansion() -> void:
 	# 消防斧：揮砍傷害變大
 	_check(_player.combat.melee_weapon() == "", "沒有斧頭時用小刀")
 	WorldState.inv_add("fire_axe", 1)
-	_check(_player.combat.melee_weapon() == "fire_axe", "撿到消防斧就換成斧頭")
+	_check(_player.combat.melee_weapon() == "", "撿到消防斧：還是拿刀，要自己換")
+	_main.set_melee("fire_axe")
+	_check(_player.combat.melee_weapon() == "fire_axe" and _player.combat.melee_moves()[0].get("smash", false), "換成消防斧：一下劈開木箱")
 	WorldState.inv_remove("fire_axe", 1)
+	_check(WorldState.melee() == "knife", "斧頭不在身上就自動換回小刀")
+	# 新武器：左輪、衝鋒槍（連發）、十字弓（無聲、箭可以回收）
+	_check(PlayerCombat.WEAPONS.smg.get("auto", false) and PlayerCombat.WEAPONS.smg.ammo == "ammo", "衝鋒槍連發、吃手槍子彈")
+	_check(PlayerCombat.WEAPONS.revolver.damage_max > PlayerCombat.WEAPONS.pistol.damage_max * 2.0, "左輪威力大")
+	_check(PlayerCombat.WEAPONS.crossbow.noise_tiles < 2.0 and PlayerCombat.WEAPONS.crossbow.get("retrieve", false), "十字弓沒聲音、箭可以回收")
+	# 打火機＋可燃物 = 腳邊生一堆火取暖
+	WorldState.inv_add("kindling", 1)
+	var fires_before := get_tree().get_nodes_in_group(Fire.GROUP).size()
+	_check(_player.use_item("kindling"), "用可燃物生火")
+	await _frames(3)
+	_check(get_tree().get_nodes_in_group(Fire.GROUP).size() == fires_before + 1 and WorldState.inv_count("kindling") == 0, "腳邊多一堆火")
+	_check(Fire.warm_at(get_tree(), _player.global_position), "火堆旁邊是暖的")
+	for f in get_tree().get_nodes_in_group(Fire.GROUP):
+		f.put_out()
+	await _frames(2)
 	_check(PlayerCombat.WEAPONS.nailgun.noise_tiles < PlayerCombat.WEAPONS.pistol.noise_tiles * 0.3, "釘槍幾乎沒聲音")
 	# 過場：暫停遊戲、黑邊、跳過後恢復
 	WorldState.cutscenes = true
@@ -2570,24 +2667,24 @@ func _test_mgs_systems() -> void:
 	_level = _main.level
 	_check(_main.level.area_id == "cruise_deck" and Areas.root_of("cruise_interior") == "cruise_deck", "郵輪甲板＋船艙是無縫地圖")
 	_check(_main.enemies.size() >= 8, "郵輪上有敵人（甲板＋船艙）")
-	_check(float(Areas.get_area("cruise_deck").tilt) > 0.1, "郵輪甲板預設斜角鏡頭")
-	# 船艙中庭：固定機位＋斜角
+	# 鏡頭：不傾斜、不切固定機位，只有進小房間會推近
 	_use("cruise_interior")
 	_place_player(_tile(24, 13), true)
-	var zone: Dictionary = _main.level.camera_zone_at(_player.global_position)
-	_check(zone.has("frame") and float(zone.get("tilt", 0.0)) > 0.1, "中庭：固定機位＋斜角鏡頭")
 	await _frames(40)
-	_check(_main._camera.frame_point != null and _main._tilt > 0.05, "走進中庭鏡頭切到固定機位、畫面傾斜")
+	_check(_main._camera.frame_point == null and is_zero_approx(_main._tilt), "不切固定機位、畫面不傾斜")
 	_place_player(_tile(10, 5), true)
 	await _frames(30)
-	_check(_main._camera.zoom_target > 1.1 and _main._camera.frame_point == null, "客艙走廊：鏡頭推近")
-	# ── 貼牆視角：往牆推一下就背貼著牆，鏡頭往前推出去 ──
+	_check(_main._camera.zoom_target >= 1.1, "客艙走廊：鏡頭推近（%.2f）" % _main._camera.zoom_target)
+	_check(absf(_main._camera.zoom.x - _main._camera.zoom_target) < 0.25 and _main._camera.zoom.x > 1.0, "鏡頭是慢慢推近的")
+	await _seconds(1.5)
+	_check(is_equal_approx(_main._camera.zoom.x, _main._camera.zoom_target), "推到定位")
+	# ── 貼牆：往牆推一下就背貼著牆，鏡頭往前推出去一點（不傾斜）──
 	_place_player(_tile(10, 5), true, Vector2.UP)
 	Input.action_press("move_up")
 	await _seconds(1.0)
 	_check(_player.wall_press == Vector2.DOWN, "往牆推 = 背貼牆（面向離開牆的方向）")
 	await _frames(10)
-	_check(_main._camera.wall_offset.y > 40.0 and _main._camera.zoom_target >= 1.3, "貼牆：鏡頭往前推、拉近")
+	_check(_main._camera.wall_offset.y > 40.0 and is_zero_approx(_main._tilt), "貼牆：鏡頭往前推，不傾斜")
 	Input.action_release("move_up")
 	await _frames(3)
 	_check(_player.wall_press == Vector2.ZERO, "放開方向就離開牆")

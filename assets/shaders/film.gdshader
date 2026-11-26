@@ -29,7 +29,9 @@ void fragment() {
 	if (era < 0.5) {
 		c = mix(c, c * vec3(0.9, 1.0, 1.04), 0.6);
 	}
-	vec2 px = floor(SCREEN_UV / SCREEN_PIXEL_SIZE);
+	// 顆粒的大小固定是「畫面高度的 1/270」（原本的像素大小），視窗放大時顆粒不會變細
+	float grain_px = max(1.0, floor(1.0 / (SCREEN_PIXEL_SIZE.y * 270.0)));
+	vec2 px = floor(SCREEN_UV / SCREEN_PIXEL_SIZE / grain_px);
 	float frame = floor(TIME * 18.0);
 	float n = fract(sin(dot(px + frame * vec2(13.1, 7.7), vec2(12.9898, 78.233))) * 43758.5453);
 	float g = grain;

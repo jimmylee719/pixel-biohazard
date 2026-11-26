@@ -108,26 +108,28 @@ func _draw_combat() -> void:
 
 
 ## 開槍：槍口火光（散彈槍、獵槍是大火光）、白煙、彈道（彈頭＋拖尾，散彈呈扇形）、命中的碎片、彈殼
-const SHOT_TRAVEL := {"pistol": 0.07, "rifle": 0.05, "shotgun": 0.08, "nailgun": 0.14, "flare_gun": 0.22}
+const SHOT_TRAVEL := {"pistol": 0.07, "rifle": 0.05, "shotgun": 0.08, "nailgun": 0.14, "flare_gun": 0.22,
+	"revolver": 0.06, "smg": 0.07, "crossbow": 0.16}
 
 
 func _draw_shot(shot: Dictionary, weapon: String) -> void:
 	var t: float = shot.t
 	var dir: Vector2 = (shot.to - shot.from).normalized()
 	var muzzle: Vector2 = shot.from + dir * 9.0 + Vector2(0, -3)
-	var big := weapon in ["shotgun", "rifle"]
+	var big := weapon in ["shotgun", "rifle", "revolver"]
+	var quiet := weapon in ["nailgun", "crossbow"]  # 沒有火藥：沒有槍口火光和煙
 	var flash := Art.tex(("fx/muzzle_big_%d" if big else "fx/muzzle_%d") % mini(int(t / 0.025), 2))
-	if weapon != "nailgun" and t < 0.075 and flash:
+	if not quiet and t < 0.075 and flash:
 		draw_set_transform(muzzle, dir.angle())
 		draw_texture(flash, Vector2(0, -flash.get_height() * 0.5))
 		draw_set_transform(Vector2.ZERO)
 	var smoke := Art.tex("fx/smoke_%d" % mini(int(t / 0.1), 3))
-	if weapon != "nailgun" and t < 0.4 and smoke:
+	if not quiet and t < 0.4 and smoke:
 		draw_texture(smoke, (muzzle + dir * 3.0 + Vector2(0, -t * 18.0) - smoke.get_size() * 0.5).floor())
 	var travel: float = SHOT_TRAVEL.get(weapon, 0.07)
-	var head_tex := Art.tex({"shotgun": "fx/pellet", "nailgun": "fx/nail", "flare_gun": "fx/flare"}.get(weapon, "fx/bullet"))
+	var head_tex := Art.tex({"shotgun": "fx/pellet", "nailgun": "fx/nail", "flare_gun": "fx/flare", "crossbow": "fx/bolt"}.get(weapon, "fx/bullet"))
 	var tail_color := Color(1.0, 0.35, 0.25) if weapon == "flare_gun" else Color(1.0, 0.88, 0.55)
-	if weapon == "nailgun":
+	if quiet:
 		tail_color = Color(0.75, 0.8, 0.85)
 	var width := 2.0 if weapon == "rifle" else 1.0
 	var ends: Array = shot.get("pellets", [shot.to])
@@ -159,28 +161,51 @@ func _draw_shot(shot: Dictionary, weapon: String) -> void:
 						Color(1, 1, 1, 0.8))
 	# 彈殼：往右後方拋物線彈出，落地停一下
 	var casing := Art.tex("fx/shell_casing" if weapon == "shotgun" else "fx/casing")
-	if casing and t < 0.6 and weapon in ["pistol", "shotgun", "rifle"]:
+	if casing and t < 0.6 and weapon in ["pistol", "shotgun", "rifle", "smg"]:
 		var side := Vector2(-dir.y, dir.x)
 		var k := minf(t / 0.3, 1.0)
 		var p: Vector2 = shot.from + side * (4.0 + 10.0 * k) - dir * 4.0 * k + Vector2(0, -8.0 * k * (1.0 - k) * 4.0 + 3.0 * k)
 		draw_texture(casing, p.floor(), Color(1, 1, 1, clampf((0.6 - t) / 0.2, 0.0, 1.0)))
 
 
-## 近戰：刀光（一大片新月形的弧光，5 格掃過去，後面拖一格殘影）、拳腳的速度線、打中的閃光＋衝擊圈＋碎片。
-## 時間對齊角色的動作：出手那幾格（MELEE_FX_DELAY 之後）才出現，不是一按就閃過去。
+## 近戰：每一招的特效長得不一樣，一眼分得出來（swing.move）：
+##   slash 橫砍 = 新月形弧光（右 → 左）；slash_back 反手回砍 = 同一道弧光左右相反；stab 直刺 = 一道往前衝的細長白光；
+##   slash_axe 斧頭 = 大一號、偏暖色的弧光；slash_crowbar 鐵撬 = 更大、偏灰的弧光（打得遠）；
+##   punch 直拳 = 短速度線＋拳頭前的小衝擊；hook 勾拳 = 貼身的小弧線＋小衝擊；kick 踢 = 低一點、長一點的速度線＋小衝擊。
+## 打中的閃光＋衝擊圈＋碎片另外畫。時間對齊角色的動作：出手那幾格（MELEE_FX_DELAY 之後）才出現，不是一按就閃過去。
 const MELEE_FX_DELAY := 0.05
 const SLASH_FRAME_TIME := 0.036
+## 弧光類的招式：[大小倍率, 顏色, 是否左右相反, 往前偏移]
+const SLASH_FX := {
+	"slash": [1.0, Color(1, 1, 1), false, 4.0],
+	"slash_back": [1.0, Color(1, 1, 1), true, 4.0],
+	"slash_axe": [1.18, Color(1.0, 0.92, 0.82), false, 4.0],
+	"slash_crowbar": [1.34, Color(0.86, 0.9, 0.96), false, 5.0],
+	"hook": [0.5, Color(1.0, 0.95, 0.85), false, 3.0],
+}
+## 出手那一下離主角多遠（小衝擊、打中的閃光畫在這裡）
+const MELEE_REACH := {"stab": 17.0, "slash_crowbar": 17.0, "slash_axe": 15.0, "kick": 15.0, "punch": 13.0, "hook": 11.0}
 
 
 func _draw_melee(swing: Dictionary) -> void:
 	var t: float = swing.t
 	var dir: Vector2 = swing.dir
 	var st := t - MELEE_FX_DELAY
-	if swing.move == "slash" and st >= 0.0 and st < SLASH_FRAME_TIME * 6.0:
+	var move: String = swing.get("move", "slash")
+	# 舊資料：move 只有 slash，武器是斧頭／鐵撬時換成對應的招式
+	if move == "slash":
+		var held := _player.combat.melee_weapon()
+		if held == "fire_axe":
+			move = "slash_axe"
+		elif held == "crowbar":
+			move = "slash_crowbar"
+	var blunt := move in ["punch", "hook", "kick"]
+	if SLASH_FX.has(move) and st >= 0.0 and st < SLASH_FRAME_TIME * 6.0:
+		var cfg: Array = SLASH_FX[move]
 		var f := int(st / SLASH_FRAME_TIME)
-		var axe := _player.combat.melee_weapon() == "fire_axe"
-		var tint := Color(1.0, 0.75, 0.7) if swing.takedown else (Color(1.0, 0.92, 0.82) if axe else Color.WHITE)
-		draw_set_transform(swing.pos + dir * 4.0 + Vector2(0, -7), dir.angle(), Vector2.ONE * (1.18 if axe else 1.0))
+		var tint: Color = Color(1.0, 0.75, 0.7) if swing.get("takedown", false) else cfg[1]
+		var s: float = cfg[0]
+		draw_set_transform(swing.pos + dir * cfg[3] + Vector2(0, -7), dir.angle(), Vector2(s, -s if cfg[2] else s))
 		# 殘影：前一格淡淡地留著，弧線看起來是連續掃過去的
 		if f >= 1:
 			var ghost := Art.tex("fx/slash_%d" % mini(f - 1, 4))
@@ -191,20 +216,37 @@ func _draw_melee(swing: Dictionary) -> void:
 			if tex:
 				draw_texture(tex, -tex.get_size() * 0.5, tint)
 		draw_set_transform(Vector2.ZERO)
-	elif swing.move in ["punch", "kick"] and st >= 0.0 and st < 0.14:
-		# 拳、腳：三條往前的速度線
+	elif move == "stab" and st >= 0.0 and st < 0.16:
+		# 直刺：細長的白光從手的位置往前衝（4 格）
+		var tex := Art.tex("fx/thrust_%d" % mini(int(st / 0.04), 3))
+		if tex:
+			var tint := Color(1.0, 0.75, 0.7) if swing.get("takedown", false) else Color.WHITE
+			draw_set_transform(swing.pos + dir * 5.0 + Vector2(0, -8), dir.angle())
+			draw_texture(tex, Vector2(0, -tex.get_height() * 0.5), tint)
+			draw_set_transform(Vector2.ZERO)
+	elif move in ["punch", "kick"] and st >= 0.0 and st < 0.14:
+		# 拳、腳：往前的速度線（拳 = 一條短的；踢 = 三條長的、位置低）
 		var k := st / 0.14
-		var base: Vector2 = swing.pos + Vector2(0, -8 if swing.move == "punch" else -4)
+		var kick := move == "kick"
+		var base: Vector2 = swing.pos + Vector2(0, -4 if kick else -8)
 		var side := Vector2(-dir.y, dir.x)
-		for i in [-1, 0, 1]:
+		for i in ([-1, 0, 1] if kick else [0]):
 			var tip: Vector2 = base + dir * (9.0 + 9.0 * k - absf(i) * 2.0) + side * i * 2.5
-			draw_line(tip - dir * (7.0 - absf(i) * 2.0), tip, Color(1, 1, 1, (1.0 - k) * (0.85 if i == 0 else 0.45)), 1.0)
+			draw_line(tip - dir * ((8.0 if kick else 5.0) - absf(i) * 2.0), tip, Color(1, 1, 1, (1.0 - k) * (0.85 if i == 0 else 0.45)), 1.0)
+	var reach: float = MELEE_REACH.get(move, 13.0)
+	# 拳腳出手那一下：拳頭／腳尖前面的小衝擊（沒打中也有，看得出這一下出去了）
+	var bt := st - 0.03
+	if blunt and bt >= 0.0 and bt < 0.12:
+		var burst := Art.tex("fx/burst_%d" % mini(int(bt / 0.04), 2))
+		if burst:
+			var bp: Vector2 = swing.pos + dir * reach + Vector2(0, -4 if move == "kick" else -8)
+			draw_texture(burst, (bp - burst.get_size() * 0.5).floor())
 	var ht := t - MELEE_FX_DELAY - 0.02
 	if swing.get("hit", false) and ht >= 0.0 and ht < 0.24:
 		var f := mini(int(ht / 0.06), 3)
-		var at: Vector2 = swing.pos + dir * 13.0 + Vector2(0, -6)
+		var at: Vector2 = swing.pos + dir * reach + Vector2(0, -6)
 		var ring := Art.tex("fx/impact_%d" % f)
-		if ring and swing.move in ["punch", "kick"]:
+		if ring and blunt:
 			draw_texture(ring, (at - ring.get_size() * 0.5).floor())
 		var hit := Art.tex("fx/hit_%d" % f)
 		if hit:

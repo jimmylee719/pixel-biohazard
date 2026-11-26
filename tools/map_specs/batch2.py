@@ -62,15 +62,7 @@ AREAS["station_2f_office"] = {
     },
 }
 
-AREAS["station_east_wing"] = {
-    "rekey": {"41,15": "40,15"},
-    "fields": {
-        "sets": '''[
-			{"rect": Rect2i(1, 1, 7, 6), "set": "office"}, {"rect": Rect2i(1, 11, 7, 6), "set": "medical"},
-			{"rect": Rect2i(29, 11, 8, 6), "set": "storage"}, {"rect": Rect2i(38, 11, 5, 6), "set": "utility"},
-		]''',
-    },
-}
+# 東翼（station_east_wing）在 batch4.py 重畫了。
 
 # ── 地下室：樓梯下來是一條走廊；西邊是樣本冷凍庫（凍眠體），中間是錄音帶檔案室，
 #    東邊是發電機房，檔案室南邊的前室通往鑽井（要權限卡）。
@@ -81,7 +73,7 @@ AREAS["station_b1"] = {
 #..................................#
 ####+#########+#####+####+##########
 #CC..CC..CC....#CCCC.CC#C..CCCC..CC#
-#..............#.......#..........H#
+#..............#.......#.........;H#
 #..a.....x.....#.&..M..#..CC.......#
 #CC..........V.#....s..#..CCE......#
 #CC....b.......#CC.....#........3..#
@@ -92,9 +84,10 @@ AREAS["station_b1"] = {
 ################.......#############
 ###################D################
 """,
+    "allow_diff": True,   # 多了一份木柴 ;（發電機旁）
     "doors": {"basement": (2, 0), "shaft": (19, 14)},
     "fields": {
-        "camera_zones": '[{"rect": Rect2i(1, 4, 14, 8), "tilt": 0.15, "zoom": 1.15}]',
+        "camera_zones": '[{"rect": Rect2i(1, 4, 14, 8), "zoom": 1.15}]',
         "zones": '''{
 			"freezer": {"rect": Rect2i(1, 4, 14, 8), "heated": false},
 			"b1": {"rect": Rect2i(0, 0, 36, 15), "heated": false, "powered": true},
@@ -124,8 +117,10 @@ m.put(4, 16, "Z").put(30, 17, "A")
 m.block(8, 9, 4, 2).block(17, 15, 3, 2).block(25, 16, 2, 2)
 m.put(6, 12, "C").put(15, 11, "C").put(21, 9, "C").put(11, 16, "CC").put(2, 8, "C")
 m.put(4, 10, "1").put(29, 15, "2").put(22, 17, "3").put(6, 18, "4").put(15, 13, "a").put(20, 8, "b")
+m.put(20, 16, ";")                         # 木柴（油槽旁）
 AREAS["tower_yard"] = {
     "map": m.rows(),
+    "allow_diff": True,
     "fields": {
         "zones": '{\n\t\t\t"yard": {"rect": Rect2i(0, 0, 34, 20), "heated": false},\n\t\t}',
         "indoor_rects": "[Rect2i(13, 2, 8, 4), Rect2i(25, 9, 7, 4)]",
@@ -155,8 +150,11 @@ m.put(17, 12, "C").put(22, 14, "CC").put(26, 17, "C").put(14, 21, "CCC").put(34,
 m.put(42, 25, "C").put(24, 25, "CC").put(10, 5, "C").put(45, 16, "C")
 m.put(8, 7, "1").put(4, 22, "2").put(20, 24, "3").put(22, 12, "4").put(36, 10, "5").put(40, 24, "6").put(29, 13, "7").put(45, 18, "8")
 m.put(31, 21, "c").put(16, 20, "d").put(27, 11, "x").put(12, 23, "x").put(41, 12, "x")
+m.put(40, 16, "*").put(36, 18, "|")        # 彼得是獵人：十字弓和弩箭在他的小屋
+m.put(45, 10, ";").put(13, 16, ";").put(36, 23, ";")   # 木柴：柴堆旁、觀測小屋、木箱旁
 AREAS["weather_huts"] = {
     "map": m.rows(),
+    "allow_diff": True,
     "doors": {"harbor": (12, 0), "bunk": (24, 9), "huts": (47, 22)},
     "fields": {
         "zones": '{\n\t\t\t"outside": {"rect": Rect2i(0, 0, 48, 28), "heated": false},\n\t\t}',

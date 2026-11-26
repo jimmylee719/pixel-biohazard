@@ -1,21 +1,11 @@
-## 窗戶：靠過去看 = 切換成第一人稱視角往窗外看（main 的 FirstPersonView）。
-## 站在窗前往窗戶推一下也會自動切換；往後退或按互動離開。
+## 窗戶：擋路、不擋視線。站到窗戶旁邊就看得到另一邊的房間（Player.peek_cells()，維持俯視，不切換視角）。
+## 這個物件只是佔位（不能互動）。
 class_name WindowPane
 extends Interactable
 
-signal look(window: WindowPane, from_pos: Vector2)
 
-
-func _init() -> void:
-	interact_range = 22.0
-
-
-func get_prompt(_player: Player) -> String:
-	return "Look through the window"
-
-
-func interact(player: Player) -> void:
-	look.emit(self, player.global_position)
+func can_interact(_player: Player) -> bool:
+	return false
 
 
 func _draw() -> void:

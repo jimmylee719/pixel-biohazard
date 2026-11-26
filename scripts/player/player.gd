@@ -79,8 +79,6 @@ const MOVE_MASK := 41
 @export var throw_distance := 96.0
 @export var bottle_noise_tiles := 6.0
 ## 敲牆：在牆的另一邊也聽得到（MGS 式的引誘）
-@export var knock_noise_tiles := 4.0
-@export var knock_reach := 14.0
 
 @export_group("滅火器")
 @export var spray_range := 56.0
@@ -136,7 +134,6 @@ var _flashlight_before_hide := true
 var _lighter_before_hide := false
 var _ambient_energy := 1.0
 var _invulnerable := 0.0
-var _knock_cd := 0.0
 var _spray_cd := 0.0
 var _lighter: PointLight2D
 var _sprite: CharacterSprite
@@ -188,7 +185,7 @@ func _physics_process(delta: float) -> void:
 	_update_infection(delta)
 	_update_body_temp(delta)
 	_update_hazard(delta)
-	_knock_cd = maxf(_knock_cd - delta, 0.0)
+	_update_peek()
 	_spray_cd = maxf(_spray_cd - delta, 0.0)
 	if not last_spray.is_empty():
 		last_spray.t += delta
@@ -200,9 +197,9 @@ func _physics_process(delta: float) -> void:
 			focus.use(self)
 			focus = _find_focus()
 		elif not is_hiding:
-			# 面前有可以抓的敵人就擒拿，不然就敲牆
+			# 面前有可以抓的敵人就擒拿；不然，貼著關著的門 = 把門推開一條縫往裡面看
 			if not combat.grab():
-				knock()
+				toggle_peek()
 
 	if is_hiding:
 		velocity = Vector2.ZERO
@@ -252,6 +249,7 @@ func _physics_process(delta: float) -> void:
 		speed = minf(speed, aim_move_speed)
 	speed *= get_speed_mult()
 	var move_dir := move_input.normalized() if tilt > 0.0 else Vector2.ZERO
+	move_intent = move_dir
 	# 輕推的範圍內速度還是跟著力道（推越少走越慢），潛行速度以上就固定
 	var drive := clampf(tilt / analog_sneak_tilt, 0.35, 1.0) if light_tilt else 1.0
 	velocity = velocity.move_toward(move_dir * speed * drive, acceleration * delta)
@@ -398,6 +396,10 @@ func _update_infection(delta: float) -> void:
 
 
 ## 體溫：依所在位置的氣候失溫或回暖。打火機開著、奔跑時失溫比較慢；火堆旁回暖很快。
+## 耐寒：失溫速度的倍率（主角受過極地訓練、穿著保暖內層，比一般人耐冷很多）
+@export var cold_resistance := 0.45
+
+
 func _update_body_temp(delta: float) -> void:
 	if level == null:
 		return
@@ -405,6 +407,7 @@ func _update_body_temp(delta: float) -> void:
 	if Fire.warm_at(get_tree(), global_position):
 		rate = -fire_warmth
 	elif rate > 0.0:
+		rate *= cold_resistance
 		if lighter_on:
 			rate *= 0.7
 		if gait == Gait.RUN:
@@ -503,6 +506,11 @@ func use_item(item_id: String) -> bool:
 			# 投擲物：使用 = 準備丟這種
 			WorldState.ready_throw = item_id
 			return true
+		"campfire":
+			# 可燃物：用打火機在腳邊生一小堆火（取暖、照明；敵人也看得到光）
+			if level == null or is_hiding:
+				return false
+			light_campfire(float(item.get("burn", 45.0)))
 		"craft":
 			# 材料：和需要的東西組合（例如酒精＋空瓶 = 汽油彈）
 			var recipe: Dictionary = item.recipe
@@ -521,6 +529,25 @@ func use_item(item_id: String) -> bool:
 			return false
 	WorldState.inv_remove(item_id, 1)
 	return true
+
+
+## 在腳邊（面前一點）生一堆火：不會燒到人，燒一陣子自己熄
+func light_campfire(burn_time: float) -> Fire:
+	var fire := Fire.new()
+	fire.harmful = false
+	fire.radius = 10.0
+	fire.duration = burn_time
+	fire.light_radius = 72.0
+	fire.warm_radius = 48.0
+	fire.campfire = true
+	level.add_child(fire)
+	var at := global_position + facing * 12.0
+	# 面前是牆就生在腳邊
+	if not Sight.is_clear(self, global_position, at):
+		at = global_position
+	fire.global_position = at
+	Sfx.play("lighter_flick", global_position)
+	return fire
 
 
 # ── 躲藏 ──────────────────────────────────────────────
@@ -618,6 +645,14 @@ func _launch(thrown: ThrownObject) -> void:
 
 # ── 光源：手電筒、打火機 ─────────────────────────────────
 
+## 直接指定光源："flashlight"、"lighter"、""（全關）
+func set_light(which: String) -> void:
+	flashlight_on = which == "flashlight"
+	lighter_on = which == "lighter"
+	_apply_flashlight()
+	Sfx.play("lighter_flick" if lighter_on else "flashlight_click")
+
+
 ## 手電筒 → 打火機 → 全關 → 手電筒
 func cycle_light() -> void:
 	if flashlight_on:
@@ -635,29 +670,101 @@ func cycle_light() -> void:
 		Sfx.play("flashlight_click")
 
 
-# ── 敲牆 ──────────────────────────────────────────────
+# ── 門縫窺視 ──────────────────────────────────────────
 
-## 面前貼著牆的位置（沒有就回傳 null）。
-func knock_point() -> Variant:
-	if is_hiding or is_carrying() or level == null:
+## 潛行（或輕推搖桿）靠近室內門時，門不會自己打開：要「往門推一下」才會開，或是按互動把門推開一條縫往裡面看。
+## 從門縫只看得到正前方一個窄窄的扇形（看得到裡面的人面向哪裡），門還是關著的，裡面的人看不到你；
+## 但門軸會響一小聲（就在門後面的會聽到）。離開門邊、門被打開、再按一次互動就結束。
+var peeking: InteriorDoor = null
+## 這一幀想往哪走（門用來判斷是不是「往門推」）
+var move_intent := Vector2.ZERO
+const PEEK_REACH := 21.0
+const PEEK_HALF_ANGLE := 0.75
+const PEEK_NOISE_TILES := 1.5
+
+
+## 不會把門自動打開的走法：潛行中、站著不動潛行
+func is_quiet() -> bool:
+	return sneaking or gait == Gait.SNEAK
+
+
+func peek_candidate() -> InteriorDoor:
+	if is_hiding or is_carrying() or level == null or not is_quiet() or combat.aiming:
 		return null
-	var space := get_world_2d().direct_space_state
-	var query := PhysicsRayQueryParameters2D.create(global_position, global_position + facing * knock_reach, WALL_MASK)
-	var hit := space.intersect_ray(query)
-	return hit.position if not hit.is_empty() else null
+	var best: InteriorDoor = null
+	var best_d := PEEK_REACH
+	for door in level.get_inner_doors():
+		if door.is_open or door.access > WorldState.access_level:
+			continue
+		var d := global_position.distance_to(door.global_position)
+		if d < best_d:
+			best = door
+			best_d = d
+	return best
 
 
-## 敲牆：牆的位置發出聲音，引誘附近（包括牆後面）的敵人過來看看。
-func knock() -> bool:
-	if _knock_cd > 0.0:
+func toggle_peek() -> bool:
+	if peeking != null:
+		stop_peek()
+		return true
+	var door := peek_candidate()
+	if door == null:
 		return false
-	var p = knock_point()
-	if p == null:
-		return false
-	_knock_cd = 0.6
-	NoiseBus.emit_noise(p, knock_noise_tiles * TILE, self)
-	Sfx.play("knock", p)
+	peeking = door
+	door.ajar = true
+	door.queue_redraw()
+	NoiseBus.emit_noise(door.global_position, PEEK_NOISE_TILES * TILE, self)
+	Sfx.play("door_open", door.global_position, 0.1, -16.0)
 	return true
+
+
+func stop_peek() -> void:
+	if peeking != null and is_instance_valid(peeking):
+		peeking.ajar = false
+		peeking.queue_redraw()
+	peeking = null
+
+
+## 門縫另一邊的位置（視線從這裡出發）和往裡面看的方向
+func peek_origin() -> Vector2:
+	return peeking.global_position + peek_dir() * (TILE * 0.5 + 2.0)
+
+
+func peek_dir() -> Vector2:
+	var d := peeking.global_position - global_position
+	# 門是橫的（上下通行）還是直的：只取通行的那個方向
+	if peeking.is_horizontal():
+		return Vector2(0, signf(d.y) if d.y != 0.0 else 1.0)
+	return Vector2(signf(d.x) if d.x != 0.0 else 1.0, 0)
+
+
+func _update_peek() -> void:
+	if peeking == null:
+		return
+	if not is_instance_valid(peeking) or peeking.is_open or is_hiding or is_dead \
+			or global_position.distance_to(peeking.global_position) > PEEK_REACH + 6.0:
+		stop_peek()
+
+
+## 從門縫、窗戶看進去的那幾格（RoomFog 用：那一間也要顯示出來）
+func peek_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	if level == null:
+		return cells
+	if peeking != null:
+		cells.append(level.cell_of(peek_origin() + peek_dir() * 4.0))
+	# 站在窗戶旁邊：看得到窗戶另一邊的房間
+	var c := level.cell_of(global_position)
+	for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		if level.char_at(c + d) == "=":
+			# 窗戶可能有好幾格厚：一直往前找到另一邊的地板
+			var far: Vector2i = c + d * 2
+			var n := 0
+			while level.char_at(far) == "=" and n < 6:
+				far += d
+				n += 1
+			cells.append(far)
+	return cells
 
 
 # ── 滅火器 ────────────────────────────────────────────
@@ -724,7 +831,20 @@ func _find_focus() -> Interactable:
 
 
 ## 每一招的動作畫面播多久（秒；只影響畫面，比該招的冷卻短一點，連段才接得上）
-const MELEE_POSE_TIME := {"slash": 0.31, "punch": 0.29, "kick": 0.42}
+const MELEE_POSE_TIME := {"slash": 0.31, "slash_back": 0.31, "stab": 0.34, "punch": 0.29, "hook": 0.32, "kick": 0.42,
+	"slash_axe": 0.34, "slash_crowbar": 0.36}
+
+
+## 這一招用哪組圖（還沒有那組圖時退回最接近的）
+func _melee_anim(move: String) -> String:
+	if _sprite.has_anim(move):
+		return move
+	match move:
+		"slash_back", "stab", "slash_crowbar":
+			return "slash_axe" if move == "slash_crowbar" and _sprite.has_anim("slash_axe") else "slash"
+		"hook":
+			return "punch"
+	return move
 
 
 func _update_sprite() -> void:
@@ -733,17 +853,19 @@ func _update_sprite() -> void:
 	# 近戰動作（刀、拳、踢）優先，再來是舉槍瞄準
 	var swing: Dictionary = combat.last_melee
 	if not swing.is_empty() and swing.move in MELEE_POSE_TIME and swing.t < MELEE_POSE_TIME[swing.move]:
-		var move: String = swing.move
-		if move == "slash" and combat.melee_weapon() == "fire_axe":
-			move = "slash_axe"
-		_sprite.show_pose(move, swing.dir, true)
+		_sprite.show_pose(_melee_anim(swing.move), swing.dir, true)
 		return
 	var shot: Dictionary = combat.last_shot
 	if combat.aiming and combat.has_weapon() and not shot.is_empty() and shot.t < 0.18:
 		_sprite.show_pose("shoot_" + combat.current_weapon(), facing, true)
 		return
 	if combat.aiming and combat.has_weapon():
-		_sprite.show_pose("aim_" + combat.current_weapon(), facing, true)
+		# 舉著槍走：上半身瞄準、腳照樣走（沒有這組圖就退回站著瞄準）
+		var walk_anim := "aimwalk_" + combat.current_weapon()
+		if velocity.length() > 8.0 and _sprite.has_anim(walk_anim):
+			_sprite.show_pose(walk_anim, facing, true, clampf(velocity.length() / aim_move_speed, 0.6, 1.2))
+		else:
+			_sprite.show_pose("aim_" + combat.current_weapon(), facing, true)
 		return
 	match gait:
 		Gait.RUN:
@@ -770,7 +892,16 @@ func can_see_point(point: Vector2) -> bool:
 		radius = maxf(radius, lighter_radius * 0.85)
 	var lit := dist <= radius or is_in_flashlight(point) or (level != null and level.is_lit() and not is_hiding) \
 		or Fire.lit_at(get_tree(), point)
-	return lit and Sight.is_clear(self, global_position, point)
+	if lit and Sight.is_clear(self, global_position, point):
+		return true
+	# 從門縫看：只有門後面正前方一個窄窄的扇形，而且要夠近或那邊有光
+	if peeking != null:
+		var from := peek_origin()
+		var near := from.distance_to(point) <= dark_sight_radius * 1.3 or (level != null and level.is_lit_at(point)) \
+			or Fire.lit_at(get_tree(), point)
+		return near and Sight.in_cone(from, peek_dir(), point, PEEK_HALF_ANGLE, 9.0 * TILE) \
+			and Sight.is_clear(self, from, point)
+	return false
 
 
 func is_in_flashlight(point: Vector2) -> bool:

@@ -20,8 +20,9 @@ const BUTTONS := [
 	["dodge", "DODGE", Vector2(452, 126), 12.0],
 	["sneak", "SNEAK", Vector2(122, 248), 12.0],
 	["pause", "II", Vector2(16, 40), 10.0],
-	["map", "OPS", Vector2(42, 40), 10.0],
-	["inventory", "ITEMS", Vector2(72, 40), 12.0],
+	["map", "MAP", Vector2(42, 40), 10.0],
+	["inventory", "BAG", Vector2(70, 40), 11.0],
+	["phone", "OPS", Vector2(98, 40), 10.0],
 ]
 
 var joystick: TouchStick

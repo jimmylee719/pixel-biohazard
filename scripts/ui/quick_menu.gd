@@ -69,7 +69,9 @@ func _draw() -> void:
 	if entries.is_empty():
 		return
 	var total := SLOT * entries.size()
-	var x0 := (480.0 - total) * 0.5
+	var vw := get_viewport_rect().size.x
+	_name.size.x = vw
+	var x0 := (vw - total) * 0.5
 	draw_rect(Rect2(x0 - 4, Y - 3, total + 8, SLOT + 6), Color(0, 0.02, 0.03, 0.8))
 	var font := get_theme_default_font()
 	for i in entries.size():

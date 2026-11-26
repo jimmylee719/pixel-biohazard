@@ -58,6 +58,57 @@ func _run() -> void:
 		await _shot("t8_harbor")
 		get_tree().quit()
 		return
+	# 第二個參數 ui = 新介面：任務箭頭、格子背包、儲物箱、全螢幕地圖、門縫、小房間鏡頭
+	if OS.get_cmdline_user_args().has("ui"):
+		WorldState.start_loadout = true
+		WorldState.new_game()
+		for it in [["med", 2], ["bottle", 2], ["kindling", 2], ["shotgun", 1], ["shells", 6], ["antibiotic", 1], ["fire_axe", 1]]:
+			WorldState.inv_add(it[0], it[1])
+		WorldState.data.storage = {"rifle": 1, "rifle_rounds": 8, "heat_pack": 3, "ethanol": 2, "nails": 24, "flares": 2, "molotov": 1}
+		await _enter("south_shore", "start")
+		await _frames(40)
+		await _shot("u1_arrow")
+		_main._toggle_inventory_panel()
+		await _frames(5)
+		await _shot("u2_backpack")
+		_main.backpack.zone = "kit"
+		await _frames(3)
+		await _shot("u2b_backpack_kit")
+		_main._toggle_inventory_panel()
+		_main._toggle_storage_panel()
+		await _frames(5)
+		await _shot("u3_storage")
+		_main._toggle_storage_panel()
+		_main.open_map()
+		await _frames(5)
+		await _shot("u4_map")
+		_main.map_panel.zoom_by(2)
+		await _frames(5)
+		await _shot("u4b_map_zoom")
+		_main.map_panel.close()
+		_main.open_phone("missions")
+		await _frames(5)
+		await _shot("u5_missions")
+		_main.close_phone()
+		_off = Areas.area_offset("station_1f")
+		_put_player(_tile(10, 4), Vector2.UP, true)
+		await _frames(90)
+		await _shot("u6_small_room")
+		_player.use_item("kindling")
+		await _frames(20)
+		await _shot("u7_campfire")
+		for d in _main.level.get_inner_doors():
+			if d.access == 0 and d.is_horizontal() and "#C".find(_main.level.char_at(d.cell + Vector2i.DOWN)) < 0:
+				_player.reset_to(d.global_position + Vector2(0, 16))
+				_player.sneaking = true
+				_player.facing = Vector2.UP
+				await _frames(20)
+				_player.toggle_peek()
+				await _frames(20)
+				await _shot("u8_peek")
+				break
+		get_tree().quit()
+		return
 	# 第二個參數 map = 整張地圖的全亮預覽（設計關卡用）：之後的參數是區域 id（不寫 = 全部的主地圖）
 	if OS.get_cmdline_user_args().has("map"):
 		await _map_shots()
@@ -568,6 +619,15 @@ func _tile(x: int, y: int) -> Vector2:
 
 
 func _put_player(pos: Vector2, facing: Vector2, light: bool) -> void:
+	# 地圖改過之後寫死的座標可能落在牆或家具裡：改站到最近的地板格
+	var lv: Level = _main.level
+	if lv and not lv._floor_cells.has(lv.cell_of(pos)):
+		var best := INF
+		for c in lv._floor_cells:
+			var p := (Vector2(c) + Vector2(0.5, 0.5)) * Level.TILE
+			if p.distance_squared_to(pos) < best and lv.char_at(c) == ".":
+				best = p.distance_squared_to(pos)
+				pos = p
 	_player.reset_to(pos)
 	_player.facing = facing
 	_player.flashlight_on = light

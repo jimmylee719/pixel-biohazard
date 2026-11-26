@@ -829,6 +829,9 @@ func _die() -> void:
 	if enemy_key != "":
 		WorldState.mark_enemy_dead(enemy_key, global_position)
 	_apply_dead_state()
+	# 身上插著十字弓的箭：倒下後可以拔回來
+	if int(get_meta("bolts", 0)) > 0 and _player and is_instance_valid(_player):
+		_player.combat.drop_bolts(self)
 	died.emit()
 
 

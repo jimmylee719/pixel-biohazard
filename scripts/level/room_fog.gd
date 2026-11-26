@@ -19,6 +19,15 @@ func setup(lv: Level) -> void:
 		_cells_by_room[r].append(cell)
 
 
+## 房間有幾格（鏡頭依房間大小推近用）
+func room_size(room: int) -> int:
+	return _cells_by_room.get(room, []).size()
+
+
+## 另外看得到的格子（從門縫、窗戶看進去的那一間）
+var peek_cells: Array[Vector2i] = []
+
+
 func update(pos: Vector2) -> void:
 	var was_out := not level._is_indoor_cell(level.cell_of(_last_pos))
 	_last_pos = pos
@@ -27,6 +36,9 @@ func update(pos: Vector2) -> void:
 	var rooms := level.visible_rooms(pos)
 	if rooms.is_empty():
 		return  # 站在牆裡（不應該發生）：維持原樣
+	for c in peek_cells:
+		if level.room_of.has(c) and not rooms.has(level.room_of[c]):
+			rooms.append(level.room_of[c])
 	rooms.sort()
 	if rooms != visible_rooms:
 		visible_rooms = rooms

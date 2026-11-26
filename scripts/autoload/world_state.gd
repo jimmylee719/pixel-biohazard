@@ -59,9 +59,10 @@ func set_language(code: String) -> void:
 ## 依 iOS 同類遊戲的玩家評價加的（docs/IP_REVIEW.md）：音樂／音效分開調、觸控按鈕透明度與左右對調、
 ## 「聲音提示」（畫面邊緣顯示畫面外的腳步聲，沒戴耳機也能玩）、輔助模式（受傷和雜訊減半）、省電模式（30 FPS）。
 const OPTION_DEFAULTS := {
-	"music": 0.8, "sfx": 1.0, "touch_opacity": 0.22, "left_handed": false,
+	"music": 0.6, "sfx": 1.0, "touch_opacity": 0.22, "left_handed": false,
 	"sound_cues": true, "assist": false, "battery_saver": false,
 }
+const OPTIONS_VERSION := 2
 var options := OPTION_DEFAULTS.duplicate()
 signal options_changed
 
@@ -86,6 +87,13 @@ func load_options() -> void:
 	cfg.load(SETTINGS_PATH)
 	for key in OPTION_DEFAULTS:
 		options[key] = cfg.get_value("options", key, OPTION_DEFAULTS[key])
+	# 第 2 版：背景音樂的預設改成 60%（舊設定檔裡存的是舊預設 80%，改一次；之後玩家自己調的就照他的）
+	if int(cfg.get_value("options", "version", 1)) < OPTIONS_VERSION:
+		options["music"] = OPTION_DEFAULTS.music
+		if save_path == "user://save.dat":
+			cfg.set_value("options", "music", options.music)
+			cfg.set_value("options", "version", OPTIONS_VERSION)
+			cfg.save(SETTINGS_PATH)
 	apply_options()
 
 
@@ -531,6 +539,51 @@ func inv_remove(item_id: String, count: int) -> int:
 	return count - left
 
 
+## 背包裡搬位置：兩格交換；同一種物品會疊在一起（疊不下的留在原來那格）
+func move_slot(from: int, to: int) -> void:
+	var inv: Array = data.inventory
+	if from == to or from < 0 or to < 0 or from >= inv.size() or to >= inv.size():
+		return
+	var a: Dictionary = inv[from]
+	var b: Dictionary = inv[to]
+	if not a.is_empty() and not b.is_empty() and a.id == b.id:
+		var stack: int = Items.get_item(a.id).stack
+		var n := mini(a.count, stack - b.count)
+		b.count += n
+		a.count -= n
+		if a.count <= 0:
+			inv[from] = {}
+	else:
+		inv[from] = b
+		inv[to] = a
+	changed.emit()
+
+
+# ── 任務指引（箭頭）：玩家在任務清單勾選的任務 ──
+
+## 主線的箭頭開不開（預設開）
+func pin_main() -> bool:
+	return data.get("pin_main", true)
+
+
+## 勾選的支線（依勾選的順序）
+func pinned_sides() -> Array:
+	return data.get("pins", [])
+
+
+func toggle_pin(mission_id: String, is_main: bool) -> void:
+	if is_main:
+		data["pin_main"] = not pin_main()
+	else:
+		var pins: Array = data.get("pins", []).duplicate()
+		if pins.has(mission_id):
+			pins.erase(mission_id)
+		else:
+			pins.append(mission_id)
+		data["pins"] = pins
+	changed.emit()
+
+
 func is_taken(item_id: String) -> bool:
 	return has_flag("taken:" + item_id)
 
@@ -671,6 +724,30 @@ func checkpoint_area() -> String:
 
 func checkpoint_entry() -> String:
 	return _checkpoint.entry
+
+
+# ── 近戰：手上拿什麼（小刀／空手／消防斧／鐵撬）──
+
+## "knife"（預設）、"fists"（把刀收起來，用拳腳）、或身上有的重兵器（fire_axe、crowbar）
+func melee() -> String:
+	var m: String = data.get("melee", "knife")
+	if m != "knife" and m != "fists" and inv_count(m) <= 0:
+		return "knife"
+	return m
+
+
+func set_melee(m: String) -> void:
+	data["melee"] = m
+	changed.emit()
+
+
+## 可以選的近戰方式（武器選單用）：小刀、空手，加上身上有的重兵器
+func melee_options() -> Array[String]:
+	var out: Array[String] = ["knife", "fists"]
+	for id in Items.DATA:
+		if Items.DATA[id].kind == "melee" and inv_count(id) > 0:
+			out.append(id)
+	return out
 
 
 # ── 消音器（裝在手槍上：槍聲傳得近很多）──

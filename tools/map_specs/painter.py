@@ -52,3 +52,17 @@ class Map:
         print("     " + "".join(str(i % 10) for i in range(self.w)))
         for y, r in enumerate(self.rows()):
             print("%3d  %s" % (y, r))
+
+
+def legacy_map(area_id):
+    """舊版（tools/tests/legacy_areas.gd）的地圖，變成 Map：只想在原本的地圖上多放幾樣東西時用。"""
+    import os
+    import re
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "legacy_areas.gd")
+    text = open(path, encoding="utf-8").read()
+    start = text.index('\n\t"%s": {\n' % area_id)
+    at = text.index('\t\t"map": [', start)
+    rows = re.findall(r'"([^"\n]*)"', text[at + 9:text.index("\n\t\t]", at)])
+    m = Map(len(rows[0]), len(rows))
+    m.g = [list(r) for r in rows]
+    return m

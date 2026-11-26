@@ -11,21 +11,37 @@ const FLIP := [false, false, false, true, true, true, false, false]
 ## 腳底離角色中心多遠（像素）
 const FEET := 6.0
 ## 圖裡腳底離下緣幾個像素（tools/gen_pixel_art.py 的 FOOT_PAD；留給往鏡頭方向踢、撲的腳）
-const FOOT_PAD := 4.0
+const FOOT_PAD := 9.0
 ## 四隻腳、趴著的角色留更多（跟 gen_pixel_art.py 的 FOOT_PADS 一樣）
-const FOOT_PADS := {"bear": 12.0, "hound": 7.0, "crawler": 12.0}
+const FOOT_PADS := {"bear": 15.0, "crawler": 13.0}
 ## 每種動作的播放速度（格／秒）、會不會循環。沒列出來的用 6、循環。
 ## 格數多（走路 8 格、近戰 6 格、撲擊 5 格），播放速度跟著提高 → 動作流暢
 const ANIMS := {
 	"idle": [3.0, true], "walk": [12.0, true], "sneak": [10.0, true], "listen": [3.0, true],
 	"aim": [1.0, true], "aim_pistol": [1.0, true], "aim_shotgun": [1.0, true], "aim_rifle": [1.0, true],
 	"aim_nailgun": [1.0, true], "aim_flare_gun": [1.0, true],
+	"aim_revolver": [1.0, true], "aim_smg": [1.0, true], "aim_crossbow": [1.0, true],
 	"shoot_pistol": [20.0, false], "shoot_shotgun": [16.0, false], "shoot_rifle": [14.0, false],
 	"shoot_nailgun": [24.0, false], "shoot_flare_gun": [18.0, false],
-	# 近戰（刀 8 格、斧 8 格、拳 7 格、踢 9 格）：預備 → 出手 → 收招，整段播完的時間要跟 Player.MELEE_POSE_TIME 一樣
-	"slash": [27.0, false], "slash_axe": [26.0, false], "punch": [25.0, false], "kick": [22.0, false],
+	"shoot_revolver": [16.0, false], "shoot_smg": [26.0, false], "shoot_crossbow": [14.0, false],
+	# 舉槍移動（6 格）：上半身 = 瞄準姿勢、腳 = 小步走。Player 在瞄準又有移動時用 show_pose("aimwalk_" + 武器, …, true)
+	"aimwalk_pistol": [10.0, true], "aimwalk_shotgun": [10.0, true], "aimwalk_rifle": [10.0, true],
+	"aimwalk_nailgun": [10.0, true], "aimwalk_flare_gun": [10.0, true],
+	"aimwalk_revolver": [10.0, true], "aimwalk_smg": [10.0, true], "aimwalk_crossbow": [10.0, true],
+	# 近戰：預備 → 出手 → 收招，整段播完的時間（格數 ÷ 速度，見 MELEE_TIME）要跟 Player.MELEE_POSE_TIME 一樣
+	# 刀：slash（8 格）→ slash_back（8）→ stab（7）；空手：punch（7）→ hook（8）→ kick（9）；重武器：slash_axe（8）、slash_crowbar（9）
+	"slash": [27.0, false], "slash_back": [27.0, false], "stab": [21.0, false],
+	"slash_axe": [26.0, false], "slash_crowbar": [24.0, false],
+	"punch": [25.0, false], "hook": [25.0, false], "kick": [22.0, false],
 	"attack": [12.0, false], "hurt": [14.0, false], "dodge": [21.0, false], "dodge_back": [21.0, false],
 }
+## 每個近戰動作整段播完要幾秒（格數 ÷ 速度）。Player.MELEE_POSE_TIME 用這個表就不會對不上
+const MELEE_TIME := {
+	"slash": 8.0 / 27.0, "slash_back": 8.0 / 27.0, "stab": 7.0 / 21.0, "slash_axe": 8.0 / 26.0,
+	"slash_crowbar": 9.0 / 24.0, "punch": 7.0 / 25.0, "hook": 8.0 / 25.0, "kick": 9.0 / 22.0,
+}
+## 沒有這個動作的圖時依序改用誰（紙娃娃的某一套圖少了新動作也不會壞）
+const FALLBACK := {"slash_back": "slash", "stab": "slash", "slash_axe": "slash", "slash_crowbar": "slash_axe", "hook": "punch"}
 
 var char_id := ""
 var _anims: Array[String] = []
@@ -147,22 +163,37 @@ func has_anim(anim: String) -> bool:
 	return _anims.has(anim)
 
 
+## 沒有圖的動作換成最接近的：aimwalk_<槍> → aim_<槍> → aim_pistol；shoot_<槍> → aim_<槍>；
+## 近戰的新招式 → 舊招式（FALLBACK）；都沒有就用 walk。
+func _resolve(anim: String) -> String:
+	for _i in 4:
+		if has_anim(anim):
+			return anim
+		if anim.begins_with("aimwalk_"):
+			anim = "aim_" + anim.substr(8)
+		elif anim.begins_with("shoot_"):
+			anim = "aim_" + anim.substr(6)
+		elif anim.begins_with("aim_") and anim != "aim_pistol":
+			anim = "aim_pistol"
+		elif FALLBACK.has(anim):
+			anim = FALLBACK[anim]
+		elif anim.begins_with("slash") and anim != "slash":
+			anim = "slash"
+		elif anim == "hurt":
+			anim = "idle"
+		else:
+			break
+	if has_anim(anim):
+		return anim
+	return "walk" if has_anim("walk") else _anims[0]
+
+
 ## 依面向和動作選擇動畫。speed_scale：走路 1、跑步 1.8。
 ## 不循環的動作（揮刀、出拳、踢、撲擊）換到它時從第一格開始播。
 func show_pose(anim: String, facing: Vector2, playing: bool, speed := 1.0) -> void:
 	if not has_art():
 		return
-	if not has_anim(anim):
-		if anim.begins_with("aim_") and has_anim("aim_pistol"):
-			anim = "aim_pistol"
-		elif anim.begins_with("shoot_") and has_anim("aim_" + anim.substr(6)):
-			anim = "aim_" + anim.substr(6)
-		elif anim == "hurt" and has_anim("idle"):
-			anim = "idle"
-		elif anim.begins_with("slash") and has_anim("slash"):
-			anim = "slash"
-		else:
-			anim = "walk" if has_anim("walk") else _anims[0]
+	anim = _resolve(anim)
 	if facing.length() > 0.1:
 		_dir = wrapi(roundi(facing.angle() / (PI / 4.0)), 0, 8)
 	var name := "%s_%s" % [anim, DIRS[_dir]]

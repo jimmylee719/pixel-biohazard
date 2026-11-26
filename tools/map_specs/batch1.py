@@ -145,8 +145,10 @@ m.put(1, 12, "C").put(15, 11, "C").put(11, 9, "C")
 m.put(4, 10, "1").put(13, 7, "2").put(10, 16, "3")
 m.wall(17, 16, 34, 18)                    # 倉庫南邊只留一條小巷
 m.put(22, 15, "CC").wall(29, 15, 34, 15)
+m.put(30, 5, "?").put(9, 14, ";").put(14, 16, ";")   # 鐵撬（倉庫的工具架旁）、木柴（卡車、貨櫃旁）
 AREAS["fuel_depot"] = {
     "map": m.rows(),
+    "allow_diff": True,
     "fields": {
         "indoor_rects": "[Rect2i(18, 4, 16, 10)]",
         "zones": '{\n\t\t\t"outside": {"rect": Rect2i(0, 0, 36, 20), "heated": false},\n\t\t}',

@@ -55,10 +55,8 @@ func snap_to_target() -> void:
 func _physics_process(delta: float) -> void:
 	if _target == null or fixed:
 		return
-	# 推近／拉遠（慢慢變，不會跳）
-	var z := lerpf(zoom.x, zoom_target, 1.0 - exp(-3.0 * delta))
-	if absf(z - zoom_target) < 0.002:
-		z = zoom_target
+	# 推近／拉遠：用「彈簧阻尼」慢起慢停（不會一開始很快、最後拖很久），整段大約 0.6 秒
+	var z := _smooth_zoom(zoom.x, zoom_target, delta)
 	zoom = Vector2(z, z)
 	var desired_lookahead := _target.facing * lookahead_distance
 	if wall_offset != Vector2.ZERO:
@@ -78,6 +76,25 @@ func _physics_process(delta: float) -> void:
 	_focus += push * (1.0 - exp(-follow_smoothing * delta))
 	_focus = _clamp_to_bounds(_focus)
 	global_position = _focus.round()
+
+
+var _zoom_vel := 0.0
+const ZOOM_TIME := 0.28
+
+
+## 臨界阻尼的平滑（Game Programming Gems 的 SmoothDamp）：速度連續，起步和停下來都是緩的
+func _smooth_zoom(from: float, to: float, delta: float) -> float:
+	var omega := 2.0 / ZOOM_TIME
+	var x := omega * delta
+	var k := 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x)
+	var change := from - to
+	var temp := (_zoom_vel + omega * change) * delta
+	_zoom_vel = (_zoom_vel - omega * temp) * k
+	var out := to + (change + temp) * k
+	if absf(out - to) < 0.0005:
+		_zoom_vel = 0.0
+		return to
+	return out
 
 
 ## 把鏡頭中心限制在地圖內，避免前視偏移把鏡頭推到地圖外又被 limit 卡住。

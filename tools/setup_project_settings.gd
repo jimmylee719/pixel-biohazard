@@ -27,6 +27,7 @@ func _init() -> void:
 		"throw": [],
 		"inventory": [_key(KEY_TAB), _joy(JOY_BUTTON_BACK)],
 		"map": [_key(KEY_M), _joy(JOY_BUTTON_DPAD_UP)],
+		"phone": [_key(KEY_P), _joy(JOY_BUTTON_DPAD_DOWN)],
 		"pause": [_key(KEY_ESCAPE), _joy(JOY_BUTTON_START)],
 		"debug_toggle": [_key(KEY_F3)],
 	}

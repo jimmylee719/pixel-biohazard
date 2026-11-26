@@ -22,6 +22,9 @@ var light_radius := 80.0
 ## 熱源範圍（失溫）
 var warm_radius := 56.0
 
+## 營火（可燃物＋打火機）：畫一小堆木柴，火小小的、不會燒到人
+var campfire := false
+
 var _age := 0.0
 var _tick := 0.0
 var _light: PointLight2D
@@ -41,7 +44,7 @@ func _ready() -> void:
 	unshaded.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
 	material = unshaded
 	z_index = 1
-	NoiseBus.emit_noise(global_position, 3.0 * Player.TILE, self)  # 點燃的「轟」一聲
+	NoiseBus.emit_noise(global_position, (1.0 if campfire else 3.0) * Player.TILE, self)  # 點燃的「轟」一聲
 
 
 func _physics_process(delta: float) -> void:
@@ -110,6 +113,17 @@ func _draw() -> void:
 	if duration > 0.0:
 		fade = clampf((duration - _age) / 1.5, 0.3, 1.0)
 	var r := radius * (0.85 + 0.15 * fade)
+	if campfire:
+		var wood := Art.tex("props/campfire")
+		if wood:
+			draw_texture(wood, Vector2(-wood.get_width() * 0.5, 4 - wood.get_height()).floor())
+		else:
+			draw_rect(Rect2(-6, 0, 12, 3), Color(0.3, 0.2, 0.12))
+			draw_rect(Rect2(-4, -2, 8, 3), Color(0.38, 0.26, 0.14))
+		for i in 4:
+			var h2 := (4.0 + 3.0 * sin(_age * 12.0 + i * 1.7)) * fade
+			draw_rect(Rect2(Vector2(-4 + i * 2.5, -1 - h2).floor(), Vector2(2, h2)), Color(1.0, 0.75 if i % 2 else 0.5, 0.2, 0.9))
+		return
 	draw_circle(Vector2.ZERO, r, Color(0.9, 0.35, 0.1, 0.28 * fade))
 	for i in 7:
 		var a := TAU * i / 7.0 + _age * 2.0
