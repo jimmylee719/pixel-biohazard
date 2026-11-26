@@ -535,6 +535,15 @@ func zone_label(zone_name: String) -> String:
 
 
 ## 恢復電力後燈亮著的區域
+## 這個位置的鏡頭設定（區域資料 camera_zones）：{zoom, tilt, frame}；沒有就是空字典
+func camera_zone_at(pos: Vector2) -> Dictionary:
+	var c := cell_of(pos)
+	for z in _data.get("camera_zones", []):
+		if (z.rect as Rect2i).has_point(c):
+			return z
+	return {}
+
+
 func is_lit() -> bool:
 	# lit = 一直有燈（例如 1962 年的記憶：那時候研究站還有電）
 	return _data.get("lit", false) or (_data.get("powered_area", false) and WorldState.power_on)

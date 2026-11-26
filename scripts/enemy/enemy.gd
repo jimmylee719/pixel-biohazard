@@ -14,6 +14,9 @@ extends CharacterBody2D
 
 signal state_changed(new_state: State)
 signal died
+## Boss 戰的演出事件（main 處理）：kind = "phase"（階段切換：大字＋震動）、"blackout"（燈全滅）、
+## "summon"（叫出手下，data.type、data.pos）、"icicle"（落冰，data.pos）
+signal boss_event(kind: String, data: Dictionary)
 
 enum State { UNAWARE, SUSPICIOUS, ALERT, SEARCH }
 

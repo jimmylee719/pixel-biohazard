@@ -26,6 +26,7 @@ func _run() -> void:
 	_overlay.debug_enabled = false
 	# 第二個參數 new = 只拍 AFTERSIGNAL 改版的新畫面（快速檢查用）
 	if OS.get_cmdline_user_args().has("new"):
+		await _mgs_shots()
 		await _aftersignal_shots()
 		_main.queue_free()
 		var title_new: Control = load("res://scenes/title.tscn").instantiate()
@@ -338,6 +339,7 @@ func _run() -> void:
 	await _shot("44_codex")
 	_main.close_phone()
 
+	await _mgs_shots()
 	await _aftersignal_shots()
 	# 標題畫面
 	_main.queue_free()
@@ -350,6 +352,66 @@ func _run() -> void:
 
 
 ## AFTERSIGNAL 改版：霓虹燈、1962 年的記憶、訊號霧、2099 色調、選項、聲音提示
+## 潛龍諜影式：郵輪、多種視角、貼牆、Boss 階段、戰術 HUD、無線電
+func _mgs_shots() -> void:
+	var cam: FollowCamera = _main.get_node("Camera")
+	await _enter("cruise_deck", "gangway", false)
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+		e.reveal_for_cutscene()
+	_put_player(_tile(10, 11), Vector2.UP, true)
+	await _frames(60)
+	await _shot("70_cruise_deck_tilt")
+	_off = Areas.area_offset("cruise_interior")
+	_put_player(_tile(24, 15), Vector2.UP, true)
+	await _frames(80)
+	await _shot("71_cruise_atrium_fixed")
+	_put_player(_tile(46, 16), Vector2.UP, true)
+	await _frames(80)
+	await _shot("72_cruise_theater")
+	# 貼牆：客艙走廊，背貼著牆
+	_put_player(_tile(30, 5), Vector2.UP, true)
+	Input.action_press("move_up")
+	await _frames(60)
+	await _shot("73_wall_press")
+	Input.action_release("move_up")
+	await _enter("cruise_hold", "stairs", false)
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+		e.reveal_for_cutscene()
+	_put_player(_tile(14, 6), Vector2.RIGHT, true)
+	await _frames(60)
+	await _shot("74_cruise_hold")
+	await _enter("cruise_sundeck", "stairs", false)
+	var w := _main.enemies[0] as BossWarden
+	w.reset()
+	_put_player(_tile(4, 9), Vector2.UP, false)
+	await get_tree().create_timer(1.3).timeout
+	await _shot("75_warden_laser")
+	w.process_mode = Node.PROCESS_MODE_DISABLED
+	# 苔原之母：狂暴（冰柱）、熄燈
+	await _enter("hangar", "snowcat", false)
+	var bear := _main.enemies[0] as BossBear
+	bear.process_mode = Node.PROCESS_MODE_DISABLED
+	bear.health = bear.max_health * 0.6
+	bear.take_damage(1.0, bear.global_position + Vector2(30, 0), 0.0)
+	await _frames(30)
+	await _shot("76_bear_frenzy")
+	bear.health = bear.max_health * 0.3
+	bear.take_damage(1.0, bear.global_position + Vector2(30, 0), 0.0)
+	await _frames(40)
+	await _shot("77_bear_lights_out")
+	_main.reset_attempt()
+	# 無線電（刻度盤、示波器）
+	await _enter("station_safe", "radio", false)
+	_main._on_radio_used()
+	_main.tune_radio(12600)
+	await _frames(20)
+	await _shot("78_radio_dial")
+	_main._close_radio()
+	cam.zoom = Vector2.ONE
+
+
 func _aftersignal_shots() -> void:
 	# 電影式過場：片名卡、人物名牌、特寫
 	await _enter("hangar", "snowcat", false)

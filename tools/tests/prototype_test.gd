@@ -87,6 +87,7 @@ func _run() -> void:
 	await _test_expansion()
 	await _test_new_systems()
 	await _test_aftersignal()
+	await _test_mgs_systems()
 	await _test_survival()
 
 	print("")
@@ -2553,6 +2554,111 @@ func _test_aftersignal() -> void:
 			_check(en.chase_speed > 100.0 and en.max_health < 60.0, "狂奔者：很快、很脆")
 		_main.enemies.erase(en)
 		en.queue_free()
+
+
+## 潛龍諜影式的系統：多種視角、貼牆、戰術 HUD、Boss 階段、郵輪與典獄長
+func _test_mgs_systems() -> void:
+	print("[MGS-style views / bosses / cruise ship]")
+	# ── 郵輪：北港的棧橋上船，甲板和船艙是同一張地圖 ──
+	_check(Areas.get_area("north_harbor").doors.has("gangway"), "北港有往郵輪的棧橋")
+	await _enter("cruise_deck", "gangway", false)
+	_quiet()
+	_level = _main.level
+	_check(_main.level.area_id == "cruise_deck" and Areas.root_of("cruise_interior") == "cruise_deck", "郵輪甲板＋船艙是無縫地圖")
+	_check(_main.enemies.size() >= 8, "郵輪上有敵人（甲板＋船艙）")
+	_check(float(Areas.get_area("cruise_deck").tilt) > 0.1, "郵輪甲板預設斜角鏡頭")
+	# 船艙中庭：固定機位＋斜角
+	_use("cruise_interior")
+	_place_player(_tile(24, 13), true)
+	var zone: Dictionary = _main.level.camera_zone_at(_player.global_position)
+	_check(zone.has("frame") and float(zone.get("tilt", 0.0)) > 0.1, "中庭：固定機位＋斜角鏡頭")
+	await _frames(40)
+	_check(_main._camera.frame_point != null and _main._tilt > 0.05, "走進中庭鏡頭切到固定機位、畫面傾斜")
+	_place_player(_tile(10, 5), true)
+	await _frames(30)
+	_check(_main._camera.zoom_target > 1.1 and _main._camera.frame_point == null, "客艙走廊：鏡頭推近")
+	# ── 貼牆視角：往牆推一下就背貼著牆，鏡頭往前推出去 ──
+	_place_player(_tile(10, 5), true, Vector2.UP)
+	Input.action_press("move_up")
+	await _seconds(1.0)
+	_check(_player.wall_press == Vector2.DOWN, "往牆推 = 背貼牆（面向離開牆的方向）")
+	await _frames(10)
+	_check(_main._camera.wall_offset.y > 40.0 and _main._camera.zoom_target >= 1.3, "貼牆：鏡頭往前推、拉近")
+	Input.action_release("move_up")
+	await _frames(3)
+	_check(_player.wall_press == Vector2.ZERO, "放開方向就離開牆")
+	# ── 戰術 HUD ──
+	_main._pause_panel.visible = false
+	get_tree().paused = false
+	await _frames(2)
+	_check(_main.tactical_hud != null and _main.tactical_hud.visible, "戰術 HUD（LIFE、道具框、武器框）")
+	# ── 貨艙、頂層甲板 ──
+	_check(Areas.get_area("cruise_deck").stairs.values().has("cruise_hold") and Areas.get_area("cruise_deck").stairs.values().has("cruise_sundeck"), "甲板的樓梯：往下貨艙、往上頂層甲板")
+	await _enter("cruise_sundeck", "stairs", false)
+	_level = _main.level
+	var warden := _main.enemies[0] as BossWarden
+	_check(warden != null and warden.is_boss(), "頂層甲板的 Boss：典獄長")
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	warden.process_mode = Node.PROCESS_MODE_INHERIT
+	warden.reset()
+	_place_player(warden.global_position + Vector2(0, 110), false)
+	_player.sneaking = false
+	var hp0 := WorldState.health
+	await _seconds(2.4)
+	_check(warden.shots_fired >= 1, "典獄長：雷射鎖定後開槍")
+	_check(WorldState.health < hp0, "站在開闊處被狙擊到")
+	_check(warden.phase == BossWarden.Phase.RELOAD or warden.phase == BossWarden.Phase.AIM, "開槍後要拉槍機")
+	warden._set_phase(BossWarden.Phase.RELOAD)
+	var h0 := warden.health
+	warden.take_damage(20.0, _player.global_position, 0.0)
+	_check(h0 - warden.health > 25.0, "拉槍機的時候受到的傷害比較高")
+	warden.health = warden.max_health * 0.45
+	warden.take_damage(1.0, _player.global_position, 0.0)
+	_check(warden.stage == 2, "血量一半以下：第二階段（照明彈）")
+	# 聲音騙他：看不到主角時，聽到聲音就把雷射轉過去
+	warden._set_phase(BossWarden.Phase.AIM)
+	_player.is_hiding = true
+	var decoy := warden.global_position + Vector2(-60, 80)
+	warden._on_noise(decoy, 6.0 * Level.TILE, null)
+	_check(warden._noise_target != null, "看不到主角時，聲音會吸引他的槍口")
+	_player.is_hiding = false
+	WorldState.health = 100.0
+	# ── 苔原之母的階段 ──
+	await _enter("hangar", "snowcat", false)
+	var bear := _main.enemies[0] as BossBear
+	var events: Array = []
+	bear.boss_event.connect(func(k, d): events.append(k))
+	bear.health = bear.max_health * 0.6
+	bear.take_damage(1.0, bear.global_position + Vector2(30, 0), 0.0)
+	_check(bear.stage == 2 and events.has("phase") and events.has("icicle"), "苔原之母：狂暴（第二階段、冰柱掉下來）")
+	bear.health = bear.max_health * 0.3
+	bear.take_damage(1.0, bear.global_position + Vector2(30, 0), 0.0)
+	_check(bear.stage == 3 and _main._boss_dark, "苔原之母：熄燈（第三階段、整個機庫變暗）")
+	await _frames(2)
+	_check(_main.level.get_children().any(func(n): return n is Icicle), "冰柱（落地前有影子預告）")
+	_main.reset_attempt()
+	_check(not _main._boss_dark and bear.stage == 1, "重來：燈恢復、Boss 回到第一階段")
+	WorldState.health = 100.0
+	# ── 深井的階段 ──
+	await _enter("shaft_bottom", "stairs", false)
+	var well: BossWell = null
+	for e in _main.enemies:
+		if e is BossWell:
+			well = e
+	if well:
+		var n0: int = _main.enemies.size()
+		well.health = well.max_health * 0.55
+		well.take_damage(1.0 / well.armor_mult, _player.global_position, 0.0)
+		_check(well.stage == 2, "深井：合唱回應了（第二階段）")
+		well.pulse_count = 1
+		well._pulse()
+		_check(_main.enemies.size() == n0 + 2, "深井第二階段：脈衝後叫出兩隻狂奔者")
+		_main.reset_attempt()
+		_check(_main.enemies.size() == n0, "重來：叫出來的手下消失")
+	else:
+		_check(false, "井底有深井")
+	WorldState.health = 100.0
 
 func _test_survival() -> void:
 	print("[survival]")

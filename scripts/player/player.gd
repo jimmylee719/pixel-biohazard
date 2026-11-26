@@ -259,8 +259,9 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	if move_dir != Vector2.ZERO:
 		_assist_corner(move_dir, wanted, delta)
+	_update_wall_press(move_dir, running, delta)
 
-	if move_input.length() > 0.1 and not aim_moving:
+	if move_input.length() > 0.1 and not aim_moving and wall_press == Vector2.ZERO:
 		facing = facing.slerp(move_input.normalized(), 1.0 - exp(-turn_smoothing * delta)).normalized()
 
 	if velocity.length() < 4.0:
@@ -277,6 +278,37 @@ func _physics_process(delta: float) -> void:
 	_update_sprite()
 	_update_noise(delta)
 	_update_steps(delta)
+
+
+## 貼牆（潛龍諜影式）：往牆的方向一直推（不跑）約 0.35 秒 = 背貼著牆。這時鏡頭會往前方推出去，看得到走廊前面；
+## 主角面向牆的反方向（背對牆），速度放到最慢、不出聲。放開方向或改推別的方向就離開牆。
+## wall_press = 牆的法線（從牆指向主角），沒有貼牆時是 Vector2.ZERO。
+var wall_press := Vector2.ZERO
+var _press_t := 0.0
+const WALL_PRESS_TIME := 0.35
+
+
+func _update_wall_press(move_dir: Vector2, running: bool, delta: float) -> void:
+	var normal := Vector2.ZERO
+	if move_dir != Vector2.ZERO and not running and not combat.aiming and not is_carrying():
+		for i in get_slide_collision_count():
+			var col := get_slide_collision(i)
+			var n := col.get_normal()
+			# 只算牆（圖層 1），而且是正面推過去（不是沿著牆滑）
+			if col.get_collider() is CollisionObject2D and (col.get_collider().collision_layer & 1) != 0 \
+					and n.dot(move_dir) < -0.75:
+				normal = n
+	if normal != Vector2.ZERO:
+		_press_t += delta
+		if _press_t >= WALL_PRESS_TIME:
+			if wall_press == Vector2.ZERO:
+				Sfx.play("step_concrete", global_position, 0.05, -6.0)
+			wall_press = normal.round().normalized() if absf(normal.x) > 0.9 or absf(normal.y) > 0.9 else normal
+			facing = wall_press
+			velocity = Vector2.ZERO
+	else:
+		_press_t = 0.0
+		wall_press = Vector2.ZERO
 
 
 ## 閃躲：往推的方向快速跳開（沒推方向 = 往面向跳；瞄準中沒推方向 = 往後跳）。

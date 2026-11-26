@@ -31,6 +31,9 @@ enum Phase { ROAM, WINDUP, CHARGE, STUNNED, SWIPE, RECOVER }
 @export var recover_time := 0.6
 
 var phase := Phase.ROAM
+## 戰鬥階段（血量）：1 = 普通；2 = 狂暴（<66%：暈眩後咆哮，機庫頂上的冰柱掉下來、衝撞變快）；
+## 3 = 黑暗（<33%：咆哮震碎所有燈，只剩牠身上發光的結晶，牠的聽覺變得更好）
+var stage := 1
 
 var _phase_time := 0.0
 var _charge_dir := Vector2.ZERO
@@ -42,8 +45,52 @@ var _swipe_cd := 0.0
 var _roam_timer := 0.0
 
 
+func _check_stage() -> void:
+	var k := health / max_health
+	if stage == 1 and k < 0.66:
+		stage = 2
+		charge_speed *= 1.15
+		charge_windup *= 0.8
+		Sfx.play("bear_roar", global_position)
+		boss_event.emit("phase", {"title": "TUNDRA MOTHER", "text": "FRENZY"})
+		_drop_icicles(4)
+	elif stage == 2 and k < 0.33:
+		stage = 3
+		hearing_mult *= 1.4
+		boss_feel_range *= 1.3
+		Sfx.play("bear_roar", global_position)
+		boss_event.emit("phase", {"title": "TUNDRA MOTHER", "text": "LIGHTS OUT"})
+		boss_event.emit("blackout", {})
+		# 黑暗中結晶發光：看得到牠在哪
+		var glow := CanvasItemMaterial.new()
+		glow.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+		_body.material = glow
+		for c in _body.get_children():
+			c.use_parent_material = true
+
+
+## 冰柱：落在主角附近（不是正上方，留一點反應空間）
+func _drop_icicles(n: int) -> void:
+	if _player == null:
+		return
+	for i in n:
+		var off := Vector2.from_angle(randf() * TAU) * randf_range(10.0, 60.0)
+		boss_event.emit("icicle", {"pos": _player.global_position + off, "warn": 0.9 + 0.25 * i})
+
+
+var _base := {}
+
+
 func reset() -> void:
 	super.reset()
+	if _base.is_empty():
+		_base = {"charge_speed": charge_speed, "charge_windup": charge_windup, "hearing_mult": hearing_mult,
+			"boss_feel_range": boss_feel_range}
+	for k in _base:
+		set(k, _base[k])
+	stage = 1
+	if _body:
+		_body.material = null
 	if not is_dead:
 		_set_phase(Phase.ROAM)
 		_has_target = false
@@ -110,6 +157,10 @@ func _physics_process(delta: float) -> void:
 			velocity = Vector2.ZERO
 			if _phase_time >= stun_time:
 				_set_phase(Phase.RECOVER)
+				# 狂暴之後：醒來就咆哮，震下冰柱
+				if stage >= 2:
+					Sfx.play("bear_roar", global_position)
+					_drop_icicles(3 if stage == 2 else 5)
 		Phase.SWIPE:
 			velocity = Vector2.ZERO
 			_turn_toward((_player.global_position - global_position).normalized(), delta * 2.0)
@@ -209,6 +260,7 @@ func take_damage(amount: float, from_pos: Vector2, _stagger: float) -> void:
 	if health <= 0.0:
 		_die()
 		return
+	_check_stage()
 	Sfx.play("enemy_hurt", global_position, 0.05, 2.0)
 	_hear(from_pos)  # 被打到就知道你在哪
 

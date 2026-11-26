@@ -136,4 +136,13 @@
   main 的 `_shake_camera`、`_zoom_camera`。寬銀幕黑邊（上 32、下 44）。
 - 敵人新增：runner（狂奔者，快、脆）、spitter（噴孢者，`ranged_style = "spit"` 吐孢子團 `scripts/fx/spore_glob.gd`、`ranged_infection`）、
   brute（冰甲巨人，`front_armor` 正面減傷）。
+- 潛龍諜影式的視角（2.5D，參考但原創）：`FollowCamera` 的 `zoom_target`（推近）、`frame_point`（固定機位）、`wall_offset`（貼牆視角）；
+  後製 `film.gdshader` 的 `tilt`（斜角：上面遠、下面近的梯形）。區域資料 `camera_zones`（rect＋zoom／tilt／frame）、整區預設 `tilt`。
+  main 的 `_update_camera_view()` 每幀依主角位置套用。貼牆：`Player.wall_press`（往牆推 0.35 秒）。
+- 戰術 HUD：`scripts/ui/tactical_hud.gd`（左上 LIFE／TEMP、左下道具框、右下武器框；觸控版移到右上）。
+- 無線電：原創的野戰無線電外觀 `scripts/ui/radio_dial.gd`（刻度盤、強度表、示波器）。不要做成兩個頭像中間一個頻率的樣子。
+- Boss 演出：`Enemy.boss_event(kind, data)`（phase 大字＋震動、blackout 熄燈、summon 叫手下、icicle 落冰 `scripts/fx/icicle.gd`、flare 照明彈），
+  main 的 `_on_boss_event`；重來時 `reset_attempt` 還原。苔原之母 3 階段（狂暴、熄燈）、深井 3 階段（合唱叫狂奔者、崩塌落冰）。
+  郵輪 Boss「典獄長」`scripts/enemy/boss_warden.gd`（狙擊：雷射鎖定、拉槍機、換制高點、聲音誘導、第二階段照明彈）。
+- 郵輪「北極星號」：北港頂端的棧橋 `gangway` → `cruise_deck`（＋`cruise_interior` 無縫）、樓梯往下 `cruise_hold`、往上 `cruise_sundeck`（Boss）。支線 `boreal_star`。
 - 子彈穿牆：`PlayerCombat.PIERCE`（手槍穿 1 格、獵槍 2 格，每穿一道傷害打折）、`trace_shot()`；沒鎖定時直線開槍會打到路上的敵人。

@@ -35,6 +35,10 @@ var spikes: Array[Dictionary] = []
 ## 最近一次脈衝有沒有打到主角（測試、除錯用）
 var last_pulse_hit := false
 var pulse_count := 0
+## 戰鬥階段：1 = 普通；2 = 合唱（<60%：每次脈衝後，井壁的裂縫爬出兩隻狂奔者，結晶刺一次 3 根）；
+## 3 = 崩塌（<30%：脈衝變快，井頂的冰塊一直掉下來）
+var stage := 1
+@export var summon_points: Array[Vector2] = []
 
 var _phase_time := 0.0
 var _spike_cd := 0.0
@@ -109,8 +113,16 @@ func _update_art(charge_k: float) -> void:
 	_art.modulate = Color(1, 1, 1).lerp(Color(1.6, 0.8, 0.7) if phase == Phase.EXPOSED else Color(1.5, 1.6, 1.7), _hit_flash)
 
 
+var _base := {}
+
+
 func reset() -> void:
 	super.reset()
+	if _base.is_empty():
+		_base = {"pulse_interval": pulse_interval, "max_spikes": max_spikes}
+	for k in _base:
+		set(k, _base[k])
+	stage = 1
 	spikes.clear()
 	_ring = 0.0
 	_spike_cd = 0.0
@@ -199,6 +211,18 @@ func _pulse() -> void:
 	Sfx.rumble(250, 0.9)
 	pulse_count += 1
 	_ring = 0.4
+	if stage >= 2 and _player:
+		# 合唱：叫出手下（從離主角最遠的兩個角落）
+		var arena := _level.bounds if _level else Rect2(global_position - Vector2(150, 100), Vector2(300, 200))
+		var corners := [arena.position + Vector2(24, 24), Vector2(arena.end.x - 24, arena.position.y + 24),
+			Vector2(arena.position.x + 24, arena.end.y - 24), arena.end - Vector2(24, 24)]
+		corners.sort_custom(func(a, b): return a.distance_to(_player.global_position) > b.distance_to(_player.global_position))
+		if pulse_count % 2 == 0:
+			for i in 2:
+				boss_event.emit("summon", {"type": "runner", "pos": corners[i]})
+	if stage >= 3 and _player:
+		for i in 3:
+			boss_event.emit("icicle", {"pos": _player.global_position + Vector2.from_angle(randf() * TAU) * randf_range(8.0, 70.0), "warn": 1.0 + 0.3 * i})
 	last_pulse_hit = false
 	if _player.is_dead or _player.is_hiding:
 		return
@@ -260,6 +284,16 @@ func take_damage(amount: float, from_pos: Vector2, _stagger: float) -> void:
 	health -= amount
 	if health <= 0.0:
 		_die()
+		return
+	var k := health / max_health
+	if stage == 1 and k < 0.6:
+		stage = 2
+		max_spikes = 3
+		boss_event.emit("phase", {"title": "THE DEEP WELL", "text": "THE CHOIR ANSWERS"})
+	elif stage == 2 and k < 0.3:
+		stage = 3
+		pulse_interval *= 0.7
+		boss_event.emit("phase", {"title": "THE DEEP WELL", "text": "THE SHAFT IS COMING DOWN"})
 
 
 func _die() -> void:

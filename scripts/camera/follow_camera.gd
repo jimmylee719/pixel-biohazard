@@ -16,6 +16,16 @@ var fixed := false
 var _lookahead := Vector2.ZERO
 var _focus := Vector2.ZERO
 
+## ── 潛龍諜影式的多種視角（2.5D）──
+## 區域的鏡頭設定（Areas 的 camera_zones，main 每幀依主角位置設定）：
+##   zoom_target  推近（1 = 平常，1.25～1.5 = 比較近、比較有壓迫感）
+##   frame_point  固定機位：鏡頭停在這個點（像監視器的固定角度），null = 跟隨
+## 貼牆視角：主角背貼著牆時，鏡頭往主角前方（離開牆的方向）推出去、拉近一點，看得到走廊前面
+var zoom_target := 1.0
+var frame_point: Variant = null
+var wall_offset := Vector2.ZERO
+var _wall := Vector2.ZERO
+
 
 func setup(target: Player, bounds: Rect2, mode := "follow") -> void:
 	_target = target
@@ -45,10 +55,22 @@ func snap_to_target() -> void:
 func _physics_process(delta: float) -> void:
 	if _target == null or fixed:
 		return
+	# 推近／拉遠（慢慢變，不會跳）
+	var z := lerpf(zoom.x, zoom_target, 1.0 - exp(-3.0 * delta))
+	if absf(z - zoom_target) < 0.002:
+		z = zoom_target
+	zoom = Vector2(z, z)
 	var desired_lookahead := _target.facing * lookahead_distance
+	if wall_offset != Vector2.ZERO:
+		desired_lookahead = Vector2.ZERO
 	_lookahead = _lookahead.lerp(desired_lookahead, 1.0 - exp(-lookahead_smoothing * delta))
+	_wall = _wall.lerp(wall_offset, 1.0 - exp(-4.0 * delta))
 
-	var goal := _target.global_position + _lookahead
+	var goal: Vector2 = _target.global_position + _lookahead + _wall
+	if frame_point != null:
+		# 固定機位：鏡頭停在框好的位置，主角離開太遠時才慢慢跟過去
+		var fp: Vector2 = frame_point
+		goal = fp + (_target.global_position - fp) * 0.25
 	var diff := goal - _focus
 	var push := Vector2(
 		signf(diff.x) * maxf(absf(diff.x) - deadzone.x, 0.0),

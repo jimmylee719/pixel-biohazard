@@ -46,6 +46,9 @@ const ENTRIES := {
 	"guard": {"group": "human", "name": "Operative", "sprite": "guard/walk_down_0",
 		"desc": "Gatekeeper troops, landed to contain the island - and everyone on it. Armed, trained, and they carry radios.",
 		"tip": "Hit one mid-call to cut the radio. If the alert goes up, hide and wait it out."},
+	"warden": {"group": "human", "name": "The Warden", "sprite": "guard/walk_down_0",
+		"desc": "Gate Two's commander. A hunter before the Accord found him. He holds the Boreal Star's sun deck from three perches and never wastes a round - unless you give him a reason.",
+		"tip": "Break line of sight when the laser thickens. He has to work the bolt after every shot. Noise draws his aim."},
 	# ── 武器 ──
 	"knife": {"group": "weapon", "name": "Survival knife", "sprite": "props/knife",
 		"desc": "Your own. Quiet, always there. From behind, one cut is enough.", "tip": "Slash, punch, kick - chain them."},

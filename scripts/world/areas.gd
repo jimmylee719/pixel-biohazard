@@ -54,6 +54,9 @@
 ##   zones 的 label：配電箱提示上顯示的名稱（預設是區域名）
 ##   reels      {"x,y": {to, entry, scene, flag, prompt}}：盤式錄音機 &（走進／走出一段記憶，見 MemoryReel）
 ##   lit        true = 這個區域一直有燈（不管電力）
+##   camera_zones  [{rect, zoom, tilt, frame}]：潛龍諜影式的鏡頭角度。主角在 rect 裡時鏡頭推近（zoom）、
+##              傾斜成斜角視角（tilt，0～0.25）、或停在固定機位（frame = 格子，像監視器）
+##   tilt       整個區域預設的鏡頭傾斜（例如郵輪甲板）
 ##   era        時代的畫面色調："1962"（過去的記憶）、"2099"（未來的訊號）；不寫 = 現在
 class_name Areas
 extends RefCounted
@@ -222,6 +225,7 @@ const DATA := {
 		"title": "Clean Room (Safe)",
 		"outdoor": false,
 		"safe": true,
+		"camera_zones": [{"rect": Rect2i(1, 1, 18, 8), "zoom": 1.25}],
 		"map": [
 			"#########D##########",
 			"#..................#",
@@ -397,6 +401,7 @@ const DATA := {
 		"outdoor": false,
 		"floor": -1,
 		"powered_area": true,
+		"camera_zones": [{"rect": Rect2i(4, 8, 13, 8), "tilt": 0.15, "zoom": 1.15}],
 		"map": [
 			"##D#####################################",
 			"#...l..................................#",
@@ -824,7 +829,7 @@ const DATA := {
 		"floor": 0,
 		"cutscene": "harbor",
 		"map": [
-			"################################################",
+			"#####################D##########################",
 			"####################....########################",
 			"####################.CC.########################",
 			"####################....########################",
@@ -873,6 +878,7 @@ const DATA := {
 		"doors": {
 			"harbor": {"cell": Vector2i(10, 27), "to": "weather_huts", "spawn_dir": Vector2i(0, -1)},
 			"caves": {"cell": Vector2i(47, 19), "to": "ice_caves", "spawn_dir": Vector2i(-1, 0)},
+			"gangway": {"cell": Vector2i(21, 0), "to": "cruise_deck", "spawn_dir": Vector2i(0, 1)},
 		},
 		"names": {"35,11": "gate_orders"},
 		"loot": {"10,20": ["shells", 2]},
@@ -1193,6 +1199,7 @@ const DATA := {
 		"floor": -1,
 		"outdoor": false,
 		"powered_area": true,
+		"camera_zones": [{"rect": Rect2i(23, 1, 16, 6), "tilt": 0.15, "frame": Vector2i(31, 3)}],
 		"map": [
 			"########################################",
 			"#......#..............#................#",
@@ -1230,6 +1237,202 @@ const DATA := {
 			"sato_letter": "LETTER, CORPORAL SATO (unsent): \"Mika - they're burying the reels. I kept one. If this station is still standing when you're grown, there is a med kit in the maintenance room, under the reel table. I don't know why I'm telling a child that. The signal told me to.\"",
 		},
 	},
+
+	# ── 郵輪「北極星號」（MV Boreal Star）：失蹤的極地探險郵輪，卡在北港外的浮冰裡。典藏派把它當成浮動的隔離病房。
+	# 甲板（戶外、暴風雪、斜角鏡頭）＋船艙（中庭、宴會廳、劇院、客艙，無縫合併）＋貨艙（樓梯往下）＋頂層甲板（Boss：典獄長）
+	"cruise_deck": {
+		"theme": "military",
+		"title": "MV Boreal Star - Promenade Deck",
+		"outdoor": true,
+		"climate": "blizzard",
+		"floor": 1,
+		"tilt": 0.16,
+		"cutscene": "boreal_star",
+		"map": [
+			"################################D###############################",
+			"#..............................................................#",
+			"#..CCCC....CCCC....CCCC.....................CCCC....CCCC.......#",
+			"#..CCCC....CCCC....CCCC....1................CCCC....CCCC.......#",
+			"#.................................................2......#######",
+			"#..C...C...C...C...........x.........C...C...C...........#.G.G##",
+			"#.......................................5.......r.............##",
+			"#..........w.........................................o...#....##",
+			"#....3..........................4........................#######",
+			"#..CCCC....CCCC....CCCC.....................CCCC....CCCC.......#",
+			"#..CCCC....CCCC....CCCC.....................CCCC....CCCC.......#",
+			"#..............................................................#",
+			"#..............................................................#",
+			"######D#########################################################",
+		],
+		"enemies": [
+			{"type": "guard", "route": "12"},
+			{"type": "guard", "route": "34"},
+			{"type": "runner", "route": "5"},
+		],
+		"zones": {"deck": {"rect": Rect2i(0, 0, 64, 14), "heated": false}},
+		"indoor_rects": [Rect2i(57, 4, 6, 5)],
+		"breakers": [],
+		"reinforcements": {"type": "guard", "count": 2, "doors": ["gangway"]},
+		"doors": {
+			"gangway": {"cell": Vector2i(6, 13), "to": "north_harbor", "spawn_dir": Vector2i(0, -1)},
+			"atrium": {"cell": Vector2i(32, 0), "to": "cruise_interior", "spawn_dir": Vector2i(0, 1)},
+		},
+		"stairs": {"59,5": "cruise_sundeck", "61,5": "cruise_hold"},
+		"entries": {"stairs": Vector2i(60, 6)},
+		"loot": {"11,7": ["flares", 1]},
+		"names": {},
+		"messages": {},
+	},
+
+	"cruise_interior": {
+		"theme": "dorm",
+		"title": "MV Boreal Star - Grand Atrium",
+		"outdoor": false,
+		"floor": 1,
+		"cutscene": "atrium",
+		"map": [
+			"########################################################",
+			"#..H..#..N..#..H..#.....#..H..#..x..#..H..#.....#......#",
+			"#.....#.....#.....#.....#.....#.....#.....#.....#..M...#",
+			"###+#####+#####+#####+#####+#####+#####+#####+#####+####",
+			"#......................................................#",
+			"#...1..........................................2.......#",
+			"#......................................................#",
+			"#############+######.##############.#######+############",
+			"#..........#.........................#.................#",
+			"#.CC..CC...#..C......................#..CCCCCCCCCCCC...#",
+			"#.CC..CC...#...........C.....C.......#.................#",
+			"#..........+.............3...........+..CCCCCCCCCCCC...#",
+			"#.CC..CC...#.......C...........C.....#.................#",
+			"#.CC..CC...#..........N..............#..CCCCCCCCCCCC...#",
+			"#....4.....#...C...............C..A..#.................#",
+			"#.CC..CC...#.........................#........a........#",
+			"#.CC..CC...#.....C....5......C.......#..CCCCCCCCCCCC...#",
+			"#..........#.........................#.................#",
+			"#..y....M..#......C...........C......#...CCCCCCCCCC....#",
+			"#..........#.........................#.................#",
+			"#####+######.........................####+##############",
+			"#.......................................b..............#",
+			"#.....s.....................6.....................l....#",
+			"############################D###########################",
+		],
+		"enemies": [
+			{"type": "patroller", "route": "12"},
+			{"type": "listener", "route": "35"},
+			{"type": "husk", "route": "4"},
+			{"type": "chorister", "route": "a"},
+			{"type": "runner", "route": "b6"},
+		],
+		"zones": {"ship": {"rect": Rect2i(0, 0, 56, 24), "heated": false}},
+		"breakers": [],
+		# 潛龍諜影式的鏡頭：中庭和劇院是固定機位＋斜角，客艙走廊推近
+		"camera_zones": [
+			{"rect": Rect2i(1, 4, 54, 3), "zoom": 1.25},
+			{"rect": Rect2i(12, 8, 25, 13), "tilt": 0.22, "frame": Vector2i(24, 14)},
+			{"rect": Rect2i(38, 8, 17, 12), "tilt": 0.24, "frame": Vector2i(46, 13)},
+			{"rect": Rect2i(1, 8, 10, 12), "zoom": 1.2},
+		],
+		"doors": {
+			"atrium": {"cell": Vector2i(28, 23), "to": "cruise_deck", "spawn_dir": Vector2i(0, -1)},
+		},
+		"safes": {"6,22": {"reveal": "reveal:cache_ship", "text": "SAFE (purser's office): a purser's note. \"Passengers' valuables moved to the hold, crate row 3, with the Ark cargo. God forgive me, I signed for it.\""}},
+		"hidden": {"40,13": "reveal:cache_ship", "41,13": "reveal:cache_ship"},
+		"names": {"9,1": "captain_log", "22,13": "atrium_note"},
+		"messages": {
+			"captain_log": "CAPTAIN'S LOG, MV BOREAL STAR: \"Day 41 in the ice. The Ark doctors say the 'patients' must not be moved. Passengers confined to cabins. The singing from the theatre started again at midnight.\"",
+			"atrium_note": "NOTE ON THE PIANO: \"They held a concert for the sick ones. The sick ones sang back. Nobody clapped.\"",
+		},
+	},
+
+	"cruise_hold": {
+		"theme": "industrial",
+		"title": "MV Boreal Star - Cargo Hold",
+		"outdoor": false,
+		"floor": -1,
+		"map": [
+			"##############################################",
+			"#.G....#.......................#.............#",
+			"#......#..CC..CC..CC..CC..CC...#..CC....CC...#",
+			"#......+...................1...+..CC.N..CC...#",
+			"#......#..CC..CC..CC..CC..CC...#.............#",
+			"#..x...#.......................#..a..........#",
+			"####+###..CC..CC..CC..CC..CC...#.....b.......#",
+			"#......#.......................#####+#########",
+			"#..C...#.......2...............#.............#",
+			"#......+.......................+...CCCCCC....#",
+			"#..CC..#...CCCC......CCCC......#...CCCCCC....#",
+			"#..CC..#...CCCC..c...CCCC......#.............#",
+			"#......#.......................#....d....k...#",
+			"#..H...#....x.........x........#.....A..M....#",
+			"##############################################",
+		],
+		"enemies": [
+			{"type": "spitter", "route": "1"},
+			{"type": "brute", "route": "2"},
+			{"type": "crawler", "route": "ab"},
+			{"type": "sleeper", "route": "c"},
+			{"type": "sleeper", "route": "d"},
+		],
+		"zones": {"hold": {"rect": Rect2i(0, 0, 46, 15), "heated": false}},
+		"breakers": [],
+		"camera_zones": [{"rect": Rect2i(8, 1, 23, 13), "tilt": 0.12, "zoom": 1.1}],
+		"doors": {},
+		"stairs": {"2,1": "cruise_deck"},
+		"entries": {"stairs": Vector2i(2, 2)},
+		"names": {"37,3": "ark_manifest"},
+		"messages": {
+			"ark_manifest": "ARK MANIFEST, BOREAL STAR: \"Cargo: 212 passengers (sedated), 38 crew, 6 crates of core ice. Destination: none. The ship IS the destination. Keep it cold. Keep them listening.\"",
+		},
+	},
+
+	"cruise_sundeck": {
+		"theme": "military",
+		"title": "MV Boreal Star - Sun Deck",
+		"outdoor": true,
+		"climate": "blizzard",
+		"floor": 2,
+		"tilt": 0.16,
+		"boss": "THE WARDEN",
+		"cutscene": "warden",
+		"music": "boss_bear",
+		"map": [
+			"############################################",
+			"#..........................................#",
+			"#...1.................2................3...#",
+			"#..........................................#",
+			"#=======...==========...=========...=======#",
+			"#..........................................#",
+			"#....CCCC..........................CCCC....#",
+			"#....CCCC..........CCCCCC..........CCCC....#",
+			"#..................CCCCCC..................#",
+			"#..................CCCCCC..................#",
+			"#......CC..................................#",
+			"#......CC..........................CC......#",
+			"#..................................CC......#",
+			"#....CCCC..........................CCCC....#",
+			"#....CCCC........CC.......CC.......CCCC....#",
+			"#................CC.......CC...............#",
+			"#..........................................#",
+			"#......CC..........................CC......#",
+			"#......CC..........................CC......#",
+			"#..........................................#",
+			"#....CCCC..........................CCCC....#",
+			"#....CCCC..........................CCCC....#",
+			"#..........................................#",
+			"#.....................G....................#",
+			"############################################",
+		],
+		"enemies": [
+			{"type": "warden", "route": "123"},
+		],
+		"zones": {"sundeck": {"rect": Rect2i(0, 0, 44, 25), "heated": false}},
+		"breakers": [],
+		"doors": {},
+		"stairs": {"22,23": "cruise_deck"},
+		"entries": {"stairs": Vector2i(22, 22)},
+		"names": {},
+		"messages": {},
+	},
 }
 
 
@@ -1246,6 +1449,7 @@ const ROOMS := {
 	"gate_one_yard": {"into": "ice_caves", "door": "gate_tunnel"},
 	"gate_one_base": {"into": "gate_one_yard", "door": "base_gate"},
 	"gate_one_safe": {"into": "gate_one_base", "door": "g1safe"},
+	"cruise_interior": {"into": "cruise_deck", "door": "atrium"},
 }
 
 static var _composed := {}
@@ -1428,6 +1632,9 @@ static func _compose(root: String) -> Dictionary:
 		data["zones"] = zones
 		var hazards: Array = data.get("hazards", []).duplicate()
 		hazards.append_array(room.get("hazards", []))
+		var cams: Array = data.get("camera_zones", []).duplicate()
+		cams.append_array(room.get("camera_zones", []))
+		data["camera_zones"] = cams
 		data["hazards"] = hazards
 		# 範圍：巢狀的房間放前面（region_at 找第一個符合的＝最裡面那間）
 		var base_index: int = data.regions.size()
@@ -1529,11 +1736,13 @@ static func _shifted(d: Dictionary, off: Vector2i) -> Dictionary:
 		zc.rect = Rect2i(zc.rect.position + off, zc.rect.size)
 		zones[z] = zc
 	out["zones"] = zones
-	for field in ["hazards", "regions"]:
+	for field in ["hazards", "regions", "camera_zones"]:
 		var arr: Array = []
 		for item in d.get(field, []):
 			var ic: Dictionary = item.duplicate()
 			ic.rect = Rect2i(ic.rect.position + off, ic.rect.size)
+			if ic.has("frame"):
+				ic.frame = ic.frame + off
 			arr.append(ic)
 		out[field] = arr
 	var ir: Array = []

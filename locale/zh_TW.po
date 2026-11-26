@@ -2009,3 +2009,105 @@ msgstr "和那捲錄音帶同一個音高。和那座城市同一個音高。"
 
 msgid "Then let's end the song."
 msgstr "那就讓這首歌結束吧。"
+
+msgid "The Boreal Star"
+msgstr "北極星號"
+
+msgid "The cruise ship is frozen in the ice past the North Harbor pier. Find the Ark manifest in the cargo hold - and deal with whoever holds the sun deck."
+msgstr "郵輪卡在北港棧橋外的浮冰裡。到貨艙找到方舟的貨物清單——還有，解決佔據頂層甲板的人。"
+
+msgid "KOVAC: \"There's a cruise ship stuck in the ice north of the harbor - the Boreal Star. It vanished eighteen months ago. If the Ark used it, the manifest will say for what. Get it.\""
+msgstr "柯瓦奇：「港口北邊的冰裡卡著一艘郵輪——北極星號。它十八個月前失蹤了。如果方舟用過它，貨物清單會寫用來做什麼。拿到它。」"
+
+msgid "MV Boreal Star - Promenade Deck"
+msgstr "北極星號——散步甲板"
+
+msgid "MV Boreal Star - Grand Atrium"
+msgstr "北極星號——大中庭"
+
+msgid "CAPTAIN'S LOG, MV BOREAL STAR: \"Day 41 in the ice. The Ark doctors say the 'patients' must not be moved. Passengers confined to cabins. The singing from the theatre started again at midnight.\""
+msgstr "船長日誌，北極星號：「困在冰裡第 41 天。方舟的醫生說『病人』不能移動。乘客一律關在客艙。午夜時，劇院裡的歌聲又開始了。」"
+
+msgid "NOTE ON THE PIANO: \"They held a concert for the sick ones. The sick ones sang back. Nobody clapped.\""
+msgstr "鋼琴上的紙條：「他們替生病的人辦了一場音樂會。生病的人唱回來了。沒有人鼓掌。」"
+
+msgid "MV Boreal Star - Cargo Hold"
+msgstr "北極星號——貨艙"
+
+msgid "ARK MANIFEST, BOREAL STAR: \"Cargo: 212 passengers (sedated), 38 crew, 6 crates of core ice. Destination: none. The ship IS the destination. Keep it cold. Keep them listening.\""
+msgstr "方舟貨物清單，北極星號：「貨物：乘客 212 名（已鎮靜）、船員 38 名、核心冰 6 箱。目的地：無。這艘船本身就是目的地。保持低溫。讓他們一直聽。」"
+
+msgid "MV Boreal Star - Sun Deck"
+msgstr "北極星號——頂層甲板"
+
+msgid "THE WARDEN"
+msgstr "典獄長"
+
+msgid "MV Boreal Star - frozen in the pack ice off North Harbor"
+msgstr "北極星號——卡在北港外的浮冰裡"
+
+msgid "Expedition cruise ship  -  missing since March 2025"
+msgstr "極地探險郵輪　——　2025 年 3 月失蹤"
+
+msgid "A cruise ship. Ten decks, a thousand windows - and not one of them lit."
+msgstr "一艘郵輪。十層甲板、上千扇窗——沒有一扇亮著。"
+
+msgid "Deck, Bridge. The Warden wants the gangway watched. Nothing comes aboard. Nothing leaves."
+msgstr "甲板，這裡是艦橋。典獄長要你們盯住棧橋。誰都不准上船。誰都不准離開。"
+
+msgid "The Warden. Somebody up top who likes the high ground."
+msgstr "典獄長。上面有個喜歡佔高處的人。"
+
+msgid "A chandelier. A grand piano. A staircase built for wedding photos."
+msgstr "水晶吊燈。三角鋼琴。一座專門拍婚紗照用的樓梯。"
+
+msgid "And from the theatre, through the wall... a choir. Rehearsing."
+msgstr "還有，隔著牆從劇院傳來的……合唱。在排練。"
+
+msgid "Sun Deck"
+msgstr "頂層甲板"
+
+msgid "Gate Two commander - sniper"
+msgstr "守門二號指揮官——狙擊手"
+
+msgid "[WARDEN]"
+msgstr "[典獄長]"
+
+msgid "Supply pilot. I counted your steps from the gangway. Forty-one. You favour the left leg."
+msgstr "補給飛行員。我從棧橋開始數妳的腳步。四十一步。妳比較偏左腳。"
+
+msgid "Stay down in the snow. It's quieter for both of us."
+msgstr "待在雪地裡別動。這樣對我們兩個都比較安靜。"
+
+msgid "When that laser turns bright, I'm already dead. Stay behind cover - and make him reload."
+msgstr "那道雷射變亮的時候，我就已經死了。躲在掩護後面——逼他拉槍機。"
+
+msgid "The Warden"
+msgstr "典獄長"
+
+msgid "Gate Two's commander. A hunter before the Accord found him. He holds the Boreal Star's sun deck from three perches and never wastes a round - unless you give him a reason."
+msgstr "守門二號的指揮官。加入協定之前是個獵人。他從三個制高點守著北極星號的頂層甲板，從不浪費一發子彈——除非你給他理由。"
+
+msgid "Break line of sight when the laser thickens. He has to work the bolt after every shot. Noise draws his aim."
+msgstr "雷射變粗的時候就躲開他的視線。他每開一槍都要拉槍機。聲音會吸引他的槍口。"
+
+msgid "FRENZY"
+msgstr "狂暴"
+
+msgid "LIGHTS OUT"
+msgstr "熄燈"
+
+msgid "THE CHOIR ANSWERS"
+msgstr "合唱回應了"
+
+msgid "THE SHAFT IS COMING DOWN"
+msgstr "井要塌了"
+
+msgid "FLARES UP"
+msgstr "照明彈"
+
+msgid "KNIFE"
+msgstr "刀"
+
+msgid "RELOAD"
+msgstr "裝填"

@@ -147,6 +147,19 @@ const DATA := [
 		],
 		"reward": {"items": {"antibiotic": 1}},
 	},
+	{
+		# 郵輪「北極星號」：北港北邊的棧橋上船。甲板、船艙、貨艙，頂層甲板是 Boss 典獄長
+		"id": "boreal_star", "main": false, "requires": ["find_shelter"],
+		"radio": "KOVAC: \"There's a cruise ship stuck in the ice north of the harbor - the Boreal Star. It vanished eighteen months ago. If the Ark used it, the manifest will say for what. Get it.\"",
+		"title": "The Boreal Star",
+		"desc": "The cruise ship is frozen in the ice past the North Harbor pier. Find the Ark manifest in the cargo hold - and deal with whoever holds the sun deck.",
+		"steps": [
+			{"type": "enter_area", "target": "cruise_deck"},
+			{"type": "interact", "target": "ark_manifest"},
+			{"type": "defeat", "target": "warden"},
+		],
+		"reward": {"items": {"rifle_rounds": 6, "med": 1}},
+	},
 ]
 
 

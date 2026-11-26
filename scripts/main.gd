@@ -27,6 +27,7 @@ const ENEMY_SCENES := {
 	"brute": preload("res://scenes/enemy_brute.tscn"),
 	"bear": preload("res://scenes/boss_bear.tscn"),
 	"well": preload("res://scenes/boss_well.tscn"),
+	"warden": preload("res://scenes/boss_warden.tscn"),
 }
 ## 主線的最後一個任務：完成後播放結局（Endings）
 const FINAL_MISSION := "the_shaft"
@@ -53,6 +54,8 @@ var _film_mat: ShaderMaterial
 var options_panel: OptionsPanel
 ## 畫面邊緣的聲音提示（畫面外的腳步聲）
 var sound_cues: SoundCues
+var tactical_hud: TacticalHud
+var radio_dial: RadioDial
 ## 過場（用遊戲畫面演出）
 var cutscene: CutscenePlayer
 ## 快捷選單（道具鍵、武器鍵：按一下用／換，按住＋方向選）
@@ -185,6 +188,12 @@ func _ready() -> void:
 	signal_style.set_content_margin_all(6)
 	_signal_panel.add_theme_stylebox_override("panel", signal_style)
 	_build_ending_panel()
+	# 無線電面板：上面是刻度盤＋強度表＋示波器（RadioDial），下面是原本的文字
+	var radio_box := VBoxContainer.new()
+	_radio_panel.add_child(radio_box)
+	radio_dial = RadioDial.new()
+	radio_box.add_child(radio_dial)
+	_radio_text.reparent(radio_box)
 	# 畫面後製（顆粒、暗角、色調）：蓋在遊戲畫面上、HUD 底下
 	var film_layer := CanvasLayer.new()
 	film_layer.layer = 9
@@ -219,6 +228,13 @@ func _ready() -> void:
 	$HUD.move_child(sound_cues, 0)
 	touch_controls = TouchControls.new()
 	add_child(touch_controls)
+	# 戰術 HUD：LIFE、道具框、武器框（觸控版移到上面）
+	tactical_hud = TacticalHud.new()
+	tactical_hud.name = "TacticalHud"
+	tactical_hud.main = self
+	tactical_hud.touch = TouchControls.should_show()
+	$HUD.add_child(tactical_hud)
+	$HUD.move_child(tactical_hud, 1)
 	_hint.visible = false  # 操作說明在手機「操作」App
 	_build_phone()
 	quick_menu = QuickMenu.new()
@@ -503,7 +519,38 @@ func _update_boss_bar() -> void:
 		_boss_fill.size.x = 200.0 * clampf(boss.health / boss.max_health, 0.0, 1.0)
 
 
-func _physics_process(_delta: float) -> void:
+## ── 潛龍諜影式的多種視角（2.5D）：區域的鏡頭設定、貼牆視角、斜角傾斜 ──
+var _tilt := 0.0
+
+
+func _update_camera_view(delta: float) -> void:
+	if level == null or _camera.fixed:
+		_set_tilt(lerpf(_tilt, 0.0, 1.0 - exp(-3.0 * delta)))
+		return
+	var zone: Dictionary = level.camera_zone_at(_player.global_position)
+	var zoom := float(zone.get("zoom", 1.0))
+	var tilt := float(zone.get("tilt", Areas.get_area(level.area_id).get("tilt", 0.0)))
+	_camera.frame_point = (Vector2(zone.frame) + Vector2(0.5, 0.5)) * Level.TILE if zone.has("frame") else null
+	if _player.wall_press != Vector2.ZERO and not _player.is_hiding:
+		# 貼牆：鏡頭推到主角前面、拉近、壓低成斜角
+		_camera.wall_offset = _player.wall_press * 84.0
+		zoom = maxf(zoom, 1.3)
+		tilt = maxf(tilt, 0.16)
+	else:
+		_camera.wall_offset = Vector2.ZERO
+	_camera.zoom_target = zoom
+	_set_tilt(lerpf(_tilt, tilt, 1.0 - exp(-3.0 * delta)))
+
+
+func _set_tilt(v: float) -> void:
+	_tilt = v
+	if _film_mat:
+		_film_mat.set_shader_parameter("tilt", v)
+
+
+func _physics_process(delta: float) -> void:
+	if level != null and not (cutscene and cutscene.active):
+		_update_camera_view(delta)
 	if level == null or _transitioning or _resetting or _player.is_hiding or not _player.input_enabled:
 		return
 	if survival:
@@ -565,6 +612,8 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 		_enemy_root.add_child(enemy)
 		enemy.setup(def.points, _player, level)
 		enemies.append(enemy)
+		if enemy.is_boss():
+			enemy.boss_event.connect(_on_boss_event)
 
 	for item in level.get_interactables():
 		if item is ExitPoint:
@@ -602,6 +651,9 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			show_message(tr("Locked. Keycard access level %d required.") % door.access, true)
 			Sfx.play("door_locked"))
 	_chase_timer = 0.0
+	_boss_dark = false
+	if _boss_banner:
+		_boss_banner.modulate.a = 0.0
 	_reinforced = false
 	_any_alert = false
 	_any_suspicious = false
@@ -1013,6 +1065,69 @@ func play_cutscene(id: String, enemy_base := 0) -> void:
 	get_tree().paused = was_paused
 
 
+## ── Boss 戰的演出（Enemy.boss_event）──
+var _boss_dark := false
+var _boss_banner: Label
+
+
+func _on_boss_event(kind: String, data: Dictionary) -> void:
+	match kind:
+		"phase":
+			_show_boss_banner(tr(data.get("title", "")), tr(data.get("text", "")))
+			_shake_camera(4.0, 0.8)
+			Sfx.rumble(300, 0.8)
+		"blackout":
+			_boss_dark = true
+			# 燈全滅：關掉這個區域裡所有的燈（主角的手電筒、Boss 身上的結晶除外）
+			for l in level.find_children("*", "PointLight2D", true, false):
+				if not _player.is_ancestor_of(l):
+					l.set_meta("boss_off", true)
+					l.visible = false
+			Sfx.play("breaker_off" if SoundList.SFX.has("breaker_off") else "door_locked")
+			_apply_darkness()
+		"summon":
+			var e := spawn_enemy(data.type, data.pos)
+			e.set_meta("summoned", true)
+			e.answer_call(_player.global_position)
+		"icicle":
+			Icicle.drop(level, data.pos, data.get("warn", 1.1))
+		"flare":
+			# 典獄長的照明彈：主角附近亮起一大片，慢慢暗下去
+			var light := PointLight2D.new()
+			light.texture = LightTextures.make_radial()
+			light.texture_scale = 220.0 / (LightTextures.SIZE * 0.5)
+			light.color = Color(1.0, 0.55, 0.45)
+			light.energy = 1.1
+			light.global_position = data.pos
+			level.add_child(light)
+			Sfx.play("flare_fire" if SoundList.SFX.has("flare_fire") else "pistol_shot", data.pos)
+			var t := create_tween()
+			t.tween_property(light, "energy", 0.0, 6.0)
+			t.tween_callback(light.queue_free)
+
+
+## 畫面中間的 Boss 階段字（例：苔原之母　狂暴）
+func _show_boss_banner(title: String, text: String) -> void:
+	if _boss_banner == null:
+		_boss_banner = Label.new()
+		_boss_banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		_boss_banner.offset_left = -200
+		_boss_banner.offset_right = 200
+		_boss_banner.offset_top = 70
+		_boss_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_boss_banner.add_theme_font_size_override("font_size", 24)
+		_boss_banner.add_theme_color_override("font_color", Color(0.95, 0.3, 0.25))
+		_boss_banner.add_theme_color_override("font_outline_color", Color.BLACK)
+		_boss_banner.add_theme_constant_override("outline_size", 4)
+		_boss_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		$HUD.add_child(_boss_banner)
+	_boss_banner.text = "%s\n%s" % [title, text] if title != "" else text
+	_boss_banner.modulate.a = 1.0
+	var t := create_tween()
+	t.tween_interval(1.6)
+	t.tween_property(_boss_banner, "modulate:a", 0.0, 0.8)
+
+
 ## 時代的畫面色調：""＝現在、"1962"＝泛黃的老底片、"2099"＝未來的霓虹幻象
 const ERAS := {"": 0.0, "2026": 0.0, "1962": 1.0, "2099": 2.0}
 
@@ -1043,7 +1158,7 @@ func _on_play_reel(target_area: String, entry: String, scene: String, flag: Stri
 func _speaker_portrait(speaker: String) -> Texture2D:
 	if speaker == Cutscenes.SHEN:
 		return Art.tex("portraits/shen_" + _player.get_condition().to_lower())
-	if speaker.begins_with("[GATE"):
+	if speaker.begins_with("[GATE") or speaker.begins_with("[WARDEN"):
 		return Art.tex("portraits/gate")
 	if speaker.begins_with("[KOVAC"):
 		return Art.tex("portraits/kovac")
@@ -1141,6 +1256,9 @@ func _checkpoint_at_region_door(region: String) -> void:
 
 
 func _apply_darkness() -> void:
+	if _boss_dark:
+		_darkness.color = Color(0.035, 0.035, 0.05)
+		return
 	if level.is_safe_at(_player.global_position):
 		_darkness.color = SAFE_DARKNESS
 	elif not level.is_indoor_at(_player.global_position):
@@ -1183,6 +1301,23 @@ func _end_attempt(text: String, color: Color, new_game := false, delay := RESET_
 ## 回到最近的檢查點（目前所在區域的入口）。
 func reset_attempt() -> void:
 	close_window_view()
+	# Boss 戰的演出還原：燈、叫出來的手下、還沒掉下來的冰
+	_boss_dark = false
+	if _boss_banner:
+		_boss_banner.modulate.a = 0.0
+	if level:
+		for l in level.find_children("*", "PointLight2D", true, false):
+			if l.has_meta("boss_off"):
+				l.remove_meta("boss_off")
+				l.visible = true
+	for e in enemies.duplicate():
+		if e.has_meta("summoned"):
+			enemies.erase(e)
+			e.queue_free()
+	if level:
+		for n in level.get_children():
+			if n is Icicle:
+				n.queue_free()
 	WorldState.restore_checkpoint()
 	# 回到檢查點時至少有一半的體溫，避免一進戶外就凍死的死循環
 	WorldState.body_temp = maxf(WorldState.body_temp, 60.0)
@@ -1272,8 +1407,8 @@ func _build_phone() -> void:
 	_items.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_items.offset_left = -260
 	_items.offset_right = -4
-	_items.offset_top = -30
-	_items.offset_bottom = -16
+	_items.offset_top = -52
+	_items.offset_bottom = -38
 
 
 func open_phone(app: String) -> void:
@@ -1550,8 +1685,11 @@ func _refresh_radio() -> void:
 	for f in WorldState.known_freqs():
 		var mark := "*" if f == _radio_freq else ""
 		memo_parts.append("%s%s %s" % [mark, Frequencies.format(f), tr(Frequencies.by_freq(f).label)])
+	if radio_dial:
+		radio_dial.freq = _radio_freq
+		radio_dial.strength = strength
+		radio_dial.known = WorldState.known_freqs()
 	var lines: Array[String] = [
-		"RADIO",
 		tr("FREQUENCY  %s MHz") % Frequencies.format(_radio_freq),
 		tr("SIGNAL     [%s%s]") % ["#".repeat(bars), "-".repeat(10 - bars)],
 		tr("MEMO       %s") % ("  /  ".join(memo_parts) if not memo_parts.is_empty() else tr("(none)")),
