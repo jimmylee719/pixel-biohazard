@@ -40,11 +40,14 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if main == null or main._player == null:
 		return
-	var w := size.x
-	var h := size.y
+	# 用畫面實際的大小（不是這個節點的 size：掛在 CanvasLayer 底下時，視窗改大小不一定會跟著更新，
+	# 兩個框就會跑到畫面外面或中間）
+	var view := get_viewport_rect().size
+	var w := view.x
+	var h := view.y
 	# ── 左上：LIFE ──
 	var hp := clampf(WorldState.health / 100.0, 0.0, 1.0)
-	var top := 18.0 if not touch else 54.0
+	var top := 24.0 if not touch else 54.0
 	_text(Vector2(6, top + 9), "LIFE", Color(0.7, 0.78, 0.8))
 	var bar := Rect2(38, top + 3, 72, 5)
 	draw_rect(bar.grow(1), Color(0, 0, 0, 0.8))
@@ -59,7 +62,7 @@ func _draw() -> void:
 		draw_rect(Rect2(38, top + 10, 72 * inf, 1), Color(0.75, 0.45, 0.95))
 	# 體溫（冷的地方才出現）
 	var lv: Level = main.level
-	if lv and Climates.has_exposure(lv.climate_id()):
+	if lv and Climates.has_exposure(lv.climate_at(main._player.global_position)):
 		var t := clampf(WorldState.body_temp / 100.0, 0.0, 1.0)
 		_text(Vector2(6, top + 21), "TEMP", Color(0.6, 0.75, 0.85))
 		var tb := Rect2(38, top + 15, 72, 3)
@@ -90,6 +93,10 @@ func _draw_weapon_box(at: Vector2) -> void:
 	if combat.reloading:
 		ammo = tr("RELOAD")
 	_box(at, Art.tex("props/" + weapon), Items.display_name(weapon), ammo)
+	if weapon == "pistol" and WorldState.suppressor_on():
+		# 消音器：武器框右上角標 SUP
+		draw_rect(Rect2(at + Vector2(BOX.x - 24, 2), Vector2(22, 9)), Color(0.1, 0.12, 0.14, 0.9))
+		draw_string(_font, at + Vector2(BOX.x - 23, 10), "SUP", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.55, 0.9, 0.75))
 
 
 func _box(at: Vector2, icon: Texture2D, label: String, sub: String) -> void:

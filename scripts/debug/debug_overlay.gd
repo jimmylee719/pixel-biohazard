@@ -166,18 +166,42 @@ func _draw_shot(shot: Dictionary, weapon: String) -> void:
 		draw_texture(casing, p.floor(), Color(1, 1, 1, clampf((0.6 - t) / 0.2, 0.0, 1.0)))
 
 
-## 近戰：刀光（5 格掃過去）、拳腳打中的衝擊圈＋碎片
+## 近戰：刀光（一大片新月形的弧光，5 格掃過去，後面拖一格殘影）、拳腳的速度線、打中的閃光＋衝擊圈＋碎片。
+## 時間對齊角色的動作：出手那幾格（MELEE_FX_DELAY 之後）才出現，不是一按就閃過去。
+const MELEE_FX_DELAY := 0.05
+const SLASH_FRAME_TIME := 0.036
+
+
 func _draw_melee(swing: Dictionary) -> void:
 	var t: float = swing.t
 	var dir: Vector2 = swing.dir
-	if swing.move == "slash" and t < 0.125:
-		var tex := Art.tex("fx/slash_%d" % mini(int(t / 0.025), 4))
-		if tex:
-			draw_set_transform(swing.pos + dir * 9.0 + Vector2(0, -6), dir.angle())
-			draw_texture(tex, -tex.get_size() * 0.5, Color(1.0, 0.75, 0.7) if swing.takedown else Color.WHITE)
-			draw_set_transform(Vector2.ZERO)
-	if swing.get("hit", false) and t < 0.2:
-		var f := mini(int(t / 0.05), 3)
+	var st := t - MELEE_FX_DELAY
+	if swing.move == "slash" and st >= 0.0 and st < SLASH_FRAME_TIME * 6.0:
+		var f := int(st / SLASH_FRAME_TIME)
+		var axe := _player.combat.melee_weapon() == "fire_axe"
+		var tint := Color(1.0, 0.75, 0.7) if swing.takedown else (Color(1.0, 0.92, 0.82) if axe else Color.WHITE)
+		draw_set_transform(swing.pos + dir * 4.0 + Vector2(0, -7), dir.angle(), Vector2.ONE * (1.18 if axe else 1.0))
+		# 殘影：前一格淡淡地留著，弧線看起來是連續掃過去的
+		if f >= 1:
+			var ghost := Art.tex("fx/slash_%d" % mini(f - 1, 4))
+			if ghost:
+				draw_texture(ghost, -ghost.get_size() * 0.5, Color(tint, 0.4))
+		if f <= 4:
+			var tex := Art.tex("fx/slash_%d" % f)
+			if tex:
+				draw_texture(tex, -tex.get_size() * 0.5, tint)
+		draw_set_transform(Vector2.ZERO)
+	elif swing.move in ["punch", "kick"] and st >= 0.0 and st < 0.14:
+		# 拳、腳：三條往前的速度線
+		var k := st / 0.14
+		var base: Vector2 = swing.pos + Vector2(0, -8 if swing.move == "punch" else -4)
+		var side := Vector2(-dir.y, dir.x)
+		for i in [-1, 0, 1]:
+			var tip: Vector2 = base + dir * (9.0 + 9.0 * k - absf(i) * 2.0) + side * i * 2.5
+			draw_line(tip - dir * (7.0 - absf(i) * 2.0), tip, Color(1, 1, 1, (1.0 - k) * (0.85 if i == 0 else 0.45)), 1.0)
+	var ht := t - MELEE_FX_DELAY - 0.02
+	if swing.get("hit", false) and ht >= 0.0 and ht < 0.24:
+		var f := mini(int(ht / 0.06), 3)
 		var at: Vector2 = swing.pos + dir * 13.0 + Vector2(0, -6)
 		var ring := Art.tex("fx/impact_%d" % f)
 		if ring and swing.move in ["punch", "kick"]:

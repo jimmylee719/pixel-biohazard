@@ -24,6 +24,45 @@ func _run() -> void:
 	await _frames(30)
 
 	_overlay.debug_enabled = false
+	# 第二個參數 tour = 正式地圖的幾個實際遊戲畫面（開場碼頭、研究站、燃料庫、氣象小屋、北港）
+	if OS.get_cmdline_user_args().has("tour"):
+		WorldState.start_loadout = true
+		WorldState.new_game()
+		await _enter("south_shore", "start")
+		await _frames(30)
+		await _shot("t1_dock_start")
+		_put_player(_tile(34, 25), Vector2.LEFT, true)
+		await _frames(30)
+		await _shot("t2_dock_truck")
+		_off = Areas.area_offset("station_1f")
+		_put_player(_tile(6, 12), Vector2.RIGHT, true)
+		await _frames(30)
+		await _shot("t3_lobby")
+		_put_player(_tile(10, 4), Vector2.UP, true)
+		await _frames(30)
+		await _shot("t4_mess")
+		_put_player(_tile(36, 4), Vector2.UP, true)
+		await _frames(30)
+		await _shot("t5_lab")
+		_off = Areas.area_offset("fuel_depot")
+		_put_player(_tile(8, 9), Vector2.UP, true)
+		await _frames(30)
+		await _shot("t6_depot_yard")
+		await _enter("weather_huts", "huts")
+		_put_player(_tile(22, 13), Vector2.LEFT, true)
+		await _frames(30)
+		await _shot("t7_huts")
+		await _enter("north_harbor", "harbor")
+		_put_player(_tile(20, 8), Vector2.UP, true)
+		await _frames(30)
+		await _shot("t8_harbor")
+		get_tree().quit()
+		return
+	# 第二個參數 map = 整張地圖的全亮預覽（設計關卡用）：之後的參數是區域 id（不寫 = 全部的主地圖）
+	if OS.get_cmdline_user_args().has("map"):
+		await _map_shots()
+		get_tree().quit()
+		return
 	# 第二個參數 new = 只拍 AFTERSIGNAL 改版的新畫面（快速檢查用）
 	if OS.get_cmdline_user_args().has("new"):
 		await _mgs_shots()
@@ -547,3 +586,34 @@ func _shot(name: String) -> void:
 	var path := "%s/%s.png" % [_out, name]
 	img.save_png(path)
 	print("saved ", path)
+
+
+## 整張地圖全亮的預覽：把畫面放大到整張地圖的大小（1 格 = 16px），關掉黑暗、房間黑幕、HUD、後製
+func _map_shots() -> void:
+	var args := OS.get_cmdline_user_args()
+	var ids: Array = []
+	for i in range(args.find("map") + 1, args.size()):
+		ids.append(args[i])
+	if ids.is_empty():
+		for id in Areas.all():
+			if not Areas.rooms().has(id):
+				ids.append(id)
+	for n in ["HUD", "Film", "Overlay"]:
+		if _main.has_node(n):
+			_main.get_node(n).visible = false
+	_main._darkness.visible = false
+	var cam := Camera2D.new()
+	_main.add_child(cam)
+	for id in ids:
+		await _main.load_area(id, "", false)
+		var lv: Level = _main.level
+		if lv.fog:
+			lv.fog.visible = false
+		var size := Vector2i(mini(int(lv.bounds.size.x), 2400), mini(int(lv.bounds.size.y), 1500))
+		get_window().content_scale_size = size
+		cam.position = lv.bounds.get_center()
+		cam.make_current()
+		for e in _main.enemies:
+			e.set_physics_process(false)
+		await _frames(12)
+		await _shot("map_" + id)

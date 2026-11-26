@@ -58,9 +58,10 @@ func _draw() -> void:
 	var face_lo := Color(0.26, 0.27, 0.32) if not outdoor else Color(0.32, 0.34, 0.4)
 	for c in _cells:
 		var p := Vector2(c) * t
-		var indoor := not outdoor or level._is_indoor_cell(c + Vector2i.DOWN)
-		var hi := face_hi if indoor else Color(0.55, 0.58, 0.64)
-		var lo := face_lo if indoor else Color(0.36, 0.38, 0.44)
+		var style := level.wall_style_at(c)
+		var cols: Array = SetDresser.WALL_FACE.get(style, SetDresser.WALL_FACE.concrete)
+		var hi: Color = cols[0]
+		var lo: Color = cols[1]
 		var y0 := t - FACE
 		# 牆頂和牆面的交界（暗線）
 		draw_rect(Rect2(p + Vector2(0, y0 - 1), Vector2(t, 1)), top)
@@ -79,8 +80,19 @@ func _draw() -> void:
 		draw_rect(Rect2(p + Vector2(0, t - 3), Vector2(t, 3)), lo.darkened(0.45))
 		# 牆上的細節（依區域主題，固定亂數）：螢幕、海報、生物危害標誌、管線、通風口、警報燈、壁燈……
 		var h := absi(hash(c * 3 + Vector2i(7, level.area_id.length())))
-		var pool: Array = WALL_DECOR.get(level.theme_at(c), [])
-		if not pool.is_empty() and h % 4 == 0:
+		var below := c + Vector2i.DOWN
+		var pool: Array = SetDresser.set_data(level.set_at(below)).get("decor", WALL_DECOR.get(level.theme_at(c), []))
+		if style == "wood":
+			# 木板牆：橫的木板縫
+			for wy in [5, 10]:
+				draw_rect(Rect2(p + Vector2(0, y0 + wy), Vector2(t, 1)), lo.darkened(0.3))
+		elif style == "ship":
+			# 船艙鋼板：一排鉚釘
+			for rx in [2, 7, 12]:
+				draw_rect(Rect2(p + Vector2(rx, y0 + 2), Vector2(1, 1)), hi.lightened(0.25))
+		if not level._is_indoor_cell(below):
+			pool = []
+		if not pool.is_empty() and h % 3 == 0:
 			var tex := Art.tex("decor/" + pool[(h / 4) % pool.size()])
 			if tex:
 				var at := p + Vector2(floorf((t - tex.get_width()) * 0.5), y0 + 3)

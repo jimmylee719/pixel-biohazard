@@ -24,6 +24,8 @@ const DATA := {
 		"desc": "Experimental. Pushes the infection back."},
 	"pistol": {"name": "Pistol", "stack": 1, "kind": "weapon",
 		"desc": "Station security sidearm. 8-round magazine."},
+	"suppressor": {"name": "Suppressor", "stack": 1, "kind": "attach",
+		"desc": "Threads onto the pistol. Use it to fit or remove. A fitted pistol is far quieter - only things close by will hear it."},
 	"shotgun": {"name": "Shotgun", "stack": 1, "kind": "weapon",
 		"desc": "Pump shotgun. Devastating up close, useless at range. 2-shell tube."},
 	"shells": {"name": "Shotgun shells", "stack": 8, "kind": "ammo",
@@ -61,6 +63,7 @@ const MAP_PICKUPS := {
 	"v": ["flare_gun", 1],
 	"y": ["flares", 2],
 	"z": ["fire_axe", 1],
+	"^": ["suppressor", 1],
 }
 
 ## 投擲物：落地聲音大小（格）、會不會起火

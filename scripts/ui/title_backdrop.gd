@@ -1,7 +1,8 @@
 ## 標題畫面（潛龍諜影式的開場：電影感、安靜、一個大標題、「按任意鍵」）。全部用程式畫，像素對齊。
 ## 流程（phase）：
 ##   "intro"  黑畫面上一行一行打出衛星定位的字（地點、座標、時間）
-##   "press"  暴風雪的夜晚：研究站的探照燈掃過雪地，主角的剪影站在前景；標題浮現，「PRESS ANY BUTTON」閃爍
+##   "press"  監聽站的夜晚：天線碟、一圈圈傳出去又折回來的訊號、示波器的波形，戴頭盔的主角剪影站在前景；
+##            標誌（調頻刻度環＋繞回來的波形）和標題浮現，「PRESS ANY BUTTON」閃爍
 ##   "menu"   按下去之後（槍聲＋閃光），標題往上移、選單出現（選單本身是 title.tscn 的按鈕）
 ## 上下的黑邊是電影的寬銀幕比例。原創畫面，不使用任何既有作品的標誌或文字。
 class_name TitleBackdrop
@@ -91,84 +92,119 @@ func _draw_intro() -> void:
 
 
 func _draw_scene(w: float, h: float, fade: float) -> void:
-	var horizon := floorf(h * 0.62)
-	# 夜空（很暗的藍黑漸層）
+	# 背景：監聽站的黑夜。不是雪地：一座朝著地底的天線碟、一圈一圈往外傳又折回來的訊號、一條示波器的波形。
+	var horizon := floorf(h * 0.66)
 	for y in int(horizon):
-		var k := float(y) / horizon
-		draw_rect(Rect2(0, y, w, 1), Color(0.02, 0.03, 0.06).lerp(Color(0.07, 0.09, 0.13), k) * fade)
-	# 遠方的山稜
-	for x in int(w):
-		var m := horizon - 6.0 - absf(sin(x * 0.017 + 0.6) * 18.0 + sin(x * 0.051) * 5.0)
-		draw_rect(Rect2(x, m, 1, horizon - m), Color(0.04, 0.05, 0.08) * fade)
-	# 雪地
-	for y in range(int(horizon), int(h)):
-		var k := float(y - horizon) / (h - horizon)
-		draw_rect(Rect2(0, y, w, 1), Color(0.1, 0.12, 0.16).lerp(Color(0.2, 0.23, 0.28), k) * fade)
-	# 研究站（右邊）：主建築、兩扇亮著的窗、天線塔
-	var sx := floorf(w * 0.6)
-	var sy := horizon - 22.0
-	var dark := Color(0.015, 0.018, 0.028) * fade + Color(0, 0, 0, 1.0 - fade)
-	draw_rect(Rect2(sx, sy, 120, 24), dark)
-	draw_rect(Rect2(sx + 18, sy - 10, 46, 10), dark)
-	draw_rect(Rect2(sx + 92, sy - 6, 22, 6), dark)
-	for wx: float in [sx + 24, sx + 52, sx + 100]:
-		var lit: bool = wx != sx + 52 or int(t * 0.7) % 5 != 0
-		draw_rect(Rect2(wx, sy + 8, 4, 3), Color(1.0, 0.72, 0.35, 0.9 * fade) if lit else dark)
-	var tx := sx + 150.0
-	draw_line(Vector2(tx - 6, horizon), Vector2(tx, horizon - 70), dark, 1.0)
-	draw_line(Vector2(tx + 6, horizon), Vector2(tx, horizon - 70), dark, 1.0)
+		var k := pow(float(y) / horizon, 2.2)
+		draw_rect(Rect2(0, y, w, 1), Color(0.012, 0.024, 0.036).lerp(Color(0.07, 0.21, 0.21), k) * fade)
+	# 訊號的同心圓：從天線碟往外擴散，傳到最遠再淡掉（「迴頻」＝傳出去的訊號會回來）
+	var src := Vector2(floorf(w * 0.7), horizon - 46.0)
 	for i in 7:
-		var yy := lerpf(horizon, horizon - 70, float(i) / 7.0)
-		var half := lerpf(6.0, 0.0, float(i) / 7.0)
-		draw_line(Vector2(tx - half, yy), Vector2(tx + half, yy), dark, 1.0)
+		var phase_k := fposmod(t * 0.11 + float(i) / 7.0, 1.0)
+		var r := 14.0 + phase_k * w * 0.62
+		var a := (1.0 - phase_k) * 0.34 * fade
+		draw_arc(src, r, PI * 0.92, PI * 2.08, 72, Color(0.35, 0.95, 0.75, a), 1.0, false)
+		# 回來的那一圈（比較暗、往內縮）
+		var rb := 14.0 + (1.0 - phase_k) * w * 0.62
+		draw_arc(src, rb, PI * 1.1, PI * 1.9, 48, Color(0.95, 0.62, 0.22, (1.0 - absf(phase_k - 0.5) * 2.0) * 0.12 * fade), 1.0, false)
+	# 地面：一條亮線和它下面的暗面
+	for y in range(int(horizon), int(h)):
+		var gk := float(y - horizon) / (h - horizon)
+		draw_rect(Rect2(0, y, w, 1), Color(0.035, 0.085, 0.09).lerp(Color(0.085, 0.13, 0.14), gk) * fade)
+	draw_rect(Rect2(0, horizon, w, 1), Color(0.22, 0.48, 0.45, fade))
+	var dark := Color(0.0, 0.004, 0.008, fade)
+	# 天線碟（右邊，剪影）：支架、碟面、饋源、頂端的紅燈
+	var dx := src.x
+	draw_colored_polygon(PackedVector2Array([Vector2(dx - 16, horizon), Vector2(dx + 16, horizon), Vector2(dx + 4, horizon - 40), Vector2(dx - 4, horizon - 40)]), dark)
+	draw_colored_polygon(PackedVector2Array([Vector2(dx - 44, horizon - 52), Vector2(dx + 34, horizon - 82), Vector2(dx + 40, horizon - 70),
+		Vector2(dx + 10, horizon - 38), Vector2(dx - 30, horizon - 36)]), dark)
+	draw_line(Vector2(dx - 4, horizon - 56), Vector2(dx - 30, horizon - 92), dark, 2.0)
+	draw_line(Vector2(dx + 24, horizon - 66), Vector2(dx - 30, horizon - 92), dark, 1.0)
 	if int(t * 1.2) % 2 == 0:
-		draw_rect(Rect2(tx - 1, horizon - 73, 2, 2), Color(1.0, 0.15, 0.1, fade))
-	# 探照燈：從屋頂掃過雪地
-	var origin := Vector2(sx + 40, sy - 10)
-	var ang := PI * 0.5 + sin(t * 0.35) * 0.9
-	var reach := 260.0
-	var a1 := Vector2.from_angle(ang - 0.07) * reach
-	var a2 := Vector2.from_angle(ang + 0.07) * reach
-	draw_colored_polygon(PackedVector2Array([origin, origin + a1 + Vector2(-reach * 0.6, 0), origin + a2 + Vector2(-reach * 0.6, 0)]),
-		Color(0.85, 0.9, 1.0, 0.07 * fade))
-	draw_circle(origin, 2.0, Color(1, 1, 0.9, fade))
-	# 前景的主角剪影（左下，面向研究站；圍巾被風吹動）
-	var px := floorf(w * 0.24)
-	var py := h - BAR - 26.0
+		draw_rect(Rect2(dx - 32, horizon - 95, 3, 3), Color(1.0, 0.16, 0.1, fade))
+	# 遠處的研究站屋頂（左邊，很低），一扇亮著的窗
+	var bx := floorf(w * 0.42)
+	draw_rect(Rect2(bx, horizon - 12, 70, 12), dark)
+	draw_rect(Rect2(bx + 12, horizon - 18, 26, 6), dark)
+	draw_rect(Rect2(bx + 50, horizon - 7, 3, 2), Color(1.0, 0.72, 0.35, 0.85 * fade))
+	# 示波器的波形：橫過整個畫面，一段乾淨的正弦波在雜訊裡慢慢移動
+	var wy := horizon + 22.0
+	var prev := Vector2(0, wy)
+	for x in range(0, int(w), 2):
+		var env := exp(-pow((float(x) - fposmod(t * 46.0, w + 240.0) + 120.0) / 70.0, 2.0))
+		var clean := sin(x * 0.16 - t * 5.0) * 9.0 * env
+		var hiss := (fposmod(sin(x * 12.9898 + floorf(t * 24.0) * 78.233) * 43758.5453, 1.0) - 0.5) * 3.0 * (1.0 - env)
+		var p := Vector2(x, wy + clean + hiss)
+		draw_line(prev, p, Color(0.35, 0.95, 0.72, (0.22 + 0.6 * env) * fade), 1.0)
+		prev = p
+	# 前景的主角剪影（左下）：戴頭盔、背對鏡頭看著天線，面罩側邊一顆琥珀色的燈
+	var px := floorf(w * 0.2)
+	var py := h - BAR - 22.0
 	var sil := Color(0.0, 0.0, 0.0, fade)
-	draw_rect(Rect2(px - 4, py - 22, 9, 10), sil)       # 頭（兜帽）
-	draw_rect(Rect2(px - 6, py - 13, 13, 15), sil)      # 身體（外套）
-	draw_rect(Rect2(px - 5, py + 2, 4, 9), sil)         # 腿
-	draw_rect(Rect2(px + 2, py + 2, 4, 9), sil)
-	draw_rect(Rect2(px - 8, py - 11, 3, 11), sil)       # 手臂
-	draw_rect(Rect2(px + 6, py - 11, 3, 10), sil)
-	var flap := int(t * 6.0) % 3
-	draw_rect(Rect2(px - 10 - flap, py - 15, 6 + flap, 2), sil)  # 圍巾
-	draw_rect(Rect2(px - 30, py + 10, 60, 2), Color(0, 0, 0, 0.35 * fade))  # 影子
-	# 暴風雪：斜著吹的雪，近的大、快
-	for s in _snow:
-		var sp := 30.0 + 90.0 * s.z
-		var p := Vector2(fposmod(s.x * w - t * sp * 0.9, w), fposmod(s.y * h + t * sp * 0.45, h))
-		var sz := 2.0 if s.z > 0.85 else 1.0
-		draw_rect(Rect2(p.floor(), Vector2(sz, sz)), Color(0.85, 0.88, 0.95, (0.25 + 0.5 * s.z) * fade))
+	draw_rect(Rect2(px - 5, py - 25, 11, 9), sil)       # 頭盔
+	draw_rect(Rect2(px - 4, py - 27, 9, 2), sil)
+	draw_rect(Rect2(px - 7, py - 22, 2, 5), sil)        # 耳罩
+	draw_rect(Rect2(px + 6, py - 22, 2, 5), sil)
+	draw_rect(Rect2(px - 7, py - 33, 1, 11), sil)       # 天線
+	draw_rect(Rect2(px - 7, py - 15, 15, 16), sil)      # 身體
+	draw_rect(Rect2(px - 6, py + 1, 5, 12), sil)        # 腿
+	draw_rect(Rect2(px + 2, py + 1, 5, 12), sil)
+	draw_rect(Rect2(px - 10, py - 13, 3, 12), sil)      # 手臂
+	draw_rect(Rect2(px + 8, py - 13, 3, 13), sil)
+	draw_rect(Rect2(px + 9, py - 1, 6, 3), sil)         # 手上的槍
+	draw_rect(Rect2(px + 6, py - 20, 1, 1), Color(1.0, 0.7, 0.25, fade * (0.6 + 0.4 * sin(t * 2.0))))
+	draw_rect(Rect2(px - 26, py + 12, 54, 2), Color(0, 0, 0, 0.4 * fade))
+	# 空氣裡漂浮的雜訊點（很慢、很淡）
+	for sn in _snow:
+		var p2 := Vector2(fposmod(sn.x * w + t * 4.0 * sn.z, w), fposmod(sn.y * h - t * 2.5 * sn.z, h))
+		draw_rect(Rect2(p2.floor(), Vector2.ONE), Color(0.5, 0.95, 0.8, (0.05 + 0.16 * sn.z) * fade))
+
+
+## 標誌（原創）：一個調頻刻度環，裡面的波形從環的缺口傳出去、繞一圈又回到環裡。
+func _draw_emblem(c: Vector2, r: float, k: float) -> void:
+	var ring := Color(0.86, 0.88, 0.9, k)
+	var amber := Color(1.0, 0.68, 0.22, k)
+	# 刻度環（右上留一個缺口）
+	draw_arc(c, r, PI * 0.02, PI * 1.62, 40, ring, 2.0, false)
+	for i in 12:
+		var a := PI * 0.02 + float(i) / 11.0 * PI * 1.6
+		var d := Vector2.from_angle(a)
+		draw_line(c + d * (r + 2.0), c + d * (r + (5.0 if i % 3 == 0 else 3.5)), ring, 1.0)
+	# 環裡的波形
+	var prev := c + Vector2(-r + 3.0, 0)
+	for i in range(1, int(r * 2.0 - 5.0)):
+		var x := -r + 3.0 + i
+		var env := 1.0 - absf(x) / r
+		var p := c + Vector2(x, sin(x * 0.75 - t * 3.0) * r * 0.42 * env)
+		draw_line(prev, p, amber, 1.0)
+		prev = p
+	# 從缺口出去、繞回來的那一道（迴頻）
+	draw_arc(c, r + 8.0, -PI * 0.42, PI * 0.16, 16, amber, 1.0, false)
+	var tip := c + Vector2.from_angle(PI * 0.16) * (r + 8.0)
+	draw_line(tip, tip + Vector2(-4, -1), amber, 1.0)
+	draw_line(tip, tip + Vector2(1, -4), amber, 1.0)
+	# 指針：停在 126.05
+	draw_line(c, c + Vector2.from_angle(-PI * 0.33) * (r - 2.0), Color(0.9, 0.2, 0.15, k), 1.0)
+	draw_rect(Rect2(c - Vector2(1, 1), Vector2(2, 2)), ring)
 
 
 func _draw_logo(w: float, h: float, fade: float) -> void:
-	# 標題：選單出現後往上移；一道反光從左掃到右
+	# 標誌＋標題：選單出現後往上移；一道反光從左掃到右
 	var k := clampf((_phase_t - 0.6) / 1.4, 0.0, 1.0) if phase == "press" else 1.0
-	var y := 62.0 if phase == "press" else lerpf(62.0, 44.0, clampf(_phase_t / 0.5, 0.0, 1.0))
+	var y := 74.0 if phase == "press" else lerpf(74.0, 50.0, clampf(_phase_t / 0.5, 0.0, 1.0))
 	var title := "A F T E R S I G N A L"
 	var tw := _font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
-	var at := Vector2(floorf((w - tw) * 0.5), y)
+	var at := Vector2(floorf((w - tw) * 0.5) + 16.0, y)
+	_draw_emblem(Vector2(at.x - 24.0, y - 8.0), 12.0, k)
 	draw_string(_font, at + Vector2(2, 2), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(0, 0, 0, 0.8 * k))
 	draw_string(_font, at, title, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(0.86, 0.88, 0.9, k))
 	var glint := fmod(t * 0.35, 1.6) * (tw + 80.0) - 40.0
 	if glint > 0.0 and glint < tw:
 		draw_rect(Rect2(at.x + glint, at.y - 18, 3, 22), Color(1, 1, 1, 0.35 * k))
-	# 紅色的細線＋中文標題＋類型
-	draw_rect(Rect2(floorf(w * 0.5 - tw * 0.5), y + 6, tw, 1), Color(0.75, 0.12, 0.1, k))
-	_text_center("迴 頻", y + 30, Color(0.82, 0.18, 0.14, k), 24)
-	_text_center("SURVIVAL  ・  STEALTH  ・  HORROR", y + 48, Color(0.55, 0.58, 0.62, k * fade))
+	# 細線＋中文標題＋類型
+	draw_rect(Rect2(at.x, y + 6, tw, 1), Color(1.0, 0.68, 0.22, k))
+	_text_center("迴 頻", y + 30, Color(1.0, 0.68, 0.22, k), 24)
+	_text_center("STEALTH  ・  SURVIVAL  ・  HORROR", y + 46, Color(0.55, 0.62, 0.62, k * fade))
 
 
 func _text(at: Vector2, s: String, c: Color, fs := 12) -> void:

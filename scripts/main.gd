@@ -312,7 +312,11 @@ func _process(delta: float) -> void:
 			_show_next_message()
 
 	var focus := _player.focus
-	if focus and _player.input_enabled:
+	var prey := _player.combat.takedown_target() if _player.input_enabled else null
+	if prey:
+		# 潛行到敵人背後：一擊解決（刀）或抓住（互動）
+		_prompt.text = tr("[%s] Silent takedown   [%s] Grab") % [_key_name("fire"), _key_name("interact")]
+	elif focus and _player.input_enabled:
 		_prompt.text = "[%s] %s" % [_key_name("interact"), tr(focus.get_prompt(_player))]
 	elif _player.input_enabled and _player.knock_point() != null and _player.velocity.length() < 5.0:
 		_prompt.text = tr("[%s] Knock on the wall") % _key_name("interact")
@@ -597,7 +601,7 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 		enemy.queue_free()
 	enemies.clear()
 
-	# 合併進主地圖的房間（Areas.ROOMS）：載入主地圖，站在房間裡的入口
+	# 合併進主地圖的房間（Areas.rooms()）：載入主地圖，站在房間裡的入口
 	var root := Areas.root_of(area_id)
 	level = Level.new()
 	level.area_id = root
@@ -710,7 +714,7 @@ func _mark_explored(delta: float) -> void:
 ## 地圖 App 可以翻的地圖：去過的、或撿到地圖的主區域
 func known_map_areas() -> Array[String]:
 	var out: Array[String] = []
-	for id in Areas.DATA:
+	for id in Areas.all():
 		if Areas.root_of(id) != id:
 			continue
 		if WorldState.has_flag("map:" + id) or WorldState.data.explored.has(id):
@@ -733,12 +737,12 @@ func objective_target() -> Dictionary:
 	match step.type:
 		"enter_area":
 			var root := Areas.root_of(step.target)
-			if Areas.ROOMS.has(step.target):
-				var rows: Array = Areas.DATA[step.target].map
+			if Areas.rooms().has(step.target):
+				var rows: Array = Areas.all()[step.target].map
 				return {"area": root, "cell": Areas.room_offset(step.target) + Vector2i(String(rows[0]).length() / 2, rows.size() / 2)}
 			return {"area": root, "cell": null}
 		"interact", "collect":
-			for id in Areas.DATA:
+			for id in Areas.all():
 				if Areas.root_of(id) != id:
 					continue
 				var names: Dictionary = Areas.get_area(id).names
@@ -747,8 +751,8 @@ func objective_target() -> Dictionary:
 						var xy := String(key).split(",")
 						return {"area": id, "cell": Vector2i(int(xy[0]), int(xy[1]))}
 		"defeat":
-			for id in Areas.DATA:
-				for e in Areas.DATA[id].get("enemies", []):
+			for id in Areas.all():
+				for e in Areas.all()[id].get("enemies", []):
 					if e.type == BOSS_TYPES.get(step.target, ""):
 						return {"area": Areas.root_of(id), "cell": null}
 	return {}
@@ -928,7 +932,7 @@ func quick_items() -> Array[Dictionary]:
 		if slot.is_empty() or seen.has(slot.id):
 			continue
 		var kind: String = Items.get_item(slot.id).kind
-		if kind in ["throwable", "heal", "cure", "warm", "craft"]:
+		if kind in ["throwable", "heal", "cure", "warm", "craft", "attach"]:
 			seen[slot.id] = true
 			out.append({"id": slot.id, "name": Items.display_name(slot.id), "icon": Art.tex("props/" + slot.id),
 				"count": WorldState.inv_count(slot.id)})
@@ -956,11 +960,19 @@ func use_quick_item() -> void:
 	var kind: String = Items.get_item(id).kind
 	if kind == "throwable":
 		_player.throw_item(id)
+	elif kind == "attach":
+		_toggle_suppressor()
 	elif _player.use_item(id):
 		Sfx.play("ui_confirm")
 		show_message(tr("Used %s.") % Items.display_name(id))
 	else:
 		Sfx.play("gun_empty")
+
+
+func _toggle_suppressor() -> void:
+	var on := WorldState.toggle_suppressor()
+	Sfx.play("reload", _player.global_position, 0.2, -8.0)
+	show_message(tr("Suppressor fitted. The pistol is quiet now.") if on else tr("Suppressor removed."))
 
 
 func _cycle_weapon() -> void:
@@ -984,7 +996,7 @@ func _equip_weapon(id: String) -> void:
 
 ## 這個區域（或房間）有沒有還沒看過的過場
 func _check_cutscene(area_id: String) -> void:
-	var id: String = Areas.DATA.get(area_id, {}).get("cutscene", "")
+	var id: String = Areas.all().get(area_id, {}).get("cutscene", "")
 	if id != "":
 		# 合併進來的區域：過場裡的「第幾隻敵人」從那個區域自己的第一隻開始算
 		var base := 0

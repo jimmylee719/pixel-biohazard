@@ -14,6 +14,7 @@
 ## 常用指令
 - 行為測試（改完遊戲邏輯一定要跑，結束代碼 0 才算通過）：`tools/run_tests.sh`
   （內部執行 `Godot --headless --path . res://tools/tests/prototype_test.tscn`，有逾時保護：測試腳本語法錯誤時 Godot 不會自己結束）
+- 整張地圖全亮預覽（設計關卡用）：同下面的截圖指令，後面加 `map [區域 id…]`；實際遊戲畫面巡一圈：加 `tour`。
 - 截圖（會開視窗）：`/Applications/Godot.app/Contents/MacOS/Godot --path . res://tools/tests/capture.tscn -- <輸出資料夾>`
 - 重新產生 InputMap 設定：`/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tools/setup_project_settings.gd`
 - 注意：遊戲腳本用到自動載入（NoiseBus），所以測試要用「場景」執行，不能用 `--script`。
@@ -88,7 +89,8 @@
 
 ## 像素解析度
 - 內部 viewport：480x270，預設視窗 1280x720
-- stretch mode = viewport、aspect = expand、scale mode = integer
+- stretch mode = viewport、aspect = expand、scale mode = fractional（整個畫面等比例放大，任何視窗大小介面都完整；不要改回 integer）
+- 畫在 CanvasLayer 底下的 HUD 用 `get_viewport_rect().size` 排版，不要用節點自己的 `size`
 - 預設貼圖過濾：Nearest（不要模糊像素）
 - 美術素材以 480x270 為基準設計，保持像素對齊
 
@@ -146,3 +148,26 @@
   郵輪 Boss「典獄長」`scripts/enemy/boss_warden.gd`（狙擊：雷射鎖定、拉槍機、換制高點、聲音誘導、第二階段照明彈）。
 - 郵輪「北極星號」：北港頂端的棧橋 `gangway` → `cruise_deck`（＋`cruise_interior` 無縫）、樓梯往下 `cruise_hold`、往上 `cruise_sundeck`（Boss）。支線 `boreal_star`。
 - 子彈穿牆：`PlayerCombat.PIERCE`（手槍穿 1 格、獵槍 2 格，每穿一道傷害打折）、`trace_shot()`；沒鎖定時直線開槍會打到路上的敵人。
+
+## v0.6：場景重繪（一定要先讀）
+- **開場在「海閘碼頭」**（區域 id 仍是 `south_shore`）：鑿進岩壁的室內水泥碼頭，不冷（`climate: temperate`）、不是雪地；主角搭補給船來。
+  第一次遇到雪地是碼頭東邊的燃料庫。主角**一律戴頭盔**（臉留到之後的作品才公開）：模型、頭像、頭部裝備（都是頭盔套／外殼）都不能露臉。
+- **佈景 `scripts/level/set_dresser.gd`**：地圖上的 C（家具）畫成什麼、地板、牆面、牆上的東西，都依「房間種類」決定。
+  區域資料 `sets = [{rect, set}]` 指定範圍是哪種房間（lab、medical、mess、lounge、office、dorm、storage、utility、garage、comms、
+  military、barracks、hut、cave、cabin、saloon、theater、hold），整區預設用 `set` 或主題；戶外用 `outdoor_set`（yard 雪地廠區、dock 水泥碼頭、
+  deck 甲板、wild 荒野）。**只有 wild 和 cave 會出現岩石**，室內和廠區不能有石頭。`props = {"x,y": 圖}` 指定某一塊就是某樣東西。
+  規則：2x2 以上 = 大型物件（貨櫃、木箱堆、油槽、卡車……圖檔 `<名稱>_<寬>x<高>`）；橫排靠牆 = back_wide、不靠牆 = island_wide；單格同理。
+- **場景美術 `python3 tools/gen_scene_art.py [set|big|stash|tiles|wall]`**：家具 `assets/sprites/set/`、放道具的容器 `stash/`、地板與牆 `tiles/`。
+  和角色產生器共用算圖器。新家具 = 加一行 `S()`／`W()`／`BIG()`，再寫進 SetDresser.SETS。
+- **地圖要像真的場所**：小房間＋走廊、每間有牆和門（`+`）、家具靠牆擺；不要大片空地。新符號 `~` 水面（走不過去、看得過去）、`^` 消音器。
+  改地圖用 `tools/map_specs/*.py`（`painter.Map` 畫房間）＋ `python3 tools/area_patch.py <規格檔>`：自動把 names／hidden／loot／gear／門對應到新座標，
+  再跑 `Godot --headless --path . --script res://tools/check_maps.gd` 檢查連通、門、合併重疊。
+- **測試用的固定地圖**：`tools/tests/legacy_areas.gd` 是改版前的地圖，行為測試（座標寫死）用 `Areas.use_layout()` 在上面跑；
+  正式地圖由 `_test_real_maps` 檢查。程式裡讀地圖資料一律用 `Areas.all()`／`Areas.rooms()`，不要直接用 `Areas.DATA`。
+- 主地圖可以是室內、合併進來的區域是戶外（碼頭＋燃料庫）：判斷戶外用 `Level._is_indoor_cell()`／`is_indoor_at()`，不要只看 `level.outdoor`。
+  主角在戶外時，沒進去的建築畫成屋頂（`RoomFog`）。
+- **道具放在容器裡**（`ItemPickup.STASH`）：急救箱、冷藏箱、彈藥箱、抽屜、武器箱……拿走後容器留著（打開）。新物品記得指定容器。
+- **以槍為主**：主線開始身上有手槍（`WorldState.start_loadout`，測試關掉）。消音器 `suppressor`（kind attach，道具鍵或物品欄「使用」= 裝／拆，
+  `WorldState.suppressor_on()`，槍聲 12 → 3.5 格）。背後一擊：`PlayerCombat.takedown_target()` 有對象時畫面提示。
+- 標題畫面：監聽站夜景＋標誌（調頻刻度環、繞回來的波形，`TitleBackdrop._draw_emblem`）。不要再用雪地當主視覺。
+- 音樂：`tools/synth_audio.py` 的訊號動機（D、E、降 B、停、A，取自 126.05）貫穿標題、安全屋、追逐、結局；音樂和環境音是立體聲。

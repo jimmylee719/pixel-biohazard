@@ -23,8 +23,11 @@ func _ready() -> void:
 
 func _run() -> void:
 	WorldState.save_path = "user://test_save.dat"  # 不要動到真正的存檔
+	# 行為測試在舊版的固定地圖上跑（座標寫死在測試裡）；正式地圖另外用 _test_real_maps 檢查
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
 	TranslationServer.set_locale("en")  # 檢查的是英文原文；翻譯另外測
 	WorldState.delete_save()
+	WorldState.start_loadout = false  # 測試從空手開始（撿槍、裝填都要檢查）；起始裝備在 _test_real_maps 測
 	WorldState.new_game()
 	WorldState.cutscenes = false  # 過場另外測（_test_cutscene）
 	_main = load("res://scenes/main.tscn").instantiate()
@@ -88,6 +91,7 @@ func _run() -> void:
 	await _test_new_systems()
 	await _test_aftersignal()
 	await _test_mgs_systems()
+	await _test_real_maps()
 	await _test_survival()
 
 	print("")
@@ -151,7 +155,7 @@ func _check(cond: bool, label: String) -> void:
 
 
 ## 測試裡的格子座標都是「目前載入的區域（或房間）自己的座標」：
-## 合併進大地圖的區域（Areas.ROOMS）要加上位移才是地圖上的位置（_enter 會設定）。
+## 合併進大地圖的區域（Areas.rooms()）要加上位移才是地圖上的位置（_enter 會設定）。
 var _off := Vector2i.ZERO
 
 
@@ -1117,7 +1121,7 @@ func _test_title() -> void:
 			texts.append(m.radio)
 	for id in Items.DATA:
 		texts.append_array([Items.DATA[id].name, Items.DATA[id].desc])
-	for a in Areas.DATA.values():
+	for a in Areas.all().values():
 		texts.append(a.title)
 		texts.append_array(a.messages.values())
 		if a.has("boss"):
@@ -2368,12 +2372,12 @@ func _test_pixel_art() -> void:
 func _test_expansion() -> void:
 	print("[expansion]")
 	# 門要兩邊對得上
-	for area_id in Areas.DATA:
-		for door_id in Areas.DATA[area_id].doors:
-			var to: String = Areas.DATA[area_id].doors[door_id].to
-			_check(Areas.DATA.has(to) and Areas.DATA[to].doors.has(door_id), "門 %s:%s 兩邊相通" % [area_id, door_id])
+	for area_id in Areas.all():
+		for door_id in Areas.all()[area_id].doors:
+			var to: String = Areas.all()[area_id].doors[door_id].to
+			_check(Areas.all().has(to) and Areas.all()[to].doors.has(door_id), "門 %s:%s 兩邊相通" % [area_id, door_id])
 	for area_id in ["north_harbor", "ice_caves", "station_east_wing"]:
-		var entry: String = Areas.DATA[area_id].doors.keys()[0]
+		var entry: String = Areas.all()[area_id].doors.keys()[0]
 		await _enter(area_id, entry, false)
 		_quiet()
 		var types := {}
@@ -2381,9 +2385,9 @@ func _test_expansion() -> void:
 			types[e.get_species()] = true
 		_check(_main.enemies.size() >= 4, "%s 有敵人（%s）" % [area_id, types.keys()])
 		_check(_main.level.title != "", "%s 載入" % area_id)
-	_check(not Areas.DATA.north_harbor.reinforcements.is_empty(), "北港有增援（無線電通報）")
+	_check(not Areas.all().north_harbor.reinforcements.is_empty(), "北港有增援（無線電通報）")
 	# 守門一號：廣場＋基地（安全屋合併進基地、有區域地圖、保險箱、多個房間）
-	# 無縫：廣場、基地、安全屋是同一張地圖（Areas.ROOMS 巢狀合併，房間裡也有敵人）
+	# 無縫：廣場、基地、安全屋是同一張地圖（Areas.rooms() 巢狀合併，房間裡也有敵人）
 	_check(Areas.root_of("gate_one_safe") == "north_harbor", "安全屋→基地→廣場→冰洞→北港：同一張地圖")
 	await _enter("gate_one_yard", "gate_tunnel", false)
 	_quiet()
@@ -2438,8 +2442,8 @@ func _test_expansion() -> void:
 	var rows: Array = base.map
 	var joined := "".join(rows)
 	_check(joined.contains("l") and joined.contains("s") and joined.count("+") >= 20, "基地有地圖、保險箱、很多室內門")
-	var safe_area: Dictionary = Areas.DATA.gate_one_base.safes["46,2"]
-	_check(Areas.DATA.gate_one_yard.hidden.values().has(safe_area.reveal), "基地保險箱的情報指向廣場的隱藏物品")
+	var safe_area: Dictionary = Areas.all().gate_one_base.safes["46,2"]
+	_check(Areas.all().gate_one_yard.hidden.values().has(safe_area.reveal), "基地保險箱的情報指向廣場的隱藏物品")
 	# 圖鑑：看到就解鎖、打倒會記數
 	var e: Enemy = _main.enemies[0]
 	var sp := e.get_species()
@@ -2834,3 +2838,143 @@ func _test_new_systems() -> void:
 	_check(rifle, "冰洞撿得到獵槍")
 	for d in ["server_rack", "specimen_tank", "desk_row_m", "bunk_l", "blood_0", "monitor", "pipe"]:
 		_check(Art.tex("decor/" + d) != null, "室內裝潢 %s" % d)
+
+
+## 正式的地圖（scripts/world/areas.gd）：其他測試都在舊版的固定地圖上跑，這裡檢查正式地圖本身沒壞，
+## 以及只跟正式地圖有關的新東西（開場在不冷的碼頭、起始配槍、消音器、道具放在容器裡、背後一擊的提示）。
+func _test_real_maps() -> void:
+	print("[real maps]")
+	Areas.use_layout()
+	var same_names := true
+	var keys_ok := true
+	var doors_ok := true
+	var routes_ok := true
+	for id in Areas.all():
+		var a: Dictionary = Areas.all()[id]
+		var old: Dictionary = LegacyAreas.DATA[id]
+		for field in ["names", "gear", "stairs"]:
+			var x: Array = a.get(field, {}).values()
+			var y: Array = old.get(field, {}).values()
+			x.sort()
+			y.sort()
+			if str(x) != str(y):
+				same_names = false
+				print("    ", id, ".", field, " 不一樣：", x, " / ", y)
+		for field in ["names", "hidden", "loot", "gear", "stairs", "safes", "reels"]:
+			for key: String in a.get(field, {}):
+				var p := key.split(",")
+				var ch: String = String(a.map[int(p[1])])[int(p[0])]
+				if "#.C".contains(ch):
+					keys_ok = false
+					print("    ", id, ".", field, " ", key, " 指到 ", ch)
+		for d in a.doors:
+			var to: String = a.doors[d].to
+			var c: Vector2i = a.doors[d].cell
+			if not Areas.all().has(to) or not Areas.all()[to].doors.has(d) or String(a.map[c.y])[c.x] != "D":
+				doors_ok = false
+				print("    ", id, " 的門 ", d)
+		for e in a.get("enemies", []):
+			for ch in String(e.get("route", "")):
+				if Areas._find_char(a.map, ch).x < 0:
+					routes_ok = false
+		for row in a.map:
+			if String(row).length() != String(a.map[0]).length():
+				keys_ok = false
+				print("    ", id, " 的地圖每列長度不一樣")
+	_check(same_names, "正式地圖：任務物件、裝備、樓梯和舊地圖一樣多（沒有漏掉）")
+	_check(keys_ok, "正式地圖：寫了座標的物件都真的在那一格")
+	_check(doors_ok, "正式地圖：每扇門兩邊都接得起來")
+	_check(routes_ok, "正式地圖：敵人的巡邏點都在")
+	# 每張主地圖：所有走得到的地方連在一起、載入不出錯
+	var connected := true
+	var loaded := true
+	for id in Areas.all():
+		if Areas.rooms().has(id):
+			continue
+		var data := Areas.get_area(id)
+		var open := {}
+		for y in data.map.size():
+			var row: String = data.map[y]
+			for x in row.length():
+				if not "#CH=~".contains(row[x]):
+					open[Vector2i(x, y)] = true
+		var seen := {}
+		var stack: Array[Vector2i] = [open.keys()[0]]
+		seen[stack[0]] = true
+		while not stack.is_empty():
+			var c: Vector2i = stack.pop_back()
+			for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+				if open.has(c + d) and not seen.has(c + d):
+					seen[c + d] = true
+					stack.append(c + d)
+		if seen.size() != open.size():
+			connected = false
+			print("    ", id, " 有 ", open.size() - seen.size(), " 格走不到")
+		await _main.load_area(id, "", false)
+		if _main.level == null or _main.enemies.size() != data.enemies.size():
+			loaded = false
+			print("    ", id, " 載入有問題")
+	_check(connected, "正式地圖：每張地圖能走的地方都連在一起")
+	_check(loaded, "正式地圖：每張地圖都能載入、敵人數量正確")
+	# 開場：海閘碼頭（室內、不冷）、身上有配槍
+	WorldState.start_loadout = true
+	WorldState.new_game()
+	_check(WorldState.inv_count("pistol") == 1 and WorldState.get_loaded("pistol") == 8 and WorldState.inv_count("ammo") == 16,
+		"主線開始：身上有手槍（滿彈匣）和備彈")
+	await _main.load_area(Areas.START_AREA, Areas.START_ENTRY, false)
+	var lv: Level = _main.level
+	var pos: Vector2 = _player.global_position
+	_check(lv.is_indoor_at(pos) and lv.set_at(lv.cell_of(pos)) == "dock", "開場在海閘碼頭（水泥碼頭，不是雪地）")
+	_check(lv.exposure_at(pos) <= 0.0 and not Climates.has_exposure(lv.climate_at(pos)), "碼頭不冷：不會失溫")
+	_check(lv._water_cells.size() > 50 and lv.char_at(lv._water_cells[0]) == "~", "碼頭有水道（走不過去）")
+	var depot := Areas.area_offset("fuel_depot")
+	_check(not lv._is_indoor_cell(depot + Vector2i(4, 10)) and lv.set_at(depot + Vector2i(4, 10)) == "yard"
+		and lv.exposure_at(lv._cell_center(depot + Vector2i(4, 10))) > 0.0, "燃料庫在戶外：雪地、會失溫")
+	var st := Areas.area_offset("station_1f")
+	_check(lv.set_at(st + Vector2i(8, 3)) == "mess" and lv.set_at(st + Vector2i(34, 3)) == "lab", "研究站一樓的房間各有用途（餐廳、實驗室……）")
+	# 道具放在容器裡：拿走之後容器留著（打開）
+	var med: ItemPickup = null
+	for item in lv.get_interactables():
+		if item is ItemPickup and item.pickup_item == "med" and item.enabled:
+			med = item
+			break
+	_check(med != null and med.stash_art() == "medbox" and Art.tex("stash/medbox") != null, "急救包放在牆上的急救箱裡")
+	if med:
+		med.interact(_player)
+		_check(WorldState.inv_count("med") == 1 and med.visible and not med.enabled, "拿走之後急救箱還在（空的），不能再拿")
+	# 消音器
+	WorldState.inv_add("suppressor", 1)
+	_check(not WorldState.suppressor_on(), "消音器撿到時還沒裝上")
+	_main._toggle_suppressor()
+	_check(WorldState.suppressor_on() and PlayerCombat.SUPPRESSED_NOISE_TILES < PlayerCombat.WEAPONS.pistol.noise_tiles * 0.5,
+		"裝上消音器：手槍的槍聲傳得近很多")
+	var heard := [0.0]
+	var on_noise := func(_p: Vector2, radius: float, _src: Node) -> void: heard[0] = maxf(heard[0], radius)
+	NoiseBus.noise_emitted.connect(on_noise)
+	WorldState.equipped = "pistol"
+	_player.combat._cooldown = 0.0
+	_player.combat.shoot()
+	NoiseBus.noise_emitted.disconnect(on_noise)
+	_check(is_equal_approx(heard[0], PlayerCombat.SUPPRESSED_NOISE_TILES * Player.TILE), "消音手槍開槍的聲音範圍 = 3.5 格")
+	_main._toggle_suppressor()
+	# 背後一擊的提示
+	var foe: Enemy = _main.enemies[0]
+	for e in _main.enemies:
+		e.set_physics_process(e == foe)
+	foe.global_position = pos + Vector2(40, 0)
+	foe.facing = Vector2.RIGHT
+	foe.state = Enemy.State.UNAWARE
+	foe.awareness = 0.0
+	_player.reset_to(foe.global_position + Vector2(-14, 0))
+	_player.facing = Vector2.RIGHT
+	_check(_player.combat.takedown_target() == foe, "潛行到敵人背後：出現「背後一擊」的對象")
+	_player.reset_to(foe.global_position + Vector2(14, 0))
+	_check(_player.combat.takedown_target() == null, "站在敵人正面：不能背後一擊")
+	for e in _main.enemies:
+		e.set_physics_process(false)
+	# 換回測試用的固定地圖
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
+	WorldState.start_loadout = false
+	WorldState.new_game()
+	await _main.load_area(Areas.START_AREA, Areas.START_ENTRY, false)
+	_enable_all()

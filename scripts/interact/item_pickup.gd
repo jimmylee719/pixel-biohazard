@@ -47,9 +47,43 @@ func interact(_player: Player) -> void:
 
 func sync_from_state() -> void:
 	_sync_taken()
+	# 道具放在容器裡：拿走之後容器留在原地（打開、空的）
+	if stash_art() != "":
+		visible = is_revealed()
+		queue_redraw()
+
+
+## 這個道具放在哪種容器裡（stash/ 的圖，tools/gen_scene_art.py）。依物品種類和房間種類決定：
+## 急救包在牆上的急救箱、藥劑在冷藏箱、子彈在彈藥箱或抽屜、槍在武器箱……沒有對應的圖 = 照舊畫在地上。
+const STASH := {"med": "medbox", "antibiotic": "cooler", "ammo": "ammo_box", "shells": "ammo_box", "rifle_rounds": "ammo_box",
+	"nails": "toolbox", "flares": "ammo_box", "pistol": "weapon_case", "shotgun": "weapon_case", "rifle": "weapon_case",
+	"flare_gun": "weapon_case", "nailgun": "toolbox", "fire_axe": "axe_case", "ethanol": "chem_crate", "heat_pack": "backpack",
+	"suppressor": "weapon_case", "bottle": "bottle_crate", "stone": "duffel"}
+## 生活區（辦公室、宿舍、實驗室……）的子彈、雜物收在抽屜裡，不是軍用彈藥箱
+const CIVIL_SETS := ["office", "dorm", "lab", "lounge", "mess", "medical", "cabin", "saloon", "theater", "hut"]
+
+
+func stash_art() -> String:
+	var kind: String = STASH.get(pickup_item, "")
+	if kind == "":
+		return ""
+	if level and kind == "ammo_box" and level.set_at(level.cell_of(global_position)) in CIVIL_SETS:
+		kind = "drawer"
+	elif level and kind == "backpack" and not level._is_indoor_cell(level.cell_of(global_position)):
+		kind = "duffel"
+	return kind
 
 
 func _draw() -> void:
+	var stash := stash_art()
+	if stash != "":
+		var st := Art.tex("stash/" + stash + ("" if enabled else "_open"))
+		if st:
+			draw_rect(Rect2(-st.get_width() * 0.4, 5, st.get_width() * 0.8, 2), Color(0, 0, 0.02, 0.35))
+			draw_texture(st, Vector2(-st.get_width() * 0.5, 8 - st.get_height()).floor())
+			return
+	if not enabled:
+		return
 	var tex := Art.tex("props/" + pickup_item)
 	if tex:
 		# 地上的小影子＋物品圖（tools/gen_pixel_art.py）

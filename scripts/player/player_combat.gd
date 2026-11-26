@@ -43,6 +43,8 @@ const COMBO := [
 @export var moving_focus_cap := 0.6
 
 ## 槍械數值。falloff = 傷害隨距離下降（散彈槍）
+## 裝了消音器的手槍：槍聲只傳這麼遠（格），沒裝是 12 格
+const SUPPRESSED_NOISE_TILES := 3.5
 const WEAPONS := {
 	"pistol": {"ammo": "ammo", "mag": 8, "reload": 1.3, "cooldown": 0.35, "range": 170.0,
 		"damage_min": 25.0, "damage_max": 55.0, "stagger": 0.35, "noise_tiles": 12.0, "falloff": false},
@@ -240,7 +242,8 @@ func shoot() -> bool:
 	WorldState.set_loaded(weapon, WorldState.get_loaded(weapon) - 1)
 	_cooldown = s.cooldown
 	var origin := player.global_position
-	NoiseBus.emit_noise(origin, s.noise_tiles * Player.TILE, player)
+	var silenced := weapon == "pistol" and WorldState.suppressor_on()
+	NoiseBus.emit_noise(origin, (SUPPRESSED_NOISE_TILES if silenced else s.noise_tiles) * Player.TILE, player)
 	match weapon:
 		"shotgun", "rifle":
 			Sfx.play("shotgun_shot", origin, 0.04, 2.0 if weapon == "rifle" else 0.0)
@@ -249,7 +252,11 @@ func shoot() -> bool:
 		"flare_gun":
 			Sfx.play("pistol_shot", origin, 0.1, -6.0)
 		_:
-			Sfx.play("pistol_shot", origin, 0.04)
+			if silenced:
+				Sfx.play("pistol_shot", origin, 0.05, -14.0)
+				Sfx.play("knife_swing", origin, 0.1, -4.0)
+			else:
+				Sfx.play("pistol_shot", origin, 0.04)
 	Sfx.rumble(60 if weapon == "pistol" else 110, 0.6)
 	var hit := false
 	var end: Vector2
@@ -510,3 +517,20 @@ func _release_grab() -> void:
 	if grabbed and is_instance_valid(grabbed):
 		grabbed.set_grabbed(false)
 	grabbed = null
+
+
+## 可以從背後一擊解決的敵人（在近戰範圍內、沒發現主角、主角在他背後）；沒有 = null。給畫面提示用。
+func takedown_target() -> Enemy:
+	if player.is_hiding or grabbed != null:
+		return null
+	var best: Enemy = null
+	var best_d := melee_range + 6.0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.is_dead or enemy.is_boss():
+			continue
+		var d := player.global_position.distance_to(enemy.global_position)
+		if d < best_d and enemy.can_be_taken_down_by(player):
+			best = enemy
+			best_d = d
+	return best

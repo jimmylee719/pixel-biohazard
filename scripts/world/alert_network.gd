@@ -69,6 +69,8 @@ func call_allies(caller: Enemy, radius: float, target: Vector2) -> int:
 	calls += 1
 	last_known = target
 	var answered := 0
+	if not is_inside_tree():
+		return 0  # 換區域的那一幀：舊地圖已經移除
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var e := node as Enemy
 		if e == null or e == caller or e.is_dead or e.is_boss():

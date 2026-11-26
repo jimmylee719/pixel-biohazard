@@ -116,7 +116,7 @@ const DATA := [
 	{
 		"id": "supply_drop", "main": false,
 		"title": "Supply drop",
-		"desc": "A supply crate fell from the helicopter somewhere on the shore.",
+		"desc": "One of the supply crates is still sitting on the dock where you unloaded it.",
 		"steps": [{"type": "collect", "target": "supply_crate_shore"}],
 		"reward": {"bottles": 1},
 	},

@@ -103,6 +103,8 @@ func assist_mult() -> float:
 
 ## 過場動畫要不要播（測試、截圖工具會關掉）
 var cutscenes := true
+## 新遊戲時要不要給起始裝備（配槍）。行為測試關掉：測試從空手開始檢查撿槍、裝填。
+var start_loadout := true
 ## 遊戲模式："story"（主線）、"survival"（生存模式「長夜」，見 SurvivalMode）
 var mode := "story"
 ## 生存模式這一局的設定 {map, weapon}（生存選單設定）
@@ -233,6 +235,12 @@ func new_game() -> void:
 		"gear_owned": Gear.START_OWNED.duplicate(),
 		"explored": {},
 	}
+	if mode == "story" and start_loadout:
+		# 主線一開始身上就有配槍（一個彈匣＋一盒備彈）：這是一款以槍為主的潛行遊戲
+		inv_add("pistol", 1)
+		inv_add("ammo", 16)
+		data.loaded.pistol = 8
+		data.codex["pistol"] = true
 	if mode == "story":
 		for unlock in SurvivalData.STORY_CACHES:
 			if is_unlocked(unlock):
@@ -663,3 +671,14 @@ func checkpoint_area() -> String:
 
 func checkpoint_entry() -> String:
 	return _checkpoint.entry
+
+
+# ── 消音器（裝在手槍上：槍聲傳得近很多）──
+
+func suppressor_on() -> bool:
+	return data.get("suppressor", false) and inv_count("suppressor") > 0
+
+
+func toggle_suppressor() -> bool:
+	data["suppressor"] = not data.get("suppressor", false)
+	return data.suppressor

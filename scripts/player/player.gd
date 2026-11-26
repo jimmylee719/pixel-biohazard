@@ -723,12 +723,16 @@ func _find_focus() -> Interactable:
 	return best
 
 
+## 每一招的動作畫面播多久（秒；只影響畫面，比該招的冷卻短一點，連段才接得上）
+const MELEE_POSE_TIME := {"slash": 0.31, "punch": 0.29, "kick": 0.42}
+
+
 func _update_sprite() -> void:
 	if _sprite == null:
 		return
 	# 近戰動作（刀、拳、踢）優先，再來是舉槍瞄準
 	var swing: Dictionary = combat.last_melee
-	if not swing.is_empty() and swing.t < 0.3 and swing.move in ["slash", "punch", "kick"]:
+	if not swing.is_empty() and swing.move in MELEE_POSE_TIME and swing.t < MELEE_POSE_TIME[swing.move]:
 		var move: String = swing.move
 		if move == "slash" and combat.melee_weapon() == "fire_axe":
 			move = "slash_axe"

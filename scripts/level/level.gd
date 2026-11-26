@@ -1,4 +1,4 @@
-## 依區域資料（Areas.DATA）建立一個區域：地板、牆壁碰撞、遮光體、導航網格、互動物件、門、敵人路線、溫度區域。
+## 依區域資料（Areas.all()）建立一個區域：地板、牆壁碰撞、遮光體、導航網格、互動物件、門、敵人路線、溫度區域。
 ## 原型階段用色塊，之後換成 TileMapLayer 和正式美術時，只要保留同樣的對外函式即可。
 ## 地圖符號見 scripts/world/areas.gd。
 class_name Level
@@ -33,7 +33,7 @@ const CABINET_COLOR := Color(0.30, 0.24, 0.18)
 const CABINET_EDGE_COLOR := Color(0.42, 0.34, 0.25)
 const LOCKER_COLOR := Color(0.22, 0.30, 0.34)
 const LOCKER_EDGE_COLOR := Color(0.40, 0.55, 0.60)
-const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZUJIowpqru+jknmvyztls"
+const FLOOR_CHARS := ".PDBKTXGAMVWRYNSLQOxFEZUJIowpqru+jknmvyztls^"
 
 ## 建立前設定
 var area_id := Areas.START_AREA
@@ -50,6 +50,8 @@ var bounds := Rect2()
 var _data := {}
 var _map: Array = []
 var _floor_cells: Array[Vector2i] = []
+## 水面（地圖符號 ~）：走不過去、看得過去
+var _water_cells: Array[Vector2i] = []
 var _waypoints := {}
 var _start_position := Vector2.ZERO
 var _nav_region: NavigationRegion2D
@@ -101,36 +103,25 @@ func _ready() -> void:
 
 ## 地板直接畫在世界圖層，會被燈光照亮、在黑暗中看不見。沒開暖氣的室內地板偏藍（結霜）。
 func _draw() -> void:
-	var concrete := Art.tex("tiles/floor_concrete")
-	var frost := Art.tex("tiles/floor_frost")
-	var lab := Art.tex("tiles/floor_lab")
-	var snow := Art.tex("tiles/floor_snow")
 	for cell in _floor_cells:
-		var even := (cell.x + cell.y) % 2 == 0
 		var rect := Rect2(Vector2(cell) * TILE, Vector2(TILE, TILE))
-		if outdoor and not _is_indoor_cell(cell):
-			if snow:
-				var snow_src := Rect2(Vector2(posmod(cell.x, 4), posmod(cell.y, 4)) * TILE, Vector2(TILE, TILE))
-				draw_texture_rect_region(snow, rect, snow_src, Color(1.5, 1.5, 1.5))
-			else:
-				draw_rect(rect, SNOW_FLOOR_A if even else SNOW_FLOOR_B)
-			continue
-		# 室內：地板貼圖（64px 一張 = 4x4 格）。安全屋是無菌室的地板；沒暖氣的地方結霜。
+		var src := Rect2(Vector2(posmod(cell.x, 4), posmod(cell.y, 4)) * TILE, Vector2(TILE, TILE))
 		var cell_safe := is_safe_cell(cell)
-		var cold := not cell_safe and is_cold(_cell_center(cell))
-		var tex: Texture2D = lab if cell_safe else (frost if cold else concrete)
-		if tex:
-			var src := Rect2(Vector2(posmod(cell.x, 4), posmod(cell.y, 4)) * TILE, Vector2(TILE, TILE))
-			draw_texture_rect_region(tex, rect, src, Color(0.85, 0.85, 0.9) if cell_safe else Color.WHITE)
+		var tex := floor_tex_at(cell)
+		var open_air := not _is_indoor_cell(cell)
+		if tex == null:
+			draw_rect(rect, SNOW_FLOOR_A if open_air else INDOOR_FLOOR_A)
 			continue
-		var color: Color
-		if cell_safe:
-			color = SAFE_FLOOR_A if even else SAFE_FLOOR_B
-		else:
-			color = INDOOR_FLOOR_A if even else INDOOR_FLOOR_B
-			if cold:
-				color = color * COLD_TINT
-		draw_rect(rect, color)
+		var tint := Color.WHITE
+		if open_air:
+			tint = Color(1.5, 1.5, 1.5) if tex == Art.tex("tiles/floor_snow") else Color(1.15, 1.15, 1.18)
+		elif cell_safe:
+			tint = Color(1.12, 1.08, 1.0)
+		elif is_cold(_cell_center(cell)):
+			# 沒暖氣的室內：地板偏藍（結霜）
+			tint = Color(0.82, 0.95, 1.18)
+		draw_texture_rect_region(tex, rect, src, tint)
+	_draw_water()
 	_draw_floor_decals()
 	_draw_floor_shadows()
 	for door_id in _data.doors:
@@ -284,6 +275,42 @@ func region_data(cell: Vector2i) -> Dictionary:
 	return _data.regions[i] if i >= 0 else {}
 
 
+## 這格是哪種房間（SetDresser.SETS）：sets 指定的範圍 > 區域的 set > 戶外的 outdoor_set > 主題的預設
+func set_at(cell: Vector2i) -> String:
+	for s in _data.get("sets", []):
+		if (s.rect as Rect2i).has_point(cell):
+			return s.set
+	var r := region_data(cell)
+	if not _is_indoor_cell(cell):
+		var os: String = r.get("outdoor_set", "") if not r.is_empty() else _data.get("outdoor_set", "")
+		return os if os != "" else "yard"
+	var own: String = r.get("set", "") if not r.is_empty() else _data.get("set", "")
+	if own != "":
+		return own
+	return SetDresser.THEME_SET.get(theme_at(cell), "storage")
+
+
+func floor_tex_at(cell: Vector2i) -> Texture2D:
+	if is_safe_cell(cell):
+		return Art.tex("tiles/floor_lab")
+	var d := SetDresser.set_data(set_at(cell))
+	return Art.tex(SetDresser.FLOOR_TEX.get(d.get("floor", "concrete"), "tiles/floor_concrete"))
+
+
+## 牆的材質：看牆旁邊的地板是哪種房間（下面 > 上面 > 左右）
+func wall_style_at(cell: Vector2i) -> String:
+	for d in [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT, Vector2i(1, 1), Vector2i(-1, 1)]:
+		var c: Vector2i = cell + d
+		var ch := char_at(c)
+		if ch != "#" and ch != "" and ch != " ":
+			return SetDresser.set_data(set_at(c)).get("wall", "concrete")
+	return "concrete"
+
+
+func prop_override(cell: Vector2i) -> String:
+	return _data.get("props", {}).get("%d,%d" % [cell.x, cell.y], "")
+
+
 ## 這格的室內主題：合併進來的房間用自己的主題
 func theme_at(cell: Vector2i) -> String:
 	var r := region_data(cell)
@@ -296,7 +323,7 @@ func exposure_at(pos: Vector2) -> float:
 	var c := Climates.get_climate(climate_at(pos))
 	if is_safe_cell(cell_of(pos)):
 		return -c.recover * 2.0
-	if outdoor and not _is_indoor_cell(cell_of(pos)):
+	if not _is_indoor_cell(cell_of(pos)):
 		return c.outdoor_loss
 	if is_cold(pos):
 		return c.cold_loss
@@ -319,7 +346,7 @@ func step_surface(pos: Vector2) -> String:
 		return r.step
 	if r.is_empty() and _data.has("step"):
 		return _data.step
-	if outdoor and not _is_indoor_cell(cell_of(pos)):
+	if not _is_indoor_cell(cell_of(pos)):
 		return "snow"
 	return "concrete"
 
@@ -369,7 +396,7 @@ func region_at(pos: Vector2) -> String:
 
 ## 這個位置是不是「室內」：室內區域，或戶外地圖裡的建築（indoor_rects，包含合併進來的整棟建築）
 func is_indoor_at(pos: Vector2) -> bool:
-	return not outdoor or _is_indoor_cell(cell_of(pos))
+	return _is_indoor_cell(cell_of(pos))
 
 
 ## 這個位置的燈有沒有亮：整個區域恢復電力，或所在的房間（合併進來的建築）自己有電
@@ -452,7 +479,7 @@ func _build_rooms() -> void:
 				if room_of.has(n):
 					continue
 				var ch := char_at(n)
-				if ch == "+" or ch == "#" or SOLID_CHARS.contains(ch) or ch == "=":
+				if ch == "+" or ch == "#" or SOLID_CHARS.contains(ch) or ch == "=" or ch == "~":
 					continue
 				room_of[n] = room_count
 				stack.append(n)
@@ -581,6 +608,9 @@ func _parse_map() -> void:
 			var ch := row[x]
 			if ch == "#" or ch == "C" or ch == "H" or ch == "=":
 				continue
+			if ch == "~":
+				_water_cells.append(Vector2i(x, y))
+				continue
 			_floor_cells.append(Vector2i(x, y))
 			if ch == "P":
 				_start_position = _cell_center(Vector2i(x, y))
@@ -643,20 +673,37 @@ func _build_solids() -> void:
 
 	for rect in _merge_rects("#"):
 		var wall := _add_solid(rect, WALL_COLOR, WALL_EDGE_COLOR, WALL_RAISE)
-		var wall_tex := Art.tex("tiles/wall_concrete")
+		var style := wall_style_at(rect.position + Vector2i(0, rect.size.y - 1))
+		var wall_tex := Art.tex(SetDresser.WALL_TEX.get(style, "tiles/wall_concrete"))
 		if wall_tex:
 			wall.texture = wall_tex
 			wall.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-			wall.color = Color(0.45, 0.47, 0.54)  # 牆頂比地板亮一點，地形一眼看得出來
-	for rect in _merge_rects("C"):
-		if outdoor and not _is_indoor_cell(rect.position) and theme_at(rect.position) != "military":
-			var base := _add_solid(rect, ROCK_COLOR.darkened(0.3), ROCK_COLOR.darkened(0.5))
-			_add_rocks(rect, base)
-		else:
-			_add_solid(rect, CABINET_COLOR, CABINET_EDGE_COLOR)
-			_add_furniture(rect)
+			wall.color = Color(0.45, 0.47, 0.54) if style == "concrete" else Color(0.62, 0.64, 0.7)
+	# 家具、設備：依房間種類擺（SetDresser）。y 排序：前面的蓋住後面的。
+	var props := Node2D.new()
+	props.name = "Props"
+	props.y_sort_enabled = true
+	# 這個圖層不受黑暗影響（地形永遠看得懂），所以家具本身壓暗一點，才不會在暗的房間裡發亮
+	props.modulate = Color(0.62, 0.65, 0.74)
+	var prop_rects := _merge_rects("C")
+	for rect in prop_rects:
+		var base := _add_solid(rect, CABINET_COLOR, CABINET_EDGE_COLOR)
+		var base_outline: CanvasItem = _structure_layer.get_child(_structure_layer.get_child_count() - 1)
+		base.color = Color(0.05, 0.055, 0.07, 0.55)  # 家具底下的影子
+		base_outline.visible = false
+		if SetDresser.dress(self, rect, props) == 0:
+			base_outline.visible = true
+			if SetDresser.set_data(set_at(rect.position)).get("rocks", false):
+				base.color = ROCK_COLOR.darkened(0.35)
+				_add_rocks(rect, base)
+			else:
+				base.color = CABINET_COLOR
+				_add_furniture(rect)
+	_structure_layer.add_child(props)
 	for rect in _merge_rects("="):
 		_add_window(rect)
+	for rect in _merge_rects("~"):
+		_add_water(rect)
 	var faces := WallFaces.new()
 	faces.name = "WallFaces"
 	_structure_layer.add_child(faces)
@@ -736,9 +783,11 @@ func _add_furniture(cell_rect: Rect2i) -> void:
 ## 地板的痕跡（紙張、血跡、電線、鐵格板、油漬……依主題），畫在地板上、受光影響
 func _draw_floor_decals() -> void:
 	for cell in _floor_cells:
-		if char_at(cell) != "." or (outdoor and not _is_indoor_cell(cell)) or is_safe_cell(cell):
+		if char_at(cell) != "." or is_safe_cell(cell):
 			continue
-		var pool: Array = THEME_DECALS.get(theme_at(cell), [])
+		var set_info := SetDresser.set_data(set_at(cell))
+		# 戶外（雪地、甲板）只用那種地面自己的痕跡，不放室內的警示線、鐵格板
+		var pool: Array = set_info.get("decals", [] if not _is_indoor_cell(cell) else THEME_DECALS.get(theme_at(cell), []))
 		if pool.is_empty():
 			continue
 		var h := absi(hash(cell * 7 + Vector2i(area_id.length() * 13, 3)))
@@ -822,6 +871,36 @@ func _add_solid(cell_rect: Rect2i, fill: Color, edge: Color, raise := 0.0) -> Po
 	outline.default_color = edge
 	_structure_layer.add_child(outline)
 	return visual
+
+
+## 水面：走不過去（和窗戶同一個碰撞圖層：不擋視線、不擋光），畫在 _draw
+func _add_water(cell_rect: Rect2i) -> void:
+	var rect := Rect2(Vector2(cell_rect.position) * TILE, Vector2(cell_rect.size) * TILE)
+	var body := StaticBody2D.new()
+	body.collision_layer = WINDOW_LAYER
+	body.collision_mask = 0
+	var shape := CollisionShape2D.new()
+	var rect_shape := RectangleShape2D.new()
+	rect_shape.size = rect.size
+	shape.shape = rect_shape
+	shape.position = rect.get_center()
+	body.add_child(shape)
+	_nav_region.add_child(body)
+
+
+func _draw_water() -> void:
+	for cell in _water_cells:
+		var p := Vector2(cell) * TILE
+		draw_rect(Rect2(p, Vector2(TILE, TILE)), Color(0.035, 0.075, 0.105))
+		var h := absi(hash(cell * 11))
+		# 水面的反光（固定的短橫線）
+		draw_rect(Rect2(p + Vector2(h % 9, 3 + (h / 9) % 4), Vector2(5, 1)), Color(0.10, 0.20, 0.26))
+		draw_rect(Rect2(p + Vector2((h / 37) % 10, 10 + (h / 370) % 4), Vector2(4, 1)), Color(0.07, 0.15, 0.20))
+		# 岸邊：碼頭的水泥邊緣和它在水裡的影子
+		if char_at(cell + Vector2i.UP) != "~":
+			draw_rect(Rect2(p, Vector2(TILE, 3)), Color(0.34, 0.36, 0.40))
+			draw_rect(Rect2(p + Vector2(0, 3), Vector2(TILE, 1)), Color(0.86, 0.68, 0.16) if (cell.x % 2 == 0) else Color(0.10, 0.10, 0.11))
+			draw_rect(Rect2(p + Vector2(0, 4), Vector2(TILE, 4)), Color(0.01, 0.03, 0.05))
 
 
 ## 窗戶：玻璃（看得穿、光透得過去），走不過去
@@ -960,7 +1039,7 @@ func _spawn_interactables() -> void:
 				continue
 			var key := "%d,%d" % [x, y]
 			item.item_name = _data.names.get(key, "")
-			# 合併進來的房間（Areas.ROOMS）：用原本房間的 id 和座標，存檔紀錄不變
+			# 合併進來的房間（Areas.rooms()）：用原本房間的 id 和座標，存檔紀錄不變
 			item.item_id = _data.get("item_keys", {}).get(key, "%s:%s" % [area_id, key])
 			item.hidden_flag = _data.get("hidden", {}).get(key, "")
 			item.level = self

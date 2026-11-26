@@ -6,6 +6,24 @@ msgstr ""
 msgid "South Shore"
 msgstr "南岸雪原"
 
+msgid "Sea Gate"
+msgstr "海閘碼頭"
+
+msgid "Suppressor"
+msgstr "消音器"
+
+msgid "Threads onto the pistol. Use it to fit or remove. A fitted pistol is far quieter - only things close by will hear it."
+msgstr "鎖在手槍槍口上。使用＝裝上或拆下。裝了之後槍聲小很多，只有附近的東西聽得到。"
+
+msgid "Suppressor fitted. The pistol is quiet now."
+msgstr "裝上消音器。手槍現在很安靜。"
+
+msgid "Suppressor removed."
+msgstr "拆下消音器。"
+
+msgid "[%s] Silent takedown   [%s] Grab"
+msgstr "[%s] 背後一擊   [%s] 擒拿"
+
 msgid "Station 1F"
 msgstr "北緯站 一樓"
 
@@ -159,8 +177,8 @@ msgstr "彼得的紙條：點燃氣象營地北邊稜線上的信標油桶。補
 msgid "Supply drop"
 msgstr "空投補給"
 
-msgid "A supply crate fell from the helicopter somewhere on the shore."
-msgstr "有一個補給箱從直升機上掉到南岸的某處。"
+msgid "One of the supply crates is still sitting on the dock where you unloaded it."
+msgstr "有一個補給箱還放在碼頭上，就在你卸貨的地方。"
 
 msgid "KOVAC: \"Mendez kept a recorder in the lab. If it's still there, it'll tell you how they hunt.\""
 msgstr "柯瓦奇：「曼德茲在實驗室放了一台錄音機。如果還在，它會告訴你牠們怎麼獵食。」"
@@ -1113,23 +1131,23 @@ msgstr "［%s］跳過"
 msgid "Esc"
 msgstr "Esc"
 
-msgid "Supply run seventeen. Drop the crates, refuel, home before dark."
-msgstr "第十七趟補給。卸貨、加油、天黑前回去。"
+msgid "Supply run seventeen. Tie up, unload, cast off on the next tide."
+msgstr "第十七趟補給。靠岸、卸貨、趕下一班潮水離開。"
 
-msgid "Nobody answered the landing call. Nobody came out for the crates."
-msgstr "降落時沒人回應。也沒有人出來搬貨。"
+msgid "Nobody answered the dock radio. Nobody came down for the crates."
+msgstr "碼頭的無線電沒人回應。也沒有人下來搬貨。"
 
-msgid "North Latitude Station. Thirty-one people work there. Not one light on."
-msgstr "北緯站。三十一個人在這裡工作。一盞燈都沒亮。"
+msgid "North Latitude Station, sea gate. Thirty-one people work up there. Nobody on the dock."
+msgstr "北緯站，海閘碼頭。上面有三十一個人在工作。碼頭上一個人都沒有。"
 
-msgid "The rotor iced up on the way in. I'm not flying anywhere tonight."
-msgstr "進場時旋翼結冰了。今晚哪裡都飛不了。"
+msgid "The launch took ice in the intake on the way in. She's not going anywhere tonight."
+msgstr "進港時進水口吸進了碎冰。這艘船今晚哪裡都去不了。"
 
 msgid "Somebody in there has a radio. Find it."
 msgstr "裡面一定有人有無線電。去找。"
 
-msgid "Hello? It's the supply pilot. Your landing pad is buried..."
-msgstr "有人嗎？我是補給機的駕駛。你們的停機坪被雪埋了……"
+msgid "Hello? It's the supply run. Your dock is unmanned..."
+msgstr "有人嗎？我是送補給的。你們的碼頭沒人值班……"
 
 msgid "...That was a person. The eyes are gone. Frost is growing out of the skin."
 msgstr "……那曾經是個人。眼睛沒了。霜從皮膚裡長出來。"
@@ -1488,35 +1506,35 @@ msgstr "極地套裝"
 msgid "Insulated white over-suit. The wind barely gets in."
 msgstr "白色的保暖外罩。風幾乎吹不進來。"
 
-msgid "Wool hat"
-msgstr "毛帽"
+msgid "Knit helmet cover"
+msgstr "針織頭盔套"
 
-msgid "Hand-knitted. Smells of diesel."
-msgstr "手織的，有柴油味。"
+msgid "Hand-knitted to stretch over a helmet. Smells of diesel."
+msgstr "手織的，剛好套在頭盔外面。有柴油味。"
 
-msgid "Gas mask"
-msgstr "防毒面罩"
+msgid "Filter hood"
+msgstr "濾毒頭罩"
 
-msgid "Filter hood. Your breathing gets loud in your own ears."
-msgstr "附濾罐的頭罩。自己的呼吸聲變得好大。"
+msgid "Seals over the helmet with twin filters. Your breathing gets loud in your own ears."
+msgstr "罩在頭盔外面，兩個濾毒罐。自己的呼吸聲變得很大。"
 
-msgid "EOD helmet"
-msgstr "防爆頭盔"
+msgid "EOD outer shell"
+msgstr "防爆外殼"
 
-msgid "Armored helmet with a blast visor."
-msgstr "附防爆面罩的裝甲頭盔。"
+msgid "Armored shell and blast visor that lock over your helmet."
+msgstr "扣在頭盔外面的裝甲外殼和防爆面罩。"
 
-msgid "Balaclava"
-msgstr "黑色面罩"
+msgid "Blackout shroud"
+msgstr "消光頭套"
 
-msgid "Black knit mask. One less pale thing in the dark."
-msgstr "黑色針織面罩。黑暗中少一樣會反光的東西。"
+msgid "Black shroud and a matte film for the visor. Hides the helmet's light."
+msgstr "黑色頭套加面罩的消光膜，把頭盔上的燈遮起來。"
 
-msgid "Snow goggles"
-msgstr "雪地護目鏡"
+msgid "Snow cover"
+msgstr "雪地頭盔套"
 
-msgid "Tinted goggles and a face strap. Keeps the blizzard out of your eyes."
-msgstr "有色護目鏡加護臉帶。暴風雪吹不進眼睛。"
+msgid "White helmet cover with a tinted lens. Keeps the blizzard off your visor."
+msgstr "白色頭盔套加有色鏡片，擋住打在面罩上的風雪。"
 
 msgid "Snow boots"
 msgstr "雪靴"
@@ -1968,8 +1986,8 @@ msgstr "北緯 78 度——距離最近的聚落 120 公里"
 msgid "SHEN RUONING"
 msgstr "沈若寧"
 
-msgid "Supply pilot - run 17"
-msgstr "補給飛行員——第 17 趟"
+msgid "Supply courier - run 17"
+msgstr "補給運送員——第 17 趟"
 
 msgid "DR. INA KOVAC"
 msgstr "伊娜・柯瓦奇 博士"

@@ -10,6 +10,10 @@ const DIRS := ["right", "downright", "down", "downright", "right", "upright", "u
 const FLIP := [false, false, false, true, true, true, false, false]
 ## 腳底離角色中心多遠（像素）
 const FEET := 6.0
+## 圖裡腳底離下緣幾個像素（tools/gen_pixel_art.py 的 FOOT_PAD；留給往鏡頭方向踢、撲的腳）
+const FOOT_PAD := 4.0
+## 四隻腳、趴著的角色留更多（跟 gen_pixel_art.py 的 FOOT_PADS 一樣）
+const FOOT_PADS := {"bear": 12.0, "hound": 7.0, "crawler": 12.0}
 ## 每種動作的播放速度（格／秒）、會不會循環。沒列出來的用 6、循環。
 ## 格數多（走路 8 格、近戰 6 格、撲擊 5 格），播放速度跟著提高 → 動作流暢
 const ANIMS := {
@@ -18,7 +22,8 @@ const ANIMS := {
 	"aim_nailgun": [1.0, true], "aim_flare_gun": [1.0, true],
 	"shoot_pistol": [20.0, false], "shoot_shotgun": [16.0, false], "shoot_rifle": [14.0, false],
 	"shoot_nailgun": [24.0, false], "shoot_flare_gun": [18.0, false],
-	"slash": [22.0, false], "slash_axe": [18.0, false], "punch": [24.0, false], "kick": [20.0, false],
+	# 近戰（刀 8 格、斧 8 格、拳 7 格、踢 9 格）：預備 → 出手 → 收招，整段播完的時間要跟 Player.MELEE_POSE_TIME 一樣
+	"slash": [27.0, false], "slash_axe": [26.0, false], "punch": [25.0, false], "kick": [22.0, false],
 	"attack": [12.0, false], "hurt": [14.0, false], "dodge": [21.0, false], "dodge_back": [21.0, false],
 }
 
@@ -184,9 +189,10 @@ func show_pose(anim: String, facing: Vector2, playing: bool, speed := 1.0) -> vo
 	# 腳底對齊角色中心下方
 	var tex := sprite_frames.get_frame_texture(name, frame)
 	if tex:
-		position.y = FEET - tex.get_height() * 0.5 + 1.0
+		var pad: float = FOOT_PADS.get(char_id, FOOT_PAD)
+		position.y = FEET - tex.get_height() * 0.5 - 1.0 + pad
 		if _shadow:
-			_shadow.position = Vector2(0, tex.get_height() * 0.5 - 2.0)
+			_shadow.position = Vector2(0, tex.get_height() * 0.5 - pad)
 			_shadow.flip_h = false
 
 

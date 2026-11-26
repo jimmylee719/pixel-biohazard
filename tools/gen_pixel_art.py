@@ -162,9 +162,35 @@ MATS = {
     "core": ["#7a2a10", "#c4501e", "#f08a3a", "#ffd08a"],
     # 深井的肉塊（被菌落融合的研究員）
     "mass": ["#14222a", "#24404c", "#3a6070", "#5a8494"],
+    # 主角的頭盔（一律戴著，不露臉）：消光深色外殼、亮面深色面罩、琥珀色指示燈、耳罩式通訊
+    "helm": ["#0d0f14", "#1b1f28", "#2d333f", "#49525f"],
+    "helm_trim": ["#1e2229", "#383f4a", "#566070", "#7c8898"],
+    "visor": ["#04060a", "#08101a", "#0f1e2e", "#3a6c8c"],
+    "amber": ["#b85a08", "#f08c14", "#ffb428", "#ffe08a"],
+    "glove": ["#0e0e12", "#1d1e24", "#30323a", "#4a4c56"],
+    "blade": ["#7c8a9a", "#b4c2d0", "#e4eef8", "#ffffff"],
+    # 感染體：髒掉的白袍、死灰的皮膚、乾掉的血、整片的冰甲、深色結晶（陰影面）、裸露的肌肉
+    "labcoat": ["#3e4448", "#767e82", "#b4bab8", "#e2e4dc"],
+    "dead": ["#2a3236", "#52605f", "#869894", "#bccac2"],
+    "blood": ["#1c0608", "#40090e", "#681418", "#8e2420"],
+    "ice": ["#1e3a52", "#427090", "#7eaeca", "#cfeaf6"],
+    "crystal_d": ["#102e40", "#1c5878", "#3494b8", "#7cd0ec"],
+    "gum": ["#2a0c12", "#541824", "#86303a", "#b4545a"],
+    "shirt": ["#34383c", "#636a6e", "#959c9c", "#c4c8c2"],
+    "sac": ["#4a4a14", "#868a24", "#c0c63e", "#eef090"],
+    "spore": ["#1e3a1c", "#356a30", "#58a24a", "#9ad880"],
+    "husky": ["#1c1e24", "#3a3e48", "#646a76", "#9298a4"],
+    # 武裝人員：雪地迷彩（白底灰斑）、深灰戰術背心
+    "camo": ["#59626c", "#929ca6", "#c8d0d6", "#f0f4f6"],
+    "camo_d": ["#3a424c", "#646e7a", "#8e98a4", "#b4bcc6"],
+    "rig": ["#101316", "#20262a", "#343c40", "#4c565a"],
+    "lens": ["#3a1c04", "#8a4a0c", "#d88a1c", "#ffd070"],
+    # 主角頭像：起霧的面罩、紅色警示燈
+    "visor_fog": ["#16222c", "#2e4252", "#56707f", "#93adbb"],
+    "alarm": ["#7a0c0c", "#c81a14", "#ff4030", "#ffa090"],
 }
 MATS = {k: [hexc(c) for c in v] for k, v in MATS.items()}
-EMISSIVE = {"crystal", "goggle", "fire", "core"}
+EMISSIVE = {"crystal", "goggle", "fire", "core", "amber", "blade", "lens", "alarm"}
 
 # 攝影機：3/4 俯視（往下看 35 度）；光從左上前方來
 PITCH = math.radians(35)
@@ -495,62 +521,130 @@ def hurt_of(model, base_anim):
     return m
 
 
+def kt(keys, t):
+    """依時間的關鍵影格：keys = [(時間 0～1, 值), ...]，中間 smoothstep。出招的節奏（預備慢、出手快、收招慢）用這個排"""
+    if t <= keys[0][0]:
+        return keys[0][1]
+    for i in range(len(keys) - 1):
+        t0, v0 = keys[i]
+        t1, v1 = keys[i + 1]
+        if t <= t1:
+            k = (t - t0) / max(t1 - t0, 1e-6)
+            k = k * k * (3 - 2 * k)
+            return _lerp_any(v0, v1, k)
+    return keys[-1][1]
+
+
 def build_human(spec, pose, mats, extras=None):
-    """回傳區域座標的形狀清單與關節位置"""
+    """回傳區域座標的形狀清單與關節位置。
+    pose 另外可以有：twist（上半身繞垂直軸轉，正 = 往左）、hip_x（整個人往前移，重心）、head_yaw。
+    mats 可以分左右：arm1／arm-1、fore（前臂）、leg1／leg-1、shin（小腿）、hand1、boot1、neck、head。
+    spec 可以有 arm_len／arm_rad／leg_rad = {side: 倍率}（左右不對稱）、claw（指爪長度）、no_head。"""
     if HURT[0] > 0:
         h = HURT[0]
         pose = dict(pose)
         pose["lean"] = pose.get("lean", 0.0) - 0.45 * h
         pose["head_pitch"] = pose.get("head_pitch", 0.0) - 0.5 * h
         pose["arms"] = {1: (0.5 * h, 0.7 * h + 0.1, 0.5), -1: (0.4 * h, 0.8 * h + 0.1, 0.6)}
+        pose["twist"] = pose.get("twist", 0.0) + 0.35 * h
     P = dict(HUMAN)
     P.update(spec)
+
+    def M(key, side=None, fallback=None):
+        if side is not None and ("%s%d" % (key, side)) in mats:
+            return mats["%s%d" % (key, side)]
+        if key in mats:
+            return mats[key]
+        return M(fallback, side) if fallback else mats["skin"]
+
     hip_z = P["lu"] + P["ll"] - pose.get("hip_drop", 0.0)
-    pelvis = (0.0, 0.0, hip_z)
+    pelvis = (pose.get("hip_x", 0.0), 0.0, hip_z)
     prims = []
     J = {"pelvis": pelvis}
     # 腿
     for side in (1, -1):
         a, k = pose["legs"][side]
-        hip = (0.0, side * P["hip_w"], hip_z)
+        lr = P.get("leg_rad", {}).get(side, 1.0)
+        hip = (pelvis[0], side * P["hip_w"], hip_z)
         knee, foot = leg_points(hip, a, k, P["lu"], P["ll"])
-        prims.append(Cap(hip, knee, P["leg_r"], mats["leg"], P["leg_r"] * 0.9))
-        prims.append(Cap(knee, foot, P["leg_r2"], mats["leg"], P["leg_r2"] * 0.85))
-        toe = add(foot, (1.9, 0, -0.2))
-        prims.append(Cap(add(foot, (-0.6, 0, 0.0)), toe, 1.35, mats["boot"]))
+        prims.append(Cap(hip, knee, P["leg_r"] * lr, M("leg", side), P["leg_r"] * 0.9 * lr))
+        prims.append(Cap(knee, foot, P["leg_r2"] * lr, M("shin", side, "leg"), P["leg_r2"] * 0.85 * lr))
+        th = a - k
+        fw = max(0.0, min(1.0, (abs(th) - 0.5) / 0.6))  # 腳抬高（踢、跑）時腳掌跟著小腿轉，不然永遠平平的
+        fd = norm((lerp(1.0, math.cos(th), fw), 0, lerp(0.0, math.sin(th), fw)))
+        toe = add(foot, add(mul(fd, 1.9), (0, 0, -0.2)))
+        prims.append(Cap(add(foot, mul(fd, -0.6)), toe, 1.35 * P.get("boot_k", 1.0), M("boot", side)))
         J["foot%d" % side] = foot
         J["knee%d" % side] = knee
-    L = lean_fn(pelvis, pose["lean"])
+        J["hip%d" % side] = hip
+    lean = pose["lean"]
+    twist = pose.get("twist", 0.0)
+    Ln = lean_fn(pelvis, lean)
+
+    def L(v):
+        q = Ln(v)
+        d = rot_z(sub(q, pelvis), twist)
+        return add(pelvis, d)
+
+    tb = tuple(rot_z(v, twist) for v in basis_lean(lean))
     tl = P["torso_len"]
     # 軀幹：腰＋胸
     tr = P["torso_r"]
-    prims.append(Ell(L(add(pelvis, (0, 0, tl * 0.22))), (tr[0] * 0.85, tr[1] * 0.82, tr[2] * 0.45), mats["hip"]))
+    prims.append(Ell(L(add(pelvis, (0, 0, tl * 0.22))), (tr[0] * 0.85, tr[1] * 0.82, tr[2] * 0.45), mats["hip"],
+                     tuple(rot_z(v, twist * 0.5) for v in IDENT)))
     chest_c = L(add(pelvis, (0, 0, tl * 0.6)))
-    prims.append(Ell(chest_c, tr, mats["torso"], basis_lean(pose["lean"])))
+    prims.append(Ell(chest_c, tr, mats["torso"], tb))
     J["chest"] = chest_c
-    # 頭
+    J["torso_basis"] = tb
+    # 頭（頭只跟著身體轉一半：眼睛還是看著前面）
+    head_yaw = twist * pose.get("head_follow", 0.45) + pose.get("head_yaw", 0.0)
     neck = L(add(pelvis, (0, 0, tl + P["neck"])))
     hr = P["head_r"]
-    head_c = add(neck, (pose.get("head_fwd", 0.0), pose.get("head_side", 0.0), hr[2] * 0.85))
-    hb = head_basis(pose.get("head_pitch", 0.0), pose.get("head_roll", 0.0))
-    prims.append(Cap(L(add(pelvis, (0, 0, tl * 0.9))), head_c, 1.2, mats["skin"]))
-    prims.append(Ell(head_c, hr, mats["skin"], hb))
+    head_c = add(neck, add(rot_z((pose.get("head_fwd", 0.0), pose.get("head_side", 0.0), 0.0), head_yaw), (0, 0, hr[2] * 0.85)))
+    hb = tuple(rot_z(v, head_yaw) for v in head_basis(pose.get("head_pitch", 0.0), pose.get("head_roll", 0.0)))
     J["head"] = head_c
     J["head_basis"] = hb
+    J["neck"] = neck
+    if not P.get("no_head"):
+        prims.append(Cap(L(add(pelvis, (0, 0, tl * 0.9))), head_c, P.get("neck_r", 1.2), M("neck", None, "skin")))
+        prims.append(Ell(head_c, hr, M("head", None, "skin"), hb))
     # 手臂
     for side in (1, -1):
-        sh = L(add(pelvis, (0.0, side * P["sh_w"], tl * 0.86)))
+        sh0 = add(pelvis, (0.0, side * P["sh_w"], tl * 0.86))
         a, b, e = pose["arms"][side]
-        el, hand, df = arm_points(sh, side, a, b, e, P["au"], P["al"])
-        prims.append(Ell(sh, (1.9, 1.9, 1.9), mats["torso"]))
-        prims.append(Cap(sh, el, P["arm_r"] * 1.1, mats["arm"], P["arm_r"]))
-        prims.append(Cap(el, hand, P["arm_r"], mats["arm"], P["arm_r"] * 0.9))
-        prims.append(Ell(hand, (1.2, 1.1, 1.2), mats["hand"]))
+        al = P.get("arm_len", {}).get(side, 1.0)
+        ar = P["arm_r"] * P.get("arm_rad", {}).get(side, 1.0)
+        el0, hand0, df0 = arm_points(Ln(sh0), side, a, b, e, P["au"] * al, P["al"] * al)
+
+        def T(v):
+            return add(pelvis, rot_z(sub(v, pelvis), twist))
+        sh, el, hand, df = L(sh0), T(el0), T(hand0), rot_z(df0, twist)
+        prims.append(Ell(sh, (ar * 1.25, ar * 1.25, ar * 1.25), M("shoulder", side, "torso")))
+        prims.append(Cap(sh, el, ar * 1.1, M("arm", side), ar))
+        prims.append(Cap(el, hand, ar, M("fore", side, "arm"), ar * 0.9))
+        hk = P.get("hand_k", {}).get(side, 1.0) if isinstance(P.get("hand_k"), dict) else P.get("hand_k", 1.0)
+        prims.append(Ell(hand, (1.2 * hk, 1.1 * hk, 1.2 * hk), M("hand", side)))
+        claw = P.get("claw", 0.0)
+        if claw > 0:
+            for off in (0.5, -0.5):
+                tip = add(hand, add(mul(df, claw), (0, off * 1.2, -claw * 0.25)))
+                prims.append(Cap(hand, tip, 0.5, M("claw", side, "hand"), 0.2))
         J["hand%d" % side] = hand
         J["fore%d" % side] = df
         J["sh%d" % side] = sh
         J["elbow%d" % side] = el
     return prims, J
+
+
+def chest_local(J, off):
+    """胸口的區域座標（x 前、y 左、z 上；跟著身體前傾、扭轉）→ 角色座標"""
+    x, y, z = J["torso_basis"]
+    return add(J["chest"], add(add(mul(x, off[0]), mul(y, off[1])), mul(z, off[2])))
+
+
+def spike(a, d, ln, r=0.8, mat="crystal", tip=0.2):
+    """一根結晶：從 a 往 d 方向長 ln，越來越尖"""
+    return Cap(a, add(a, mul(norm(d), ln)), r, mat, tip)
 
 
 def basis_lean(l):
@@ -613,27 +707,34 @@ def long_gun(at, basis, length=11.0, stock="wood"):
             Box(P((-2.6, 0, -0.4)), (2.4, 0.6, 1.0), stock, basis)]
 
 
-def axe(at, d):
+def axe(at, d, k=1.0):
+    """消防斧。k = 揮出去那幾格放大（看得清楚）"""
     b = basis_along(d)
 
     def P(o): return add(at, add(add(mul(b[0], o[0]), mul(b[1], o[1])), mul(b[2], o[2])))
-    return [Box(P((3.0, 0, 0)), (4.2, 0.45, 0.45), "wood", b), Box(P((6.6, 0, 1.4)), (1.0, 0.35, 1.8), "red", b),
-            Box(P((6.6, 0, 3.0)), (1.3, 0.3, 0.4), "steel", b)]
+    return [Box(P((3.6, 0, 0)), (5.2, 0.5, 0.5), "wood", b),
+            Box(P((7.8, 0, 1.3 * k)), (1.4 * k, 0.5, 1.9 * k), "red", b),
+            Box(P((7.8, 0, 3.3 * k)), (1.7 * k, 0.45, 0.55 * k), "blade", b),
+            Box(P((7.8, 0, -0.9)), (0.9, 0.45, 0.6), "steel", b)]
 
 
-def knife(at, d):
+def knife(at, d, k=1.0):
+    """求生刀。刀身用會發亮的材質（暗的地方也看得到），k = 揮出去那幾格放大"""
     b = basis_along(d)
 
     def P(o): return add(at, add(add(mul(b[0], o[0]), mul(b[1], o[1])), mul(b[2], o[2])))
-    return [Box(P((0.2, 0, 0)), (1.0, 0.5, 0.5), "black", b), Box(P((3.2, 0, 0)), (2.2, 0.25, 0.55), "steel", b)]
+    return [Box(P((0.2, 0, 0)), (1.1, 0.55, 0.55), "black", b),
+            Box(P((1.3, 0, 0)), (0.3, 0.6, 1.0), "gunmetal", b),
+            Box(P((1.5 + 2.7 * k, 0, 0.1)), (2.7 * k, 0.3, 0.75 * k), "blade", b)]
 
 
 # ── 角色 ─────────────────────────────────────────────────
 
 ## 主角的服裝（紙娃娃）：body = 本體的套裝；head / feet = 疊在上面的圖層；layer = 這次只輸出哪一層
+## 主角一律戴頭盔、面罩遮住臉（臉留到續作才揭曉）：頭部裝備都是「頭盔的外罩／配件」，不會露出臉或頭髮。
 OUTFIT = {"body": "parka", "head": "", "feet": "", "layer": ""}
 BODY_STYLE = {
-    "parka": ({"leg": "pants", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "skin"}, {}),
+    "parka": ({"leg": "pants", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "glove"}, {}),
     "hazmat": ({"leg": "hazmat", "hip": "hazmat", "torso": "hazmat", "arm": "hazmat", "hand": "black"},
                {"torso_r": (3.7, 4.5, 5.6)}),
     "eod": ({"leg": "eod", "hip": "eod", "torso": "eod", "arm": "eod", "hand": "black"},
@@ -645,27 +746,53 @@ BODY_STYLE = {
 }
 
 
+def helmet_prims(J, visor="visor", light="amber"):
+    """主角的頭盔（訊號偵察兵用的小型戰術頭盔）：消光外殼、整片亮面面罩、右臉頰一顆琥珀色指示燈、
+    兩側耳罩式通訊、左耳罩一根短天線。portrait、遊戲裡的小人都用這一份。"""
+    hb = J["head_basis"]
+    p = [Ell(head_local(J, (-0.3, 0, 0.5)), (3.7, 3.5, 3.45), "helm", hb),          # 外殼
+         Ell(head_local(J, (0.5, 0, -1.4)), (3.0, 2.95, 2.2), "helm", hb),          # 下巴護罩
+         Ell(head_local(J, (1.25, 0, 0.15)), (2.7, 2.95, 1.65), visor, hb),         # 面罩
+         Box(head_local(J, (2.3, 0, 2.05)), (1.0, 2.5, 0.35), "helm_trim", hb),     # 眉框
+         Ell(head_local(J, (-0.3, 3.3, -0.3)), (1.6, 0.95, 1.7), "helm_trim", hb),  # 耳罩
+         Ell(head_local(J, (-0.3, -3.3, -0.3)), (1.6, 0.95, 1.7), "helm_trim", hb),
+         Cap(head_local(J, (-0.9, 3.7, 0.6)), head_local(J, (-1.3, 3.8, 4.0)), 0.3, "helm_trim", 0.25)]  # 天線
+    if light:
+        p.append(Box(head_local(J, (3.3, -1.9, -1.1)), (0.45, 0.55, 0.5), light, hb))
+    return p
+
+
 def gear_prims(J, slot, gear_id):
-    """頭部、腳部裝備的形狀（標記成圖層）"""
+    """頭部、腳部裝備的形狀（標記成圖層）。頭部裝備都是套在頭盔外面的外罩或配件"""
     p = []
     hb = J["head_basis"]
     if slot == "head":
         if gear_id == "gas_mask":
-            p += [Ell(head_local(J, (-0.8, 0, 0.1)), (4.1, 3.75, 4.4), "hazmat"),
-                  Box(head_local(J, (2.9, 0, 0.3)), (0.5, 2.0, 0.9), "goggle", hb),
-                  Cap(head_local(J, (2.8, 0, -1.4)), head_local(J, (3.9, 0, -2.0)), 1.1, "black", 0.9)]
+            # 防護頭罩＋掛在下巴護罩兩側的濾毒罐、面罩外加一片護目片
+            p += [Ell(head_local(J, (-0.7, 0, 0.6)), (3.9, 3.8, 3.75), "hazmat", hb),
+                  Box(head_local(J, (3.75, 0, 0.2)), (0.3, 2.1, 0.85), "goggle", hb),
+                  Ell(head_local(J, (1.2, 0, -1.9)), (2.9, 2.6, 1.6), "black", hb)]
+            p += [Cap(head_local(J, (2.6, y, -1.9)), head_local(J, (4.0, y * 1.35, -2.5)), 1.05, "steel", 0.95) for y in (1.5, -1.5)]
         elif gear_id == "eod_helmet":
-            p += [Ell(head_local(J, (-0.6, 0, 0.4)), (4.4, 4.2, 4.6), "eod"),
-                  Box(head_local(J, (3.3, 0, 0.3)), (0.5, 2.6, 1.8), "glass", hb)]
+            # 防爆頭盔：整個罩在外面的大外殼＋防爆面板
+            p += [Ell(head_local(J, (-0.5, 0, 0.5)), (4.6, 4.5, 4.6), "eod", hb),
+                  Box(head_local(J, (3.9, 0, 0.2)), (0.5, 2.8, 1.9), "glass", hb),
+                  Ell(head_local(J, (0.2, 0, -3.0)), (4.2, 4.6, 1.4), "eod", hb)]
         elif gear_id == "balaclava":
-            p += [Ell(head_local(J, (0.0, 0, 0.0)), (3.25, 3.15, 3.45), "black")]
-            p += [Box(head_local(J, (3.15, y, 0.2)), (0.3, 0.55, 0.35), "white", hb) for y in (1.1, -1.1)]
+            # 黑色頭盔罩：外殼、耳罩全部包起來，面罩貼上消光膜，指示燈遮掉
+            p += [Ell(head_local(J, (-0.3, 0, 0.45)), (3.9, 3.95, 3.65), "black", hb),
+                  Ell(head_local(J, (0.5, 0, -1.4)), (3.3, 3.2, 2.4), "black", hb),
+                  Box(head_local(J, (3.75, 0, 0.2)), (0.3, 2.0, 0.6), "sneak", hb)]
         elif gear_id == "snow_goggles":
-            p += [Ell(head_local(J, (0.0, 0, 0.5)), (3.25, 3.35, 1.0), "black"),
-                  Box(head_local(J, (3.0, 0, 0.4)), (0.4, 2.2, 0.8), "orange", hb)]
+            # 白色頭盔罩＋橘色雪鏡片
+            p += [Ell(head_local(J, (-0.5, 0, 0.9)), (3.95, 3.75, 3.3), "white", hb),
+                  Box(head_local(J, (3.8, 0, 0.3)), (0.35, 2.3, 0.85), "orange", hb),
+                  Ell(head_local(J, (-0.3, 0, 0.3)), (3.85, 3.7, 0.5), "black", hb)]
         elif gear_id == "wool_hat":
-            p += [Ell(head_local(J, (-0.3, 0, 1.8)), (3.3, 3.4, 2.2), "knit"),
-                  Ell(head_local(J, (-0.6, 0, 4.1)), (1.0, 1.0, 1.0), "white")]
+            # 毛線頭盔套（有毛球）
+            p += [Ell(head_local(J, (-0.3, 0, 1.7)), (4.0, 3.8, 2.7), "knit", hb),
+                  Ell(head_local(J, (-0.3, 0, 0.9)), (4.05, 3.85, 0.7), "knit", hb),
+                  Ell(head_local(J, (-0.7, 0, 4.7)), (1.15, 1.15, 1.15), "white")]
     elif slot == "feet":
         mat = {"hazmat_boots": "hazmat", "eod_boots": "eod", "crampons": "steel", "soft_soles": "sneak"}.get(gear_id, "boot")
         big = 1.8 if gear_id == "eod_boots" else 1.5
@@ -683,14 +810,20 @@ def gear_prims(J, slot, gear_id):
     return p
 
 
+## 近戰每一招的節奏（時間 0～1）：預備 → 出手 → 收招。出手那一段（STRIKE）武器會放大、身體轉最多
+STRIKE = {"slash": (0.2, 0.56), "slash_axe": (0.3, 0.62), "punch": (0.22, 0.55), "kick": (0.3, 0.62)}
+
+
 def player_model(anim, f, n, pose_only=False):
     body_mats, body_spec = BODY_STYLE[OUTFIT["body"]]
-    mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "skin",
-            "skin": "skin"}
+    mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "glove",
+            "skin": "glove", "head": "helm"}
     mats.update(body_mats)
     spec = {"torso_r": (3.4, 4.2, 5.4), "lu": 6.3, "ll": 6.3}
     spec.update(body_spec)
     weapon = []
+    t = f / max(n - 1, 1)
+    blade_k = 1.0
     if anim == "idle":
         pose = default_pose()
         pose["arms"][1] = (0.05, 0.14 + 0.03 * bf(f, n), 0.25)
@@ -698,6 +831,7 @@ def player_model(anim, f, n, pose_only=False):
         pose["hip_drop"] = 0.3 * bf(f, n)
     elif anim == "walk":
         pose = walk_pose(f, n)
+        pose["twist"] = 0.12 * math.sin(2 * math.pi * f / n)
     elif anim == "sneak":
         pose = walk_pose(f, n, stride=0.35, knee=0.6, arm=0.15, lean=0.32)
         for s in (1, -1):
@@ -743,6 +877,7 @@ def player_model(anim, f, n, pose_only=False):
         pose["arms"] = {1: (0.6 * r, 0.5 * r + 0.1, 0.6), -1: (0.5 * r, 0.6 * r + 0.1, 0.7)}
         pose["head_pitch"] = -0.4 * r
         pose["legs"] = {1: (-0.2 * r, 0.2), -1: (0.15 * r, 0.3)}
+        pose["twist"] = 0.3 * r
     elif anim in ("aim_nailgun", "aim_flare_gun"):
         pose = default_pose()
         pose["legs"] = {1: (0.2, 0.15), -1: (-0.2, 0.15)}
@@ -751,44 +886,86 @@ def player_model(anim, f, n, pose_only=False):
         pose = default_pose()
         pose["legs"] = {1: (0.25, 0.15), -1: (-0.2, 0.15)}
         pose["arms"] = {1: (1.35, -0.3, 0.2), -1: (0.75, 0.05, 1.3)}
-    elif anim in ("slash", "slash_axe"):
+    elif anim == "slash":
+        # 橫砍（右手反手往左前方掃）：右肩往後收 → 轉腰、踏步、手臂掃過身體前方 → 掃到左邊收住 → 回正
         pose = default_pose()
-        pose["legs"] = {1: (0.35, 0.2), -1: (-0.3, 0.2)}
-        keys = [(0.3, 1.0, 1.6), (1.35, -0.2, 0.15), (0.9, -0.85, 0.1)]
-        pose["arms"] = {1: (0.4, 0.2, 0.9), -1: kf(keys, f, n)}
-        pose["lean"] = kf([0.0, 0.18, 0.12], f, n)
+        pose["twist"] = kt([(0.0, -0.35), (0.12, -0.8), (0.36, 0.15), (0.5, 0.8), (0.7, 0.9), (1.0, 0.25)], t)
+        pose["arms"] = {
+            -1: kt([(0.0, (0.8, 0.8, 1.5)), (0.12, (1.0, 1.25, 1.75)), (0.36, (1.45, 0.25, 0.25)),
+                    (0.5, (1.3, -0.75, 0.1)), (0.7, (1.05, -1.0, 0.35)), (1.0, (0.6, -0.2, 1.0))], t),
+            1: kt([(0.0, (0.8, 0.2, 1.4)), (0.12, (1.0, 0.0, 1.2)), (0.45, (0.2, 0.6, 1.3)), (1.0, (0.5, 0.3, 1.2))], t)}
+        pose["lean"] = kt([(0.0, 0.05), (0.12, -0.06), (0.45, 0.3), (0.7, 0.26), (1.0, 0.08)], t)
+        pose["hip_x"] = kt([(0.0, 0.0), (0.12, -0.9), (0.45, 2.2), (0.7, 2.0), (1.0, 0.6)], t)
+        pose["hip_drop"] = kt([(0.0, 0.4), (0.12, 0.9), (0.45, 1.5), (1.0, 0.5)], t)
+        pose["legs"] = {1: kt([(0.0, (0.2, 0.3)), (0.12, (0.1, 0.5)), (0.45, (0.6, 0.75)), (1.0, (0.35, 0.4))], t),
+                        -1: kt([(0.0, (-0.2, 0.25)), (0.12, (-0.25, 0.55)), (0.45, (-0.55, 0.2)), (1.0, (-0.3, 0.25))], t)}
+    elif anim == "slash_axe":
+        # 斧頭：舉過右肩 → 整個人壓下去斜劈到左下 → 斧頭沉到地面附近 → 拉回來
+        pose = default_pose()
+        pose["twist"] = kt([(0.0, -0.25), (0.2, -0.75), (0.45, 0.1), (0.62, 0.75), (0.8, 0.8), (1.0, 0.2)], t)
+        pose["arms"] = {
+            -1: kt([(0.0, (1.4, 0.5, 1.4)), (0.2, (2.7, 0.55, 0.9)), (0.45, (1.75, 0.15, 0.2)),
+                    (0.62, (0.75, -0.55, 0.1)), (0.8, (0.5, -0.7, 0.2)), (1.0, (0.6, -0.1, 0.9))], t),
+            1: kt([(0.0, (1.0, 0.1, 1.2)), (0.2, (1.6, -0.1, 0.9)), (0.55, (0.3, 0.6, 1.1)), (1.0, (0.5, 0.3, 1.1))], t)}
+        pose["lean"] = kt([(0.0, 0.0), (0.2, -0.2), (0.55, 0.45), (0.8, 0.5), (1.0, 0.12)], t)
+        pose["hip_x"] = kt([(0.0, 0.0), (0.2, -1.2), (0.55, 2.4), (0.8, 2.4), (1.0, 0.6)], t)
+        pose["hip_drop"] = kt([(0.0, 0.4), (0.2, 0.3), (0.6, 2.4), (0.8, 2.4), (1.0, 0.7)], t)
+        pose["legs"] = {1: kt([(0.0, (0.2, 0.3)), (0.2, (0.05, 0.3)), (0.6, (0.75, 1.1)), (1.0, (0.4, 0.5))], t),
+                        -1: kt([(0.0, (-0.2, 0.25)), (0.2, (-0.2, 0.4)), (0.6, (-0.6, 0.3)), (1.0, (-0.3, 0.3))], t)}
     elif anim == "punch":
+        # 左直拳（接在橫砍後面：腰往反方向轉回來）：左肩往後收 → 轉腰送肩、手臂打直 → 停一下 → 收回
         pose = default_pose()
-        pose["legs"] = {1: (0.35, 0.2), -1: (-0.3, 0.2)}
-        keys = [(0.9, 0.1, 1.7), (1.5, -0.2, 0.0), (1.1, 0.0, 1.1)]
-        pose["arms"] = {1: (0.9, 0.15, 1.6), -1: kf(keys, f, n)}
-        pose["lean"] = kf([0.0, 0.2, 0.1], f, n)
+        pose["twist"] = kt([(0.0, 0.35), (0.14, 0.6), (0.4, -0.7), (0.6, -0.75), (1.0, -0.1)], t)
+        pose["arms"] = {
+            1: kt([(0.0, (0.9, 0.3, 1.7)), (0.14, (0.7, 0.5, 2.0)), (0.4, (1.52, -0.1, 0.0)),
+                   (0.6, (1.5, -0.1, 0.08)), (1.0, (1.0, 0.2, 1.4))], t),
+            -1: kt([(0.0, (1.0, -0.6, 0.6)), (0.14, (1.0, -0.2, 1.2)), (0.4, (0.5, 0.5, 1.7)), (1.0, (0.8, 0.3, 1.5))], t)}
+        pose["lean"] = kt([(0.0, 0.1), (0.14, 0.0), (0.4, 0.3), (0.6, 0.3), (1.0, 0.1)], t)
+        pose["hip_x"] = kt([(0.0, 0.5), (0.14, -0.3), (0.4, 2.4), (0.6, 2.4), (1.0, 0.6)], t)
+        pose["hip_drop"] = kt([(0.0, 0.5), (0.4, 1.1), (1.0, 0.5)], t)
+        pose["legs"] = {1: kt([(0.0, (0.3, 0.4)), (0.4, (0.6, 0.7)), (1.0, (0.35, 0.4))], t),
+                        -1: kt([(0.0, (-0.3, 0.25)), (0.4, (-0.55, 0.15)), (1.0, (-0.3, 0.25))], t)}
     elif anim == "kick":
+        # 前踢（右腳）：收膝 → 髖往前送、腿彈直 → 停一下 → 收膝 → 落地。上半身後仰、雙手張開平衡
         pose = default_pose()
-        keys = [(1.1, 1.6), (1.55, 0.05), (0.8, 1.3)]
-        pose["legs"] = {1: (-0.05, 0.1), -1: kf(keys, f, n)}
-        pose["arms"] = {1: (0.6, 0.5, 0.9), -1: (0.4, 0.6, 0.9)}
-        pose["lean"] = kf([-0.1, -0.28, -0.12], f, n)
+        pose["legs"] = {-1: kt([(0.0, (0.5, 1.0)), (0.2, (1.35, 2.0)), (0.42, (1.55, 0.05)), (0.6, (1.5, 0.1)),
+                                (0.8, (1.1, 1.6)), (1.0, (0.3, 0.5))], t),
+                        1: kt([(0.0, (-0.1, 0.2)), (0.42, (-0.3, 0.35)), (1.0, (-0.1, 0.2))], t)}
+        pose["arms"] = {1: kt([(0.0, (0.7, 0.4, 1.1)), (0.42, (0.3, 0.9, 0.7)), (1.0, (0.6, 0.5, 1.0))], t),
+                        -1: kt([(0.0, (0.5, 0.5, 1.0)), (0.42, (-0.3, 0.8, 0.6)), (1.0, (0.4, 0.5, 1.0))], t)}
+        pose["lean"] = kt([(0.0, 0.05), (0.2, -0.1), (0.42, -0.42), (0.6, -0.4), (1.0, -0.05)], t)
+        pose["twist"] = kt([(0.0, -0.2), (0.42, 0.45), (0.6, 0.45), (1.0, 0.1)], t)
+        pose["hip_x"] = kt([(0.0, 0.0), (0.2, -0.4), (0.42, 2.0), (0.6, 2.0), (1.0, 0.4)], t)
+        pose["hip_drop"] = kt([(0.0, 0.3), (0.2, 0.9), (0.42, 0.2), (1.0, 0.4)], t)
     else:
         raise ValueError(anim)
     if pose_only:
         return pose
+    if anim in STRIKE:
+        s0, s1 = STRIKE[anim]
+        blade_k = 1.0 + 0.55 * max(0.0, 1.0 - abs((t - (s0 + s1) * 0.5) / ((s1 - s0) * 0.75)))
+        if anim == "punch":
+            spec["hand_k"] = {1: 1.0 + 0.5 * (blade_k - 1.0) / 0.55, -1: 1.0}
+        elif anim == "kick":
+            spec["boot_k"] = 1.0 + 0.25 * (blade_k - 1.0) / 0.55
     prims, J = build_human(spec, pose, mats)
     gun = anim[6:] if anim.startswith("shoot_") else (anim[4:] if anim.startswith("aim_") else "")
     anim = ("aim_" + gun) if gun else anim
-    # 頭髮（後腦的馬尾）、外套的毛領、斜背包
-    prims.append(Ell(head_local(J, (-1.1, 0, 0.9)), (2.9, 3.25, 2.9), "hair"))
-    prims.append(Ell(head_local(J, (-2.8, 0, -1.6)), (1.4, 1.2, 2.4), "hair"))
-    prims += face(J)
+    # 頭盔（一律戴著）、外套的毛領和下襬、背上的無線電包、腰帶
+    prims += helmet_prims(J)
     body = OUTFIT["body"]
     if body in ("parka", "arctic"):
-        prims.append(Ell(add(J["chest"], (-0.4, 0, 3.6)), (3.2, 4.0, 1.4), "parka_trim" if body == "parka" else "fur"))
+        prims.append(Ell(chest_local(J, (-0.4, 0, 3.6)), (3.2, 4.0, 1.4), "parka_trim" if body == "parka" else "fur", J["torso_basis"]))
+        prims.append(Ell(chest_local(J, (0.0, 0, -3.4)), (3.5, 4.3, 2.0), "parka" if body == "parka" else "white", J["torso_basis"]))
+        prims.append(Box(chest_local(J, (3.1, 1.7, 0.3)), (0.5, 1.0, 1.1), "strap", J["torso_basis"]))  # 胸前的對講機
     elif body == "eod":
-        prims.append(Box(add(J["chest"], (0.6, 0, 0.5)), (4.4, 4.6, 3.6), "eod", basis_lean(0.0)))
-        prims.append(Ell(add(J["chest"], (-0.2, 0, 4.2)), (3.6, 4.8, 1.6), "eod"))
+        prims.append(Box(chest_local(J, (0.6, 0, 0.5)), (4.4, 4.6, 3.6), "eod", J["torso_basis"]))
+        prims.append(Ell(chest_local(J, (-0.2, 0, 4.2)), (3.6, 4.8, 1.6), "eod", J["torso_basis"]))
     elif body == "hazmat":
-        prims.append(Ell(add(J["chest"], (-0.4, 0, 3.8)), (3.0, 3.8, 1.2), "hazmat"))
-    prims.append(Box(add(J["chest"], (-3.4 - (0.8 if body == "eod" else 0.0), 1.6, -1.0)), (1.2, 2.2, 2.6), "strap"))
+        prims.append(Ell(chest_local(J, (-0.4, 0, 3.8)), (3.0, 3.8, 1.2), "hazmat", J["torso_basis"]))
+    back = -3.6 - (0.9 if body == "eod" else 0.0)
+    prims.append(Box(chest_local(J, (back, 0.0, -0.2)), (1.3, 2.7, 2.9), "strap", J["torso_basis"]))
+    prims.append(Box(chest_local(J, (back - 0.2, 0.0, 2.2)), (1.0, 2.2, 0.5), "helm_trim", J["torso_basis"]))
     if OUTFIT["layer"] in ("head", "feet"):
         gid = OUTFIT[OUTFIT["layer"]]
         prims += gear_prims(J, OUTFIT["layer"], gid)
@@ -805,92 +982,126 @@ def player_model(anim, f, n, pose_only=False):
         mat = "yellow" if anim == "aim_nailgun" else "orange"
         prims += [Box(add(hand, (2.6, 0, 1.3)), (3.0, 0.8, 1.1), mat), Box(add(hand, (0.4, 0, -0.3)), (0.8, 0.6, 1.3), "black")]
     elif anim == "slash":
-        prims += knife(J["hand-1"], J["fore-1"])
+        prims += knife(J["hand-1"], J["fore-1"], blade_k)
     elif anim == "slash_axe":
-        prims += axe(J["hand-1"], J["fore-1"])
+        prims += axe(J["hand-1"], J["fore-1"], 1.0 + (blade_k - 1.0) * 0.5)
     return prims
 
 
+def eyeless(J, crust="frost", mouth=0.8, jaw=1.1, hr=2.9):
+    """感染體的臉：沒有眼睛（眼窩被霜和結晶封住）、張著的嘴。hr = 頭的前後半徑"""
+    hb = J["head_basis"]
+    p = [Box(head_local(J, (hr - 0.25, 0, 0.6)), (0.5, 1.8, 0.5), crust, hb)]
+    if mouth > 0:
+        p.append(Box(head_local(J, (hr * 0.9 - 0.2, 0, -1.25)), (0.5, jaw, mouth), "vent", hb))
+    return p
+
+
 def watcher_model(anim, f, n):
-    mats = {"leg": "coverall", "boot": "boot", "hip": "coverall", "torso": "coverall", "arm": "coverall",
-            "hand": "pale", "skin": "pale"}
-    spec = {"torso_r": (3.3, 4.2, 5.3)}
+    """值班者：還穿著白袍的站員。駝背、頭歪一邊，右手袖子破了、前臂長出結晶爪，左肩和背上一叢冰晶"""
+    mats = {"leg": "coverall", "boot": "boot", "hip": "labcoat", "torso": "labcoat", "arm": "labcoat",
+            "fore-1": "dead", "hand": "dead", "skin": "dead", "claw-1": "crystal", "claw1": "dead"}
+    spec = {"torso_r": (3.3, 4.2, 5.3), "arm_len": {-1: 1.22, 1: 1.0}, "claw": 1.9, "head_r": (2.9, 2.8, 3.1)}
     if anim == "walk":
         pose = walk_pose(f, n, stride=0.38, knee=0.7, arm=0.12, lean=0.38)
         # 拖著走：一隻腳比較僵硬
         a, k = pose["legs"][-1]
         pose["legs"][-1] = (a * 0.6, k * 0.4)
-        pose["arms"] = {1: (0.2 + 0.08 * math.sin(2 * math.pi * f / n), 0.18, 0.1),
-                        -1: (0.35, 0.1, 0.2)}
+        sw = math.sin(2 * math.pi * f / n)
+        pose["arms"] = {1: (0.2 + 0.08 * sw, 0.18, 0.1), -1: (0.4 - 0.1 * sw, 0.16, 0.25)}
+        pose["twist"] = 0.1 * sw
+        pose["head_roll"] = 0.3 + 0.06 * sw
     elif anim == "idle":
         pose = default_pose()
         pose["lean"] = 0.42
-        pose["arms"] = {1: (0.25, 0.15, 0.1), -1: (0.3, 0.12, 0.15)}
-        pose["head_roll"] = 0.25 + 0.08 * bf(f, n)
+        pose["arms"] = {1: (0.25, 0.15, 0.1), -1: (0.3, 0.14, 0.15)}
+        pose["head_roll"] = 0.3 + 0.1 * bf(f, n)
     elif anim == "attack":
         pose = default_pose()
         pose["legs"] = {1: (0.4, 0.3), -1: (-0.35, 0.2)}
-        k = kf([(1.0, 0.25, 0.9), (1.55, 0.1, 0.05), (1.3, -0.05, 0.3)], f, n)
-        pose["arms"] = {1: k, -1: k}
-        pose["lean"] = kf([0.3, 0.55, 0.45], f, n)
+        pose["arms"] = {-1: kf([(1.3, 0.9, 1.2), (1.6, 0.0, 0.05), (1.2, -0.5, 0.3)], f, n),
+                        1: kf([(0.8, 0.3, 0.9), (1.3, 0.1, 0.3), (1.1, 0.0, 0.4)], f, n)}
+        pose["lean"] = kf([0.25, 0.6, 0.45], f, n)
+        pose["twist"] = kf([-0.5, 0.35, 0.5], f, n)
+        pose["hip_x"] = kf([-0.5, 1.6, 1.0], f, n)
+        pose["head_roll"] = 0.2
     else:
         raise ValueError(anim)
-    pose["head_pitch"] = pose.get("head_pitch", 0.0) + 0.45
-    pose["head_fwd"] = 1.0
+    pose["head_pitch"] = pose.get("head_pitch", 0.0) + 0.4
+    pose["head_fwd"] = 1.1
     prims, J = build_human(spec, pose, mats)
-    # 冰晶：從背後、肩膀長出來
-    back = add(J["chest"], (-3.0, 0, 1.0))
-    for off, d, ln in (((0, 1.5, 1.5), (-0.6, 0.5, 1.0), 3.6), ((0, -1.2, 0.5), (-0.7, -0.4, 0.8), 3.0),
-                       ((0.3, 0.3, 3.0), (-0.3, 0.1, 1.0), 2.6)):
-        base = add(back, off)
-        prims.append(Cap(base, add(base, mul(norm(d), ln)), 0.95, "crystal", 0.35))
-    prims.append(Cap(add(J["sh1"], (0, 0.5, 1)), add(J["sh1"], (-0.5, 1.6, 3.2)), 0.8, "crystal", 0.3))
-    # 頭上結霜
-    prims.append(Ell(head_local(J, (-1.4, 0.4, 2.0)), (1.8, 2.0, 1.2), "frost"))
-    prims += face(J, "vent")
+    tb = J["torso_basis"]
+    # 白袍的下襬（背後比較長、破破的）、胸口乾掉的血
+    prims.append(Ell(chest_local(J, (-0.9, 0.3, -5.6)), (2.6, 4.0, 3.2), "labcoat", tb))
+    prims.append(Ell(chest_local(J, (2.7, -1.2, -0.8)), (0.9, 1.7, 2.3), "blood", tb))
+    # 冰晶：左肩一大叢、背上幾根
+    sh = J["sh1"]
+    for d, ln, r in (((-0.3, 0.5, 1.0), 4.6, 1.0), ((-0.9, 0.9, 0.6), 3.4, 0.85), ((0.4, 0.8, 0.8), 2.8, 0.75),
+                     ((-0.2, -0.2, 1.0), 3.0, 0.7)):
+        prims.append(spike(add(sh, (-0.3, 0.3, 0.6)), rot_z(d, pose.get("twist", 0.0)), ln, r))
+    for off, d, ln in (((-3.0, -1.4, 1.5), (-0.8, -0.3, 0.7), 3.2), ((-3.1, 0.6, -1.0), (-0.9, 0.2, 0.5), 2.6)):
+        prims.append(spike(chest_local(J, off), d, ln, 0.8))
+    prims.append(Ell(head_local(J, (-1.2, 0.5, 1.9)), (1.9, 2.0, 1.2), "frost", J["head_basis"]))
+    prims += eyeless(J)
     return prims
 
 
 def listener_model(anim, f, n):
-    mats = {"leg": "bone", "boot": "bone", "hip": "rag", "torso": "rag", "arm": "bone", "hand": "bone",
-            "skin": "bone"}
-    spec = {"lu": 7.6, "ll": 7.4, "torso_len": 10.5, "torso_r": (2.8, 3.6, 5.6), "leg_r": 1.4, "leg_r2": 1.1,
-            "au": 6.0, "al": 6.2, "arm_r": 1.05, "head_r": (2.6, 2.4, 4.0), "hip_w": 1.8, "sh_w": 3.8}
+    """鳴骨者：瘦得只剩骨架，頭骨往兩邊長成一大一小兩片結晶「耳扇」，永遠歪著頭在聽。肋骨一根一根看得到"""
+    ribs = lambda nn: "bone" if math.sin(nn[2] * 8.0 + 0.6) > -0.1 else "rag"
+    mats = {"leg": "bone", "boot": "bone", "hip": "rag", "torso": ribs, "arm": "bone", "hand": "bone",
+            "skin": "bone", "claw": "bone"}
+    spec = {"lu": 7.6, "ll": 7.4, "torso_len": 10.5, "torso_r": (2.7, 3.5, 5.6), "leg_r": 1.35, "leg_r2": 1.05,
+            "au": 6.2, "al": 6.6, "arm_r": 1.0, "head_r": (2.7, 2.3, 3.3), "hip_w": 1.8, "sh_w": 3.9, "claw": 2.2}
     if anim == "walk":
-        pose = walk_pose(f, n, stride=0.42, knee=0.9, arm=0.3, lean=0.2)
+        pose = walk_pose(f, n, stride=0.42, knee=0.9, arm=0.3, lean=0.24)
         for s in (1, -1):
             a, b, e = pose["arms"][s]
-            pose["arms"][s] = (a + 0.15, 0.3, 0.15)
-        pose["head_roll"] = 0.15 * math.sin(2 * math.pi * f / n)
+            pose["arms"][s] = (a + 0.2, 0.32, 0.25)
+        pose["head_roll"] = 0.45 + 0.15 * math.sin(2 * math.pi * f / n)
+        pose["twist"] = 0.1 * math.sin(2 * math.pi * f / n)
     elif anim == "listen":
         pose = default_pose()
-        pose["lean"] = 0.12
-        pose["arms"] = {1: (0.35, 0.75 + 0.05 * bf(f, n), 0.3), -1: (0.3, 0.7 + 0.05 * bf(f, n), 0.35)}
-        pose["head_roll"] = 0.55 + 0.1 * bf(f, n)
-        pose["head_pitch"] = -0.35
+        pose["lean"] = 0.16
+        pose["arms"] = {1: (0.35, 0.7 + 0.06 * bf(f, n), 0.4), -1: (0.3, 0.5 + 0.06 * bf(f, n), 0.5)}
+        pose["head_roll"] = 0.6 + 0.12 * bf(f, n)
+        pose["head_pitch"] = -0.25
+        pose["head_yaw"] = 0.25 * bf(f, n)
     elif anim == "attack":
         pose = default_pose()
         pose["legs"] = {1: (0.45, 0.35), -1: (-0.4, 0.25)}
-        k = kf([(0.6, 0.9, 1.2), (1.5, 0.2, 0.05), (1.2, -0.1, 0.2)], f, n)
+        k = kf([(0.6, 1.0, 1.3), (1.55, 0.2, 0.05), (1.2, -0.2, 0.2)], f, n)
         pose["arms"] = {1: k, -1: k}
-        pose["lean"] = kf([0.15, 0.45, 0.35], f, n)
+        pose["lean"] = kf([0.1, 0.5, 0.38], f, n)
+        pose["hip_x"] = kf([-0.5, 1.5, 1.0], f, n)
+        pose["head_roll"] = 0.3
     else:
         raise ValueError(anim)
     prims, J = build_human(spec, pose, mats)
-    # 長頭的骨冠、背上的骨刺、結晶甲片
-    prims.append(Cap(head_local(J, (-0.4, 0, 2.6)), head_local(J, (-2.2, 0, 5.6)), 1.0, "bone", 0.4))
-    prims.append(Box(head_local(J, (2.1, 0, -0.6)), (0.4, 1.7, 0.25), "chitin", J["head_basis"]))
-    for i, z in enumerate((2.0, 4.0, 6.0)):
-        base = add(J["chest"], (-2.6, 0, z - 3.5))
-        prims.append(Cap(base, add(base, (-2.4, 0.0, 0.8)), 0.8, "chitin", 0.25))
-    prims.append(Ell(add(J["chest"], (0.8, 0, 0.5)), (2.2, 3.2, 2.6), "chitin"))
+    hb = J["head_basis"]
+    tb = J["torso_basis"]
+    # 耳扇：左邊大、右邊小。骨質的碟子，邊緣長出一排結晶
+    for side, k in ((1, 1.5), (-1, 0.95)):
+        c = head_local(J, (-0.4, side * 2.7, 1.0 * k))
+        prims.append(Ell(c, (2.3 * k, 0.75, 3.1 * k), "bone", hb))
+        prims.append(Ell(head_local(J, (-0.2, side * 2.2, 0.8 * k)), (1.5 * k, 0.9, 2.0 * k), "crystal_d", hb))
+        for ang, ln in ((0.0, 3.0), (0.7, 2.6), (-0.7, 2.4), (1.4, 1.8)):
+            d = add(add(mul(hb[2], math.cos(ang)), mul(hb[0], -math.sin(ang))), mul(hb[1], side * 0.45))
+            prims.append(spike(add(c, mul(norm(d), 2.2 * k)), d, ln * k, 0.7 * k))
+    # 嘴（下巴垂著）、平滑沒有眼睛的臉
+    prims.append(Box(head_local(J, (2.2, 0, -1.6)), (0.45, 0.9, 0.9), "vent", hb))
+    # 脊椎的骨刺、掛在腰上的破布
+    for z in (-2.5, 0.0, 2.5):
+        prims.append(spike(chest_local(J, (-2.3, 0, z)), add(mul(tb[0], -1.0), mul(tb[2], 0.5)), 2.6, 0.75, "bone"))
+    prims.append(Ell(chest_local(J, (-0.2, 0, -5.6)), (2.6, 3.3, 2.6), "rag", tb))
     return prims
 
 
 def guard_model(anim, f, n):
-    mats = {"leg": "olive", "boot": "boot", "hip": "olive", "torso": "olive", "arm": "olive", "hand": "black",
-            "skin": "black"}
-    spec = {"torso_r": (3.5, 4.4, 5.4), "sh_w": 4.6}
+    """武裝人員（守門派）：雪地迷彩、頭盔＋橘色雪鏡＋黑色面罩、戰術背心和彈匣袋、背後的無線電、步槍"""
+    mats = {"leg": "camo", "boot": "boot", "hip": "camo", "torso": "camo", "arm": "camo", "hand": "glove",
+            "skin": "black", "fore": "camo"}
+    spec = {"torso_r": (3.5, 4.4, 5.4), "sh_w": 4.6, "leg_r": 2.0, "arm_r": 1.6}
     if anim == "walk":
         pose = walk_pose(f, n, stride=0.45, knee=0.8, arm=0.0, lean=0.12)
         bob = 0.05 * math.sin(4 * math.pi * f / n)
@@ -899,347 +1110,524 @@ def guard_model(anim, f, n):
     elif anim == "idle":
         pose = default_pose()
         pose["arms"] = {1: (0.9, -0.25, 0.75 + 0.05 * bf(f, n)), -1: (0.5, 0.05, 1.05 + 0.05 * bf(f, n))}
+        pose["head_yaw"] = 0.25 * math.sin(2 * math.pi * f / n)
         aim = False
     elif anim == "aim":
         pose = default_pose()
-        pose["legs"] = {1: (0.3, 0.2), -1: (-0.25, 0.2)}
+        pose["legs"] = {1: (0.3, 0.25), -1: (-0.25, 0.2)}
         pose["arms"] = {1: (1.45, -0.35, 0.15), -1: (0.85, 0.0, 1.35)}
-        pose["lean"] = 0.08
+        pose["lean"] = 0.1
+        pose["hip_drop"] = 0.5
         aim = True
     else:
         raise ValueError(anim)
     prims, J = build_human(spec, pose, mats)
-    # 防彈背心、頭盔、護目鏡、背後的無線電
-    prims.append(Ell(add(J["chest"], (0.2, 0, -0.2)), (3.7, 4.5, 4.0), "vest"))
-    prims.append(Ell(head_local(J, (-0.2, 0, 1.0)), (3.4, 3.3, 2.6), "helmet"))
-    prims.append(Box(head_local(J, (2.7, 0, 0.5)), (0.5, 2.0, 0.7), "goggle", J["head_basis"]))
-    prims.append(Box(add(J["chest"], (-3.8, -1.4, 0.8)), (1.0, 1.4, 2.4), "vest"))
-    prims.append(Cap(add(J["chest"], (-4.2, -2.2, 3.0)), add(J["chest"], (-4.6, -2.6, 8.0)), 0.25, "black"))
+    hb = J["head_basis"]
+    tb = J["torso_basis"]
+    # 戰術背心＋胸前三個彈匣袋、腰帶
+    prims.append(Ell(chest_local(J, (0.2, 0, -0.2)), (3.8, 4.6, 3.9), "rig", tb))
+    for y in (-2.0, 0.0, 2.0):
+        prims.append(Box(chest_local(J, (3.7, y, -1.3)), (0.7, 0.75, 1.3), "camo_d", tb))
+    prims.append(Ell(chest_local(J, (0.0, 0, -4.4)), (3.3, 4.0, 0.8), "rig", tb))
+    # 迷彩的灰斑
+    for off, r in (((-0.5, 3.4, 2.6), (1.6, 1.4, 1.2)), ((0.5, -3.6, 2.2), (1.4, 1.3, 1.4))):
+        prims.append(Ell(chest_local(J, off), r, "camo_d", tb))
+    for side in (1, -1):
+        prims.append(Ell(add(J["knee%d" % side], (0.9, 0, 0.2)), (1.4, 1.7, 1.5), "rig"))            # 護膝
+        prims.append(Ell(add(J["hip%d" % side], (0.3, side * 1.2, -2.6)), (1.5, 1.2, 1.8), "camo_d"))  # 腿上的斑
+    # 頭盔（白色盔罩＋灰斑）、雪鏡、面罩
+    prims.append(Ell(head_local(J, (-0.3, 0, 1.7)), (3.55, 3.45, 2.35), "camo", hb))
+    prims.append(Ell(head_local(J, (-1.2, 1.4, 2.6)), (1.6, 1.5, 1.0), "camo_d", hb))
+    prims.append(Box(head_local(J, (2.8, 0, 0.3)), (0.55, 2.2, 0.8), "lens", hb))
+    prims.append(Ell(head_local(J, (0.3, 0, -0.9)), (3.0, 3.0, 2.4), "black", hb))
+    # 背後的無線電＋天線
+    prims.append(Box(chest_local(J, (-3.9, -0.8, 0.6)), (1.2, 2.2, 2.8), "rig", tb))
+    prims.append(Cap(chest_local(J, (-4.2, -2.4, 3.0)), chest_local(J, (-4.8, -2.8, 8.5)), 0.3, "helm_trim", 0.25))
     if aim:
-        prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.3)), basis_along((1, 0, 0.02)), 12.0, "black")
+        prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.3)), basis_along((1, 0, 0.02)), 13.0, "black")
+        prims.append(Box(add(J["hand-1"], (3.0, 0, 1.7)), (1.6, 0.45, 0.45), "black"))
     else:
         d = norm((1.0, 0.25, -0.5))
-        prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.0)), basis_along(d), 12.0, "black")
+        prims += long_gun(add(J["hand-1"], (0.0, 0.0, 0.0)), basis_along(d), 13.0, "black")
     return prims
 
 
 def hound_model(anim, f, n):
+    """獵犬：被感染的雪橇犬。還套著紅色的拉橇胸帶，背上一排冰晶，一邊的肋骨露在外面，下巴裂開"""
     prims = []
-    bz = 8.0
+    bz = 8.4
     lean = 0.0
     head_drop = 0.0
+    jaw = 0.5
     if anim == "walk":
         p = 2 * math.pi * f / n
         legs = {}
-        for name, ph in (("fl", 0), ("br", 0), ("fr", math.pi), ("bl", math.pi)):
+        for name, ph in (("fl", 0), ("br", 0.4), ("fr", math.pi), ("bl", math.pi + 0.4)):
             s = math.sin(p + ph)
-            legs[name] = (0.55 * s, 0.2 + 0.9 * max(0, math.cos(p + ph)))
+            legs[name] = (0.6 * s, 0.25 + 0.9 * max(0, math.cos(p + ph)))
+        head_drop = 0.4 * math.sin(2 * p)
+        lean = 0.04 * math.sin(2 * p)
     elif anim == "idle":
-        legs = {k: (0.0, 0.15) for k in ("fl", "fr", "bl", "br")}
-        head_drop = 0.6 * bf(f, n)
+        legs = {k: (0.0, 0.2) for k in ("fl", "fr", "bl", "br")}
+        head_drop = 1.2 + 0.6 * bf(f, n)
     elif anim == "attack":
-        k = kf([((-0.3, 0.2), (0.35, 0.5)), ((0.9, 0.6), (0.6, 0.3)), ((0.5, 0.3), (0.2, 0.2))], f, n)
+        k = kf([((-0.4, 0.3), (0.45, 0.9)), ((1.0, 0.5), (-0.5, 0.2)), ((0.5, 0.3), (0.2, 0.3))], f, n)
         legs = {"fl": k[0], "fr": k[0], "bl": k[1], "br": k[1]}
-        lean = kf([-0.15, 0.25, 0.1], f, n)
+        lean = kf([0.18, -0.3, -0.1], f, n)
+        jaw = kf([0.6, 1.5, 1.0], f, n)
+        head_drop = kf([1.0, -1.0, 0.0], f, n)
     else:
         raise ValueError(anim)
-    L = lean_fn((0, 0, bz), lean)
-    # 身體、胸口、潰爛處
-    prims.append(Ell(L((-1.0, 0, bz + 0.8)), (8.0, 3.3, 3.6), "fur"))
-    prims.append(Ell(L((4.5, 0, bz + 1.0)), (3.6, 3.6, 4.0), "fur"))
-    prims.append(Ell(L((-0.5, 1.8, bz + 1.4)), (3.0, 1.8, 2.0), "flesh"))
-    # 頭
-    hc = L((9.0, 0, bz + 3.0 - head_drop))
-    prims.append(Ell(hc, (3.0, 2.5, 2.6), "fur"))
-    prims.append(Ell(add(hc, (2.8, 0, -0.8)), (2.4, 1.4, 1.3), "flesh"))
-    prims.append(Box(add(hc, (-0.8, 1.6, 2.2)), (0.6, 0.4, 1.3), "fur"))
-    prims.append(Box(add(hc, (-0.8, -1.6, 2.2)), (0.6, 0.4, 1.3), "fur"))
-    # 背上的冰晶
-    for x, ln in ((-4.0, 2.4), (-1.0, 3.2), (2.0, 2.6)):
-        base = L((x, 0, bz + 3.6))
-        prims.append(Cap(base, add(base, (-0.8, 0, ln)), 0.8, "crystal", 0.3))
-    # 尾巴
-    prims.append(Cap(L((-8.5, 0, bz + 1.5)), L((-12.0, 0, bz + 3.5)), 1.0, "fur", 0.5))
+    L = lean_fn((-4.0, 0, bz), -lean)
+    # 身體：深灰的背、白色的肚子和胸口（哈士奇的配色）
+    prims.append(Ell(L((-1.5, 0, bz + 1.1)), (7.6, 3.2, 3.5), "husky"))
+    prims.append(Ell(L((-1.5, 0, bz + 0.1)), (7.0, 2.9, 2.9), "white"))
+    prims.append(Ell(L((4.4, 0, bz + 1.4)), (3.8, 3.7, 4.2), "husky"))
+    prims.append(Ell(L((5.0, 0, bz + 0.2)), (3.0, 3.0, 3.4), "white"))
+    prims.append(Ell(L((-7.0, 0, bz + 1.0)), (3.2, 3.0, 3.3), "husky"))
+    # 拉橇的紅色胸帶
+    prims.append(Ell(L((2.6, 0, bz + 1.2)), (0.9, 3.75, 4.3), "red"))
+    prims.append(Box(L((-1.0, 0, bz + 4.4)), (3.6, 0.6, 0.35), "red"))
+    # 露出來的肋骨（左邊）
+    prims.append(Ell(L((-2.2, 2.2, bz + 0.8)), (3.0, 1.5, 2.2), "gum"))
+    for x in (-3.6, -2.2, -0.8):
+        prims.append(Box(L((x, 3.3, bz + 0.9)), (0.35, 0.5, 1.8), "bone"))
+    # 頭：寬額頭、尖耳朵、白色口鼻、裂開的下巴
+    hc = L((9.2, 0, bz + 3.4 - head_drop))
+    prims.append(Ell(hc, (3.0, 2.7, 2.6), "husky"))
+    prims.append(Ell(add(hc, (2.9, 0, -0.5)), (2.5, 1.45, 1.25), "white"))
+    prims.append(Ell(add(hc, (5.1, 0, -0.2)), (0.7, 0.8, 0.7), "black"))
+    prims.append(Box(add(hc, (2.6, 0, -1.5 - jaw * 0.5)), (2.2, 1.1, 0.4), "gum", basis_lean(-0.25 * jaw)))
+    prims.append(Box(add(hc, (3.9, 0, -1.2)), (0.5, 0.9, 0.35), "bone"))
+    prims.append(Box(add(hc, (1.6, 0, 0.9)), (0.5, 2.0, 0.4), "frost"))  # 眼睛被霜封住
+    for y in (1.6, -1.6):
+        prims.append(Cap(add(hc, (-0.9, y, 1.6)), add(hc, (-1.5, y * 1.25, 4.4)), 1.0, "husky", 0.3))
+    # 背上的冰晶：肩膀最大，往後越來越小
+    for x, ln, r in ((3.2, 4.6, 1.1), (0.6, 3.8, 1.0), (-2.2, 3.0, 0.9), (-5.0, 2.4, 0.8), (-7.6, 1.8, 0.7)):
+        prims.append(spike(L((x, 0.3 * math.sin(x), bz + 4.0)), (-0.35, 0.1 * math.sin(x * 2), 1.0), ln, r))
+    # 尾巴（捲起來的）
+    t1, t2, t3 = L((-9.5, 0, bz + 2.0)), L((-12.0, 0, bz + 4.6)), L((-10.6, 0, bz + 6.6))
+    prims += [Cap(t1, t2, 1.25, "husky", 1.1), Cap(t2, t3, 1.1, "white", 0.6)]
     # 腳
-    for name, x, y in (("fl", 5.0, 2.2), ("fr", 5.0, -2.2), ("bl", -6.0, 2.0), ("br", -6.0, -2.0)):
+    for name, x, y in (("fl", 5.0, 2.2), ("fr", 5.0, -2.2), ("bl", -6.6, 2.1), ("br", -6.6, -2.1)):
         a, k = legs[name]
         hip = L((x, y, bz))
-        kn, ft = leg_points(hip, a, k if name[0] == "b" else -k, 4.2, 4.4)
-        prims.append(Cap(hip, kn, 1.4, "fur", 1.1))
-        prims.append(Cap(kn, ft, 1.0, "fur", 0.8))
+        kn, ft = leg_points(hip, a + (0.25 if name[0] == "b" else 0.0), k if name[0] == "b" else -k, 4.2, 4.6)
+        prims.append(Cap(hip, kn, 1.55, "husky", 1.15))
+        prims.append(Cap(kn, ft, 1.0, "white", 0.85))
+        prims.append(Ell(add(ft, (0.6, 0, 0.0)), (1.3, 1.0, 0.8), "white"))
     return prims
 
 
 def crawler_model(anim, f, n):
-    """爬行者：四肢著地、貼著地面爬的感染者（看不見，靠聽）"""
+    """爬行者：腰以下已經不能動，用兩隻長得不成比例的手把自己往前拖。頭抬著在聽，脊椎上一整排結晶"""
     prims = []
-    bz = 4.5
+    bz = 3.6
     lift = 0.0
+    reach = {1: 0.5, -1: 0.5}   # 0 = 手收在肩膀旁邊、1 = 往前伸到最遠
+    up = {1: 0.0, -1: 0.0}      # 手離地
+    drag = 0.0
     if anim == "walk":
         p = 2 * math.pi * f / n
-        ph = {"fl": 0, "br": 0, "fr": math.pi, "bl": math.pi}
-        legs = {k: (0.6 * math.sin(p + v), 0.3 + 0.8 * max(0, math.cos(p + v))) for k, v in ph.items()}
+        for s, ph in ((1, 0.0), (-1, math.pi)):
+            reach[s] = 0.5 + 0.5 * math.sin(p + ph)
+            up[s] = 2.2 * max(0.0, math.cos(p + ph))
+        lift = 0.6 + 0.5 * math.sin(2 * p)
+        drag = 0.5 * math.sin(p)
     elif anim == "idle":
-        legs = {k: (0.1, 0.4) for k in ("fl", "fr", "bl", "br")}
-        lift = 0.5 * bf(f, n)
+        lift = 0.8 + 0.6 * bf(f, n)
+        reach = {1: 0.35, -1: 0.55}
     elif anim == "attack":
-        k = kf([((-0.4, 0.6), (0.3, 0.8)), ((1.2, 0.2), (0.5, 0.4)), ((0.7, 0.4), (0.3, 0.5))], f, n)
-        legs = {"fl": k[0], "fr": k[0], "bl": k[1], "br": k[1]}
-        lift = kf([0.0, 2.0, 1.0], f, n)
+        r = kf([0.0, 1.25, 0.9], f, n)
+        reach = {1: r, -1: r}
+        u = kf([3.5, 4.5, 1.0], f, n)
+        up = {1: u, -1: u}
+        lift = kf([1.5, 3.2, 1.8], f, n)
     else:
         raise ValueError(anim)
-    # 身體（拉長的人形軀幹，背上冰晶）
-    prims.append(Ell((0.0, 0, bz + 1.5 + lift), (7.0, 3.6, 2.6), "coverall"))
-    prims.append(Ell((-5.5, 0, bz + 1.0), (3.0, 3.0, 2.2), "coverall"))
-    hc = (7.5, 0, bz + 1.6 + lift)
-    prims.append(Ell(hc, (2.8, 2.6, 2.4), "pale"))
-    prims.append(Box(add(hc, (2.4, 0, -0.6)), (0.5, 1.6, 0.5), "vent"))  # 張開的嘴
-    for x in (-2.0, 1.5):
-        base = (x, 0, bz + 3.6 + lift)
-        prims.append(Cap(base, add(base, (-0.8, 0.3, 2.6)), 0.8, "crystal", 0.3))
-    # 手腳：前面是長手臂、後面是腿
-    for name, x, y, lu, ll, mat in (("fl", 4.5, 3.2, 5.0, 5.5, "pale"), ("fr", 4.5, -3.2, 5.0, 5.5, "pale"),
-                                     ("bl", -5.5, 2.8, 4.0, 4.5, "coverall"), ("br", -5.5, -2.8, 4.0, 4.5, "coverall")):
-        a, k = legs[name]
-        hip = (x, y, bz + 1.0 + lift)
-        kn, ft = leg_points(hip, a + (0.5 if name[0] == "f" else -0.5), k if name[0] == "b" else -k, lu, ll)
-        kn = add(kn, (0, y * 0.4, 1.5))
-        prims.append(Cap(hip, kn, 1.1, mat, 0.9))
-        prims.append(Cap(kn, ft, 0.9, mat, 0.7))
+    # 軀幹（破掉的工作服）、垮在地上的骨盆、拖在後面的兩條腿
+    chest = (2.6, 0, bz + 2.2 + lift)
+    prims.append(Ell(chest, (4.2, 3.7, 2.7), "coverall", basis_lean(-0.12 * lift)))
+    prims.append(Ell((-2.6, 0, bz + 1.0 + lift * 0.4), (4.4, 3.2, 2.3), "coverall"))
+    prims.append(Ell((-6.6, 0, bz + 0.2), (2.8, 3.0, 2.0), "coverall"))
+    prims.append(Ell((-0.4, 0.4, bz + 2.6 + lift * 0.6), (2.6, 2.2, 1.2), "dead"))  # 背上衣服破了露出來的皮
+    for s in (1, -1):
+        k1 = (-11.0, s * (1.7 + 0.5 * drag * s), 1.6)
+        k2 = (-15.0, s * (1.0 + 0.9 * drag * s), 1.3)
+        prims.append(Cap((-7.6, s * 1.6, bz - 0.4), k1, 1.6, "coverall", 1.3))
+        prims.append(Cap(k1, k2, 1.2, "dead", 0.9))
+        prims.append(Ell(add(k2, (-0.9, 0, 0)), (1.3, 0.9, 0.8), "dead"))
+    # 頭：抬起來、歪一邊，嘴張著
+    hc = (7.4, 0, bz + 3.6 + lift * 1.2)
+    hb = head_basis(-0.35, 0.3)
+    prims.append(Cap(add(chest, (2.6, 0, 0.6)), hc, 1.2, "dead"))
+    prims.append(Ell(hc, (2.8, 2.6, 2.6), "dead", hb))
+    J = {"head": hc, "head_basis": hb}
+    prims += eyeless(J, mouth=0.9, hr=2.8)
+    prims.append(Ell(head_local(J, (-1.0, 0.3, 1.6)), (1.8, 1.9, 1.1), "frost", hb))
+    # 脊椎的結晶
+    for x, ln, r in ((3.6, 2.6, 0.8), (1.2, 3.8, 1.0), (-1.4, 3.2, 0.9), (-4.0, 2.4, 0.8), (-6.4, 1.8, 0.7)):
+        z = bz + 3.9 + lift * max(0.0, min(1.0, (x + 7) / 10))
+        prims.append(spike((x, 0, z - 0.6), (-0.4, 0.15 * math.sin(x), 1.0), ln, r))
+    # 手臂：上臂往外撐、前臂很長、手指是結晶爪
+    for s in (1, -1):
+        sh = add(chest, (1.8, s * 3.3, 0.0))
+        hand = (6.0 + 7.5 * reach[s], s * (4.6 - 1.0 * reach[s]), 1.0 + up[s])
+        mid = mul(add(sh, hand), 0.5)
+        el = add(mid, (-1.2, s * 2.6, 3.6 - 1.4 * reach[s]))
+        prims.append(Ell(sh, (1.7, 1.6, 1.6), "coverall"))
+        prims.append(Cap(sh, el, 1.3, "coverall", 1.1))
+        prims.append(Cap(el, hand, 1.05, "dead", 0.85))
+        prims.append(Ell(hand, (1.3, 1.2, 0.9), "dead"))
+        for off in (-0.9, 0.0, 0.9):
+            prims.append(Cap(hand, add(hand, (2.3, off, -0.5)), 0.5, "crystal", 0.2))
     return prims
 
 
 def husk_model(anim, f, n):
-    """膨脹者：全身腫脹、慢、很耐打，抓到會大量感染"""
-    mats = {"leg": "bloat", "boot": "bloat", "hip": "bloat", "torso": "bloat", "arm": "bloat", "hand": "bloat",
-            "skin": "bloat"}
-    spec = {"torso_r": (6.0, 6.8, 7.0), "torso_len": 10.0, "lu": 5.5, "ll": 5.0, "leg_r": 2.8, "leg_r2": 2.4,
-            "sh_w": 6.2, "au": 5.0, "al": 5.0, "arm_r": 2.2, "head_r": (2.6, 2.6, 2.6), "hip_w": 3.2}
+    """膨脹者：肚子脹到把工作服撐破，肚皮裂開一條縫、裡面的結晶頂出來。頭陷在肩膀裡，左手腫得比右手大很多"""
+    mats = {"leg": "coverall", "shin": "bloat", "boot": "bloat", "hip": "coverall", "torso": "bloat", "arm": "bloat",
+            "arm-1": "coverall", "hand": "bloat", "skin": "bloat"}
+    spec = {"torso_r": (5.4, 6.4, 6.6), "torso_len": 10.0, "lu": 5.5, "ll": 5.0, "leg_r": 2.9, "leg_r2": 2.5,
+            "sh_w": 6.0, "au": 5.0, "al": 5.0, "arm_r": 2.0, "head_r": (2.8, 2.7, 2.8), "hip_w": 3.3,
+            "arm_rad": {1: 1.4, -1: 0.95}, "hand_k": {1: 1.6, -1: 1.1}, "neck": 0.8}
+    wob = 0.0
     if anim == "walk":
-        pose = walk_pose(f, n, stride=0.3, knee=0.4, arm=0.15, lean=0.15)
+        pose = walk_pose(f, n, stride=0.3, knee=0.4, arm=0.12, lean=0.12)
         for s_ in (1, -1):
             a, b, e = pose["arms"][s_]
-            pose["arms"][s_] = (a, 0.45, 0.3)
+            pose["arms"][s_] = (a, 0.5, 0.3)
+        wob = math.sin(2 * math.pi * f / n)
+        pose["twist"] = 0.14 * wob
+        pose["head_roll"] = 0.12 * wob
     elif anim == "idle":
         pose = default_pose()
-        pose["arms"] = {1: (0.1, 0.45, 0.3), -1: (0.1, 0.45, 0.3)}
+        pose["arms"] = {1: (0.1, 0.5, 0.3), -1: (0.1, 0.45, 0.3)}
         pose["hip_drop"] = 0.4 * bf(f, n)
+        pose["lean"] = 0.08
     elif anim == "attack":
         pose = default_pose()
-        k = kf([(1.0, 0.6, 0.8), (1.5, 0.1, 0.1), (1.2, 0.2, 0.4)], f, n)
-        pose["arms"] = {1: k, -1: k}
-        pose["lean"] = kf([0.1, 0.35, 0.25], f, n)
+        pose["arms"] = {1: kf([(1.9, 0.7, 0.6), (1.4, 0.0, 0.1), (1.0, -0.1, 0.4)], f, n),
+                        -1: kf([(0.8, 0.6, 0.8), (1.4, 0.1, 0.2), (1.1, 0.2, 0.4)], f, n)}
+        pose["lean"] = kf([-0.05, 0.4, 0.3], f, n)
+        pose["twist"] = kf([0.4, -0.3, -0.2], f, n)
+        pose["hip_x"] = kf([-0.5, 1.5, 1.0], f, n)
     else:
         raise ValueError(anim)
-    pose["head_fwd"] = 1.5
-    pose["head_pitch"] = 0.3
+    pose["head_fwd"] = 2.2
+    pose["head_pitch"] = 0.25
+    breathe = 1.0 + 0.04 * bf(f, n) if anim == "idle" else 1.0 + 0.03 * wob
     prims, J = build_human(spec, pose, mats)
-    # 膿包、裂開的肚子
-    for off, r in (((4.5, 2.5, 1.0), 1.8), ((3.5, -3.0, -1.5), 1.5), ((-2.0, 4.5, 2.0), 1.6), ((5.0, 0.0, -3.0), 2.2)):
-        prims.append(Ell(add(J["chest"], off), (r, r, r), "pus"))
-    prims.append(Box(add(J["chest"], (5.9, 0.0, -0.5)), (0.3, 2.0, 0.5), "flesh"))
-    prims += face(J, "vent")
+    tb = J["torso_basis"]
+    # 垂下來的大肚子、裂縫、頂出來的結晶
+    prims.append(Ell(chest_local(J, (1.9, 0, -3.2)), (5.6 * breathe, 6.3 * breathe, 4.8), "bloat", tb))
+    prims.append(Ell(chest_local(J, (6.2 * breathe, 0.3, -3.0)), (1.5, 1.5, 3.4), "gum", tb))
+    for z, ln in ((-1.2, 2.6), (-3.0, 3.4), (-4.8, 2.4)):
+        prims.append(spike(chest_local(J, (7.0 * breathe, 0.3, z)), add(tb[0], mul(tb[2], 0.25 * (z + 3))), ln, 0.9))
+    # 撐破的工作服：只剩一條肩帶和右邊的袖子
+    prims.append(Box(chest_local(J, (0.6, -3.2, 3.6)), (4.6, 1.1, 2.0), "coverall", tb))
+    # 膿包（集中在左邊）
+    for off, r in (((3.4, 3.8, 1.8), 2.3), ((0.6, 5.8, -1.4), 2.0), ((-3.4, 3.4, 2.6), 2.1), ((-4.6, -2.0, -0.6), 1.8),
+                   ((4.4, -4.0, -2.0), 1.5)):
+        prims.append(Ell(chest_local(J, off), (r, r, r), "pus"))
+    prims.append(Ell(add(J["elbow1"], (0.4, 1.4, 0.4)), (1.5, 1.5, 1.5), "pus"))
+    prims += eyeless(J, mouth=0.7, jaw=1.0, hr=2.8)
     return prims
 
 
 def chorister_model(anim, f, n):
-    """詠者：瘦長、喉嚨長著結晶環，會發出呼喚把同伴叫過來"""
-    mats = {"leg": "ash", "boot": "ash", "hip": "rag", "torso": "ash", "arm": "ash", "hand": "ash", "skin": "ash"}
-    spec = {"lu": 7.2, "ll": 7.2, "torso_len": 10.0, "torso_r": (2.6, 3.4, 5.4), "leg_r": 1.2, "leg_r2": 1.0,
-            "au": 5.4, "al": 5.4, "arm_r": 1.0, "head_r": (2.6, 2.4, 3.0), "sh_w": 3.6}
+    """詠者：胸骨往兩邊翻開，肋骨變成一排像管風琴的結晶管（外側高、中間矮），仰著頭「唱」。破布像長袍一樣垂到膝蓋"""
+    mats = {"leg": "ash", "boot": "ash", "hip": "rag", "torso": "ash", "arm": "ash", "hand": "ash", "skin": "ash",
+            "claw": "ash"}
+    spec = {"lu": 7.2, "ll": 7.2, "torso_len": 10.0, "torso_r": (2.7, 3.5, 5.4), "leg_r": 1.25, "leg_r2": 1.0,
+            "au": 5.6, "al": 5.8, "arm_r": 1.0, "head_r": (2.5, 2.3, 2.9), "sh_w": 3.8, "claw": 1.5}
+    sing = 0.0
     if anim == "walk":
-        pose = walk_pose(f, n, stride=0.35, knee=0.7, arm=0.2, lean=0.05)
+        pose = walk_pose(f, n, stride=0.33, knee=0.7, arm=0.12, lean=0.02)
+        for s in (1, -1):
+            a, b, e = pose["arms"][s]
+            pose["arms"][s] = (a + 0.1, 0.45, 0.35)
+        pose["head_pitch"] = -0.3
+        sing = 0.3
     elif anim == "listen":
         # 仰頭呼喚、雙手張開
+        sing = bf(f, n)
         pose = default_pose()
-        pose["arms"] = {1: (0.6 + 0.15 * bf(f, n), 1.0, 0.3), -1: (0.6 + 0.15 * bf(f, n), 1.0, 0.3)}
-        pose["head_pitch"] = -0.7
-        pose["lean"] = -0.12
+        pose["arms"] = {1: (0.5 + 0.2 * sing, 1.0 + 0.1 * sing, 0.4), -1: (0.5 + 0.2 * sing, 1.0 + 0.1 * sing, 0.4)}
+        pose["head_pitch"] = -0.6 - 0.2 * sing
+        pose["lean"] = -0.1 - 0.06 * sing
     elif anim == "attack":
         pose = default_pose()
-        k = kf([(0.8, 0.7, 1.0), (1.5, 0.15, 0.05), (1.2, 0.0, 0.3)], f, n)
+        k = kf([(0.8, 0.9, 1.0), (1.5, 0.15, 0.05), (1.2, -0.1, 0.3)], f, n)
         pose["arms"] = {1: k, -1: k}
-        pose["lean"] = kf([0.1, 0.4, 0.3], f, n)
+        pose["lean"] = kf([0.0, 0.4, 0.3], f, n)
+        pose["hip_x"] = kf([-0.4, 1.4, 0.9], f, n)
+        pose["head_pitch"] = -0.2
     else:
         raise ValueError(anim)
     prims, J = build_human(spec, pose, mats)
-    neck = add(J["chest"], (0.0, 0.0, 4.2))
-    for i in range(6):
-        a = i * math.pi / 3
-        prims.append(Cap(neck, add(neck, (math.cos(a) * 3.2, math.sin(a) * 3.2, 1.0)), 0.7, "crystal", 0.25))
-    prims.append(Box(head_local(J, (2.5, 0, -1.0)), (0.4, 1.2, 1.0), "vent", J["head_basis"]))  # 張大的嘴
-    prims.append(Ell(add(J["chest"], (0.5, 0, -3.5)), (3.0, 3.6, 2.4), "rag"))
+    tb = J["torso_basis"]
+    hb = J["head_basis"]
+    # 打開的胸腔（黑洞）、翻開的肋骨
+    prims.append(Ell(chest_local(J, (1.5, 0, 0.6)), (1.9, 2.5, 3.6), "vent", tb))
+    for side in (1, -1):
+        for z in (-1.4, 0.6, 2.6):
+            prims.append(Cap(chest_local(J, (1.6, side * 2.4, z)), chest_local(J, (3.6, side * 3.9, z + 0.8)), 0.55, "bone", 0.3))
+    # 結晶管：外側高、中間矮，像兩片翅膀框住頭
+    grow = 1.0 + 0.12 * sing
+    for y, top in ((-3.6, 10.0), (-1.9, 6.4), (1.9, 7.0), (3.6, 11.0)):
+        a = chest_local(J, (2.2, y * 0.8, -2.2))
+        b = chest_local(J, (2.4 + 0.1 * top, y * 1.5, -2.2 + top * grow))
+        prims.append(Cap(a, b, 1.05, "crystal", 0.95))
+        prims.append(Ell(b, (1.25, 1.25, 0.55), "crystal_d", tb))
+    # 張大的嘴、被霜封住的眼窩
+    prims += eyeless(J, mouth=1.1 + 0.3 * sing, jaw=1.0, hr=2.5)
+    # 長袍一樣的破布
+    prims.append(Ell(chest_local(J, (-0.3, 0, -6.2)), (2.7, 3.5, 4.6), "rag", tb))
+    prims.append(Ell(chest_local(J, (-1.0, 0, 2.6)), (2.4, 3.8, 2.6), "rag", tb))
     return prims
 
 
 def bear_model(anim, f, n):
-    """苔原之母：被感染的北極熊。背上長滿冰晶，結晶裂開的背部是弱點"""
+    """苔原之母：被感染的北極熊。肩膀高高拱起、頭壓低，背上一整片冰晶森林，中間結晶裂開露出肉的地方是弱點"""
     prims = []
     bz = 13.0
     lean = 0.0
-    head_drop = 0.0
+    head_drop = 2.0
     rear = 0.0
+    jaw = 0.4
     if anim == "walk":
         p = 2 * math.pi * f / n
         legs = {}
-        for name, ph in (("fl", 0), ("br", 0), ("fr", math.pi), ("bl", math.pi)):
+        for name, ph in (("fl", 0), ("br", 0.5), ("fr", math.pi), ("bl", math.pi + 0.5)):
             legs[name] = (0.45 * math.sin(p + ph), 0.2 + 0.7 * max(0, math.cos(p + ph)))
-        head_drop = 1.0 + 0.8 * math.sin(2 * p)
+        head_drop = 2.6 + 0.9 * math.sin(2 * p)
     elif anim == "idle":
         legs = {k: (0.0, 0.15) for k in ("fl", "fr", "bl", "br")}
-        head_drop = 1.5 * bf(f, n)
+        head_drop = 2.2 + 1.5 * bf(f, n)
     elif anim == "attack":
         # 站起來往前撲
         rear = kf([0.0, 0.55, 0.6, -0.15, 0.0], f, n)
         k = kf([(0.0, 0.2), (1.0, 1.2), (1.2, 1.0), (0.6, 0.2), (0.1, 0.2)], f, n)
         legs = {"fl": k, "fr": k, "bl": (0.2, 0.2), "br": (0.2, 0.2)}
         lean = -rear
+        jaw = kf([0.5, 1.4, 1.6, 1.0, 0.5], f, n)
+        head_drop = kf([2.0, -1.0, -1.0, 2.5, 2.0], f, n)
     elif anim == "hurt":
         legs = {k: (0.0, 0.3) for k in ("fl", "fr", "bl", "br")}
         lean = kf([0.25, 0.12, 0.0], f, n)
-        head_drop = -2.0 * kf([1.0, 0.5, 0.0], f, n)
+        head_drop = 2.0 - 3.0 * kf([1.0, 0.5, 0.0], f, n)
+        jaw = 1.2
     else:
         raise ValueError(anim)
     L = lean_fn((-8.0, 0, bz), lean)
-    prims.append(Ell(L((-2.0, 0, bz + 2.0)), (14.0, 7.0, 7.5), "white"))
-    prims.append(Ell(L((8.0, 0, bz + 2.5)), (7.0, 7.0, 8.0), "white"))
-    hc = L((16.0, 0, bz + 4.0 - head_drop))
-    prims.append(Ell(hc, (4.5, 4.0, 4.0), "white"))
-    prims.append(Ell(add(hc, (4.0, 0, -1.2)), (2.6, 2.2, 1.8), "white"))
-    prims.append(Ell(add(hc, (6.3, 0, -0.8)), (0.8, 1.2, 0.8), "black"))
-    prims.append(Ell(add(hc, (0.5, 2.6, 3.0)), (1.2, 0.8, 1.2), "white"))
-    prims.append(Ell(add(hc, (0.5, -2.6, 3.0)), (1.2, 0.8, 1.2), "white"))
-    prims.append(Box(add(hc, (2.4, 0, -2.4)), (1.4, 1.8, 0.4), "flesh"))
-    # 背上的冰晶、裂開的弱點
-    for x, y, ln in ((-10, 1.5, 6.0), (-5, -2.0, 7.5), (0, 2.0, 8.0), (5, -1.0, 6.5), (-7, 3.5, 4.5), (2, -3.5, 5.0)):
-        base = L((x, y, bz + 8.0))
-        prims.append(Cap(base, add(base, (-1.5, y * 0.3, ln)), 1.5, "crystal", 0.5))
-    prims.append(Ell(L((-3.0, 0, bz + 8.6)), (3.5, 2.0, 1.0), "flesh"))
-    for name, x, y in (("fl", 9.0, 4.0), ("fr", 9.0, -4.0), ("bl", -11.0, 4.0), ("br", -11.0, -4.0)):
+    # 身體：後半身、肚子、拱起來的肩膀、脖子
+    prims.append(Ell(L((-4.0, 0, bz + 1.6)), (12.0, 7.2, 7.4), "white"))
+    prims.append(Ell(L((-10.0, 0, bz + 1.0)), (6.0, 6.6, 6.8), "white"))
+    prims.append(Ell(L((7.0, 0, bz + 3.4)), (7.2, 7.0, 8.2), "white"))
+    prims.append(Ell(L((12.6, 0, bz + 2.6 - head_drop * 0.4)), (4.6, 4.6, 4.8), "white"))
+    # 毛上結的髒霜、肚子下面的陰影
+    prims.append(Ell(L((-3.0, 0, bz - 3.6)), (9.0, 5.4, 2.4), "frost"))
+    # 頭：寬額頭、長口鼻、黑鼻子、小耳朵、裂開的嘴
+    hc = L((17.4, 0, bz + 4.6 - head_drop))
+    prims.append(Ell(hc, (4.4, 4.0, 3.8), "white"))
+    prims.append(Ell(add(hc, (4.2, 0, -1.0)), (3.2, 2.2, 1.9), "white"))
+    prims.append(Ell(add(hc, (7.0, 0, -0.6)), (0.9, 1.3, 0.9), "black"))
+    for y in (2.9, -2.9):
+        prims.append(Ell(add(hc, (-0.6, y, 3.0)), (1.2, 0.9, 1.3), "frost"))
+    prims.append(Box(add(hc, (4.0, 0, -2.6 - jaw * 0.7)), (2.6, 1.7, 0.5), "gum", basis_lean(-0.2 * jaw)))
+    prims.append(Box(add(hc, (4.2, 0, -2.2)), (2.4, 1.9, 0.25), "blood"))
+    for y in (1.3, -1.3):
+        prims.append(Cap(add(hc, (5.8, y, -2.0)), add(hc, (5.9, y, -3.4)), 0.45, "bone", 0.15))
+    prims.append(Box(add(hc, (2.6, 0, 1.3)), (0.7, 3.0, 0.5), "crystal_d"))   # 眼睛的位置：一條結晶
+    for y in (2.0, -2.0):
+        prims.append(spike(add(hc, (2.4, y, 1.4)), (0.2, y * 0.3, 1.0), 2.0, 0.6))
+    # 背上的冰晶森林（肩膀最高），中間裂開的肉是弱點
+    rnd = random.Random(7)
+    for x, y, ln, r in ((8, 2.5, 9.5, 1.9), (6, -2.6, 8.0, 1.7), (3, 0.6, 10.5, 2.0), (0, 3.6, 7.0, 1.6), (-1, -3.4, 7.5, 1.6),
+                        (-4, 2.4, 6.0, 1.5), (-6, -2.2, 6.5, 1.5), (-9, 1.0, 5.0, 1.4), (-12, -1.0, 3.6, 1.2),
+                        (10, 0.0, 6.0, 1.4), (4, 4.6, 4.5, 1.2), (2, -4.8, 5.0, 1.2)):
+        base = L((x, y, bz + 7.2 + (1.6 if x > 2 else 0.0)))
+        prims.append(spike(base, (-0.3 + rnd.uniform(-0.2, 0.2), y * 0.09, 1.0), ln, r, "crystal", 0.35))
+    prims.append(Ell(L((-2.0, 0, bz + 8.4)), (4.2, 2.4, 1.3), "gum"))
+    prims.append(Ell(L((-2.0, 0, bz + 8.9)), (2.6, 1.3, 1.0), "flesh"))
+    # 左邊肋骨的傷口
+    prims.append(Ell(L((-1.0, 6.4, bz + 1.0)), (4.0, 1.4, 3.2), "gum"))
+    for x in (-3.0, -1.0, 1.0):
+        prims.append(Box(L((x, 7.4, bz + 1.0)), (0.5, 0.5, 2.6), "bone"))
+    # 腳：粗腿、大腳掌、黑爪子
+    for name, x, y in (("fl", 8.5, 4.4), ("fr", 8.5, -4.4), ("bl", -11.5, 4.4), ("br", -11.5, -4.4)):
         a, k = legs[name]
         hip = L((x, y, bz))
         kn, ft = leg_points(hip, a, k if name[0] == "b" else -k, 6.5, 6.5)
-        prims.append(Cap(hip, kn, 3.0, "white", 2.6))
-        prims.append(Cap(kn, ft, 2.4, "white", 2.2))
-        prims.append(Ell(add(ft, (1.0, 0, 0)), (2.6, 2.2, 1.2), "white"))
+        prims.append(Cap(hip, kn, 3.4, "white", 2.9))
+        prims.append(Cap(kn, ft, 2.7, "white", 2.5))
+        prims.append(Ell(add(ft, (1.4, 0, 0)), (3.0, 2.6, 1.4), "white"))
+        for dy in (-1.4, 0.0, 1.4):
+            prims.append(Cap(add(ft, (3.6, dy, -0.2)), add(ft, (5.0, dy, -0.8)), 0.5, "black", 0.2))
     return prims
 
 
 
 def runner_model(anim, f, n):
-    """狂奔者：剛被感染沒多久的站員。瘦、跑很快、往前衝的姿勢，很脆"""
-    mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka_trim", "arm": "pale",
-            "hand": "pale", "skin": "pale"}
-    spec = {"torso_r": (2.9, 3.6, 5.0), "leg_r": 1.6, "leg_r2": 1.3, "arm_r": 1.2, "sh_w": 3.9}
+    """狂奔者：剛被感染沒多久的站員。衣服撕爛、一隻褲管沒了、光著腳，身體壓得很低往前衝；結晶才剛從脖子和右前臂冒出來"""
+    mats = {"leg": "pants", "shin-1": "dead", "boot": "dead", "hip": "pants", "torso": "shirt", "arm": "dead",
+            "arm1": "shirt", "fore1": "dead", "hand": "dead", "skin": "dead", "claw": "dead"}
+    spec = {"torso_r": (2.9, 3.7, 5.0), "leg_r": 1.6, "leg_r2": 1.3, "arm_r": 1.2, "sh_w": 3.9, "claw": 1.4}
     if anim == "walk":
         # 衝刺：大步、身體很低、手往後甩
-        pose = walk_pose(f, n, stride=0.7, knee=1.2, arm=0.2, lean=0.32)
+        pose = walk_pose(f, n, stride=0.75, knee=1.3, arm=0.2, lean=0.42)
         p = 2 * math.pi * f / n
-        pose["arms"] = {1: (-0.6 + 0.3 * math.sin(p), 0.25, 0.4), -1: (-0.6 - 0.3 * math.sin(p), 0.25, 0.4)}
+        pose["arms"] = {1: (-0.5 + 0.55 * math.sin(p), 0.3, 0.7), -1: (-0.5 - 0.55 * math.sin(p), 0.3, 0.7)}
+        pose["twist"] = 0.25 * math.sin(p)
+        pose["hip_drop"] = 0.8 + 0.5 * math.cos(2 * p)
     elif anim == "idle":
         pose = default_pose()
-        pose["lean"] = 0.35
-        pose["legs"] = {1: (0.25, 0.5), -1: (-0.2, 0.5)}
-        pose["hip_drop"] = 0.8 + 0.3 * bf(f, n)
-        pose["arms"] = {1: (0.15, 0.3, 0.3), -1: (0.2, 0.25, 0.3)}
-        pose["head_roll"] = 0.15 * bf(f, n)
+        pose["lean"] = 0.4
+        pose["legs"] = {1: (0.3, 0.6), -1: (-0.2, 0.5)}
+        pose["hip_drop"] = 0.9 + 0.35 * bf(f, n)
+        pose["arms"] = {1: (0.15, 0.4, 0.5), -1: (0.25, 0.3, 0.6)}
+        pose["head_roll"] = -0.2 + 0.4 * bf(f, n)
+        pose["twist"] = 0.15 * math.sin(2 * math.pi * f / n)
     elif anim == "attack":
         # 撲上來：雙手往前抓
         pose = default_pose()
-        pose["legs"] = {1: (0.6, 0.5), -1: (-0.5, 0.4)}
-        k = kf([(0.4, 0.3, 0.8), (1.6, 0.15, 0.05), (1.3, 0.1, 0.3)], f, n)
+        pose["legs"] = {1: (0.7, 0.6), -1: (-0.6, 0.4)}
+        k = kf([(0.3, 0.5, 1.0), (1.6, 0.15, 0.05), (1.3, 0.0, 0.3)], f, n)
         pose["arms"] = {1: k, -1: k}
-        pose["lean"] = kf([0.4, 0.75, 0.6], f, n)
+        pose["lean"] = kf([0.35, 0.8, 0.6], f, n)
+        pose["hip_x"] = kf([-1.0, 2.0, 1.2], f, n)
     else:
         raise ValueError(anim)
-    pose["head_pitch"] = pose.get("head_pitch", 0.0) + 0.2
-    pose["head_fwd"] = 1.2
+    pose["head_pitch"] = pose.get("head_pitch", 0.0) - 0.15
+    pose["head_fwd"] = 1.4
     prims, J = build_human(spec, pose, mats)
-    # 剛長出來的小冰晶（只有脖子和一邊肩膀）
-    prims.append(Cap(add(J["sh1"], (-0.5, 0.3, 0.8)), add(J["sh1"], (-1.2, 1.0, 2.6)), 0.7, "crystal", 0.25))
-    prims.append(Cap(add(J["chest"], (-2.0, -0.6, 3.5)), add(J["chest"], (-3.2, -1.0, 5.0)), 0.6, "crystal", 0.2))
-    prims += face(J, "vent")
+    tb = J["torso_basis"]
+    hb = J["head_basis"]
+    # 撕爛的內衣上的血、還沒掉光的頭髮
+    prims.append(Ell(chest_local(J, (2.3, 0.6, 1.0)), (1.0, 2.2, 2.4), "blood", tb))
+    prims.append(Ell(chest_local(J, (-0.2, -2.6, -2.6)), (2.2, 1.6, 1.8), "dead", tb))
+    prims.append(Ell(head_local(J, (-0.9, 0.2, 1.3)), (2.6, 2.8, 2.3), "hair", hb))
+    # 剛長出來的冰晶：脖子後面、右前臂
+    for d, ln in (((-0.7, 0.3, 1.0), 3.0), ((-1.0, -0.4, 0.6), 2.4)):
+        prims.append(spike(chest_local(J, (-1.6, 0.0, 4.2)), d, ln, 0.75))
+    el, hd = J["elbow-1"], J["hand-1"]
+    for k in (0.3, 0.65):
+        prims.append(spike(add(el, mul(sub(hd, el), k)), (-0.3, -0.8, 0.7), 2.2, 0.6))
+    prims += eyeless(J, mouth=0.9)
     return prims
 
 
 def spitter_model(anim, f, n):
-    """噴孢者：駝背、下巴和喉嚨腫成一個大孢子囊，從遠處吐孢子團"""
+    """噴孢者：駝得很厲害，下巴到胸口掛著一顆半透明的大孢子囊，背上一叢一叢的孢子莢。左手已經萎縮"""
     mats = {"leg": "ash", "boot": "boot", "hip": "rag", "torso": "rag", "arm": "ash", "hand": "ash", "skin": "ash"}
-    spec = {"torso_r": (3.4, 4.0, 4.8), "torso_len": 9.0, "lu": 6.0, "ll": 6.0, "au": 5.0, "al": 5.0, "arm_r": 1.2,
-            "head_r": (2.6, 2.6, 2.8)}
+    spec = {"torso_r": (3.5, 4.0, 4.8), "torso_len": 9.0, "lu": 6.0, "ll": 6.0, "au": 5.0, "al": 5.2, "arm_r": 1.15,
+            "head_r": (2.6, 2.5, 2.7), "arm_len": {1: 0.7, -1: 1.1}}
+    swell = 1.0 + 0.1 * math.sin(2 * math.pi * f / max(n, 1))
     if anim == "walk":
         pose = walk_pose(f, n, stride=0.32, knee=0.6, arm=0.1, lean=0.5)
+        pose["twist"] = 0.1 * math.sin(2 * math.pi * f / n)
     elif anim == "idle":
         pose = default_pose()
         pose["lean"] = 0.5
-        pose["arms"] = {1: (0.2, 0.2, 0.2), -1: (0.25, 0.2, 0.2)}
+        pose["arms"] = {1: (0.4, 0.2, 0.9), -1: (0.25, 0.2, 0.2)}
         pose["hip_drop"] = 0.3 * bf(f, n)
     elif anim in ("attack", "aim"):
-        # 往後仰、吸氣，然後往前吐
+        # 往後仰、吸氣（囊脹大），然後往前吐（囊縮小）
         pose = default_pose()
         pose["legs"] = {1: (0.35, 0.3), -1: (-0.3, 0.3)}
-        pose["lean"] = kf([0.1, -0.15, 0.6], f, n) if anim == "attack" else -0.1
-        pose["arms"] = {1: (0.3, 0.6, 0.4), -1: (0.3, 0.6, 0.4)}
+        pose["lean"] = kf([0.15, -0.2, -0.25, 0.65, 0.5], f, n) if anim == "attack" else -0.15
+        pose["arms"] = {1: (0.4, 0.5, 0.9), -1: (0.3, 0.7, 0.4)}
+        pose["head_pitch"] = kf([0.0, -0.4, -0.5, 0.2, 0.1], f, n) if anim == "attack" else -0.4
+        swell = kf([1.1, 1.4, 1.5, 0.75, 0.85], f, n) if anim == "attack" else 1.35
     else:
         raise ValueError(anim)
-    pose["head_fwd"] = 1.4
-    pose["head_pitch"] = pose.get("head_pitch", 0.0) + 0.1
+    pose["head_fwd"] = 1.6
+    pose["head_pitch"] = pose.get("head_pitch", 0.0) - 0.15
     prims, J = build_human(spec, pose, mats)
-    # 喉嚨的孢子囊（會脹）
-    swell = 1.0 + 0.15 * math.sin(2 * math.pi * f / max(n, 1))
-    sac = head_local(J, (1.2, 0, -2.6))
-    prims.append(Ell(sac, (2.6 * swell, 2.6 * swell, 2.2 * swell), "pus"))
-    prims.append(Ell(add(sac, (1.0, 1.0, 0.6)), (0.9, 0.9, 0.9), "glass"))
-    prims.append(Ell(add(sac, (0.8, -1.2, -0.2)), (0.8, 0.8, 0.8), "glass"))
-    # 背上的菌斑
-    for off in ((-3.0, 1.2, 1.5), (-3.2, -1.4, 0.0), (-2.6, 0.2, 3.0)):
-        prims.append(Ell(add(J["chest"], off), (1.4, 1.4, 1.2), "pus"))
-    prims.append(Box(head_local(J, (2.4, 0, -0.8)), (0.4, 1.4, 0.8), "vent", J["head_basis"]))
+    tb = J["torso_basis"]
+    hb = J["head_basis"]
+    # 喉嚨的孢子囊（會脹）：大囊＋旁邊兩顆小的、裡面亮亮的孢子
+    sac = head_local(J, (1.3, 0, -3.3))
+    prims.append(Ell(sac, (3.1 * swell, 3.2 * swell, 2.9 * swell), "sac"))
+    prims.append(Ell(add(sac, (0.4, 2.3 * swell, 0.9)), (1.4, 1.4, 1.4), "sac"))
+    prims.append(Ell(add(sac, (1.9 * swell, -1.3, -1.0)), (1.0, 1.0, 1.0), "spore"))
+    prims.append(Ell(add(sac, (2.2 * swell, 1.0, 0.6)), (0.8, 0.8, 0.8), "spore"))
+    prims.append(Ell(add(sac, (-0.6, -2.6 * swell, 0.2)), (1.1, 1.0, 1.1), "spore"))
+    # 背上的孢子莢（一根莖頂著一顆）
+    for off, ln in (((-3.2, 1.4, 2.0), 3.2), ((-3.4, -1.6, 0.6), 2.6), ((-2.6, 0.0, 3.6), 3.8), ((-3.2, 0.4, -1.6), 2.0)):
+        a = chest_local(J, off)
+        b = add(a, mul(norm(add(mul(tb[0], -0.7), (0, off[1] * 0.15, 1.0))), ln))
+        prims.append(Cap(a, b, 0.6, "ash", 0.45))
+        prims.append(Ell(b, (1.35, 1.35, 1.2), "spore"))
+    prims += eyeless(J, crust="spore", mouth=0.8, jaw=1.2, hr=2.6)
+    prims.append(Ell(chest_local(J, (-0.2, 0, -5.0)), (2.9, 3.6, 2.6), "rag", tb))
     return prims
 
 
 def brute_model(anim, f, n):
-    """冰甲巨人：骨頭礦化成一整片冰晶甲殼的巨大宿主。正面很硬，背後是弱點"""
-    mats = {"leg": "coverall", "boot": "boot", "hip": "coverall", "torso": "coverall", "arm": "pale", "hand": "pale",
-            "skin": "pale"}
-    spec = {"torso_r": (5.6, 6.8, 7.2), "torso_len": 11.0, "lu": 6.0, "ll": 5.6, "leg_r": 2.6, "leg_r2": 2.3,
-            "sh_w": 6.4, "au": 5.8, "al": 6.2, "arm_r": 2.3, "head_r": (2.4, 2.4, 2.4), "hip_w": 3.0}
+    """冰甲巨人：骨頭礦化成整片的冰甲——胸甲、肩甲、前臂的護甲、蓋住臉的面甲，縫隙透出結晶的光。背後甲殼裂開露出肉（弱點）。
+    手長到指節快碰到地"""
+    mats = {"leg": "coverall", "boot": "boot", "hip": "coverall", "torso": "chitin", "arm": "chitin", "fore": "chitin",
+            "hand": "ice", "skin": "chitin"}
+    spec = {"torso_r": (5.6, 6.8, 7.2), "torso_len": 11.0, "lu": 6.0, "ll": 5.6, "leg_r": 2.7, "leg_r2": 2.4,
+            "sh_w": 6.6, "au": 6.2, "al": 6.8, "arm_r": 2.4, "head_r": (2.4, 2.4, 2.4), "hip_w": 3.1, "hand_k": 1.9,
+            "neck": 0.0}
     if anim == "walk":
-        pose = walk_pose(f, n, stride=0.32, knee=0.5, arm=0.25, lean=0.25)
+        pose = walk_pose(f, n, stride=0.32, knee=0.5, arm=0.25, lean=0.3)
         for s_ in (1, -1):
             a, b, e = pose["arms"][s_]
-            pose["arms"][s_] = (a, 0.35, 0.25)
+            pose["arms"][s_] = (a + 0.1, 0.3, 0.2)
+        pose["twist"] = 0.16 * math.sin(2 * math.pi * f / n)
     elif anim == "idle":
         pose = default_pose()
-        pose["lean"] = 0.2
-        pose["arms"] = {1: (0.1, 0.35, 0.2), -1: (0.1, 0.35, 0.2)}
-        pose["hip_drop"] = 0.3 * bf(f, n)
+        pose["lean"] = 0.28
+        pose["arms"] = {1: (0.15, 0.3, 0.15), -1: (0.15, 0.3, 0.15)}
+        pose["hip_drop"] = 0.4 * bf(f, n)
     elif anim == "attack":
         # 雙手舉高往下砸
         pose = default_pose()
-        k = kf([(0.6, 0.3, 0.3), (2.6, 0.2, 0.1), (1.0, 0.25, 0.5)], f, n)
+        k = kf([(0.6, 0.3, 0.3), (2.7, 0.3, 0.2), (2.8, 0.25, 0.1), (1.0, 0.1, 0.3), (0.8, 0.2, 0.5)], f, n)
         pose["arms"] = {1: k, -1: k}
-        pose["lean"] = kf([0.0, -0.2, 0.55], f, n)
+        pose["lean"] = kf([0.1, -0.2, -0.25, 0.6, 0.5], f, n)
         pose["legs"] = {1: (0.4, 0.3), -1: (-0.4, 0.3)}
+        pose["hip_drop"] = kf([0.5, 0.0, 0.0, 1.6, 1.2], f, n)
     else:
         raise ValueError(anim)
-    pose["head_fwd"] = 1.8
-    pose["head_pitch"] = 0.35
+    pose["head_fwd"] = 2.2
+    pose["head_pitch"] = 0.3
     prims, J = build_human(spec, pose, mats)
-    # 胸前和肩膀的冰晶甲殼
-    for off, r in (((4.8, 2.4, 1.2), (1.2, 2.0, 2.4)), ((4.8, -2.4, 1.2), (1.2, 2.0, 2.4))):
-        prims.append(Ell(add(J["chest"], off), r, "crystal"))
+    tb = J["torso_basis"]
+    hb = J["head_basis"]
+    # 胸甲（兩大片＋中間的縫透出結晶的光）、腹甲
+    for side in (1, -1):
+        prims.append(Box(chest_local(J, (4.6, side * 2.9, 1.2)), (1.5, 2.5, 3.4), "ice", tb))
+        prims.append(Box(chest_local(J, (4.9, side * 2.2, -3.6)), (1.2, 1.9, 1.5), "ice", tb))
+    prims.append(Box(chest_local(J, (5.5, 0, 0.4)), (0.9, 0.55, 4.4), "crystal", tb))
+    # 肩甲：往上翹的大片、邊緣長出結晶
     for side in (1, -1):
         sh = J["sh%d" % side]
-        prims.append(Ell(add(sh, (0.5, side * 0.6, 1.2)), (2.0, 2.0, 1.6), "crystal"))
-        prims.append(Cap(add(sh, (0, side * 0.5, 2.0)), add(sh, (-1.0, side * 1.6, 5.0)), 0.9, "crystal", 0.3))
+        prims.append(Ell(add(sh, (0.4, side * 1.0, 1.4)), (3.4, 3.3, 2.5), "ice"))
+        for d, ln in (((0.0, side * 0.5, 1.0), 4.4), ((-0.5, side * 1.0, 0.7), 3.4), ((0.5, side * 0.9, 0.8), 2.8)):
+            prims.append(spike(add(sh, (0.2, side * 1.4, 2.6)), rot_z(d, pose.get("twist", 0.0)), ln, 1.0))
+        # 前臂的護甲比手臂粗一圈，手肘一根刺
+        el, hd = J["elbow%d" % side], J["hand%d" % side]
+        prims.append(Cap(add(el, mul(sub(hd, el), 0.3)), add(el, mul(sub(hd, el), 0.8)), 2.9, "ice", 2.7))
+        prims.append(spike(el, add(mul(sub(el, hd), 0.2), (-0.6, side * 0.4, 0.3)), 3.0, 0.9))
+    # 面甲：整片蓋住臉，只有一條發光的縫
+    prims.append(Ell(head_local(J, (0.5, 0, 0.3)), (2.9, 2.8, 2.7), "ice", hb))
+    prims.append(Box(head_local(J, (3.2, 0, 0.2)), (0.5, 1.7, 0.4), "crystal", hb))
+    for y in (1.5, -1.5):
+        prims.append(spike(head_local(J, (0.0, y, 2.0)), add(mul(hb[2], 1.0), mul(hb[1], y * 0.3)), 2.6, 0.8))
     # 背後：甲殼裂開、露出肉（弱點）
-    prims.append(Ell(add(J["chest"], (-4.0, 0, 0.5)), (1.6, 3.0, 3.4), "flesh"))
-    prims += face(J, "vent")
+    prims.append(Ell(chest_local(J, (-4.2, 0, 0.6)), (1.7, 3.4, 3.8), "gum", tb))
+    prims.append(Ell(chest_local(J, (-4.9, 0, 0.8)), (1.3, 1.9, 2.4), "flesh", tb))
+    for side in (1, -1):
+        prims.append(Box(chest_local(J, (-4.0, side * 4.6, 1.0)), (1.2, 1.4, 3.6), "ice", tb))
     return prims
 
 CHARACTERS = {
-    "player": (player_model, dict({"idle": 4, "walk": 8, "sneak": 8, "slash": 6, "slash_axe": 6, "punch": 6, "kick": 6,
+    "player": (player_model, dict({"idle": 4, "walk": 8, "sneak": 8, "slash": 8, "slash_axe": 8, "punch": 7, "kick": 9,
                                    "hurt": 3, "dodge": 5, "dodge_back": 5},
                                   **{"aim_" + w: 1 for w in ("pistol", "shotgun", "rifle", "nailgun", "flare_gun")},
                                   **{"shoot_" + w: 3 for w in ("pistol", "shotgun", "rifle", "nailgun", "flare_gun")})),
@@ -1257,10 +1645,15 @@ CHARACTERS = {
 }
 # 人形敵人的受傷動作（共用姿勢修正）
 HURT_BASE = {"runner": "idle", "spitter": "idle", "brute": "idle", "watcher": "idle", "listener": "listen", "guard": "idle", "husk": "idle", "chorister": "listen"}
-CANVAS = {"player": (36, 32), "watcher": (32, 32), "listener": (32, 36), "guard": (32, 32), "hound": (36, 30),
-          "crawler": (36, 26), "husk": (36, 34), "chorister": (32, 36), "bear": (64, 48),
-          "runner": (32, 32), "spitter": (32, 32), "brute": (40, 40)}
+CANVAS = {"player": (44, 34), "watcher": (36, 36), "listener": (38, 44), "guard": (40, 36), "hound": (42, 36),
+          "crawler": (48, 38), "husk": (42, 38), "chorister": (40, 44), "bear": (72, 60),
+          "runner": (36, 36), "spitter": (36, 36), "brute": (48, 46)}
 
+
+# 腳底離圖的下緣幾個像素（character_sprite.gd 的 FOOT_PAD 要一樣）：往鏡頭方向踢、撲的時候腳會畫到腳底線下面，留空間才不會被切掉
+FOOT_PAD = 4
+# 四隻腳、趴著的角色身體很長，面向鏡頭時前腳和頭會畫到腳底線下面很多，要留更多（character_sprite.gd 的 FOOT_PADS 要一樣）
+FOOT_PADS = {"bear": 12, "hound": 7, "crawler": 12}
 
 # 紙娃娃：本體套裝、頭部圖層、腳部圖層（遊戲裡依裝備組合疊起來）
 OUTFIT_SETS = {
@@ -1295,7 +1688,8 @@ def gen_outfit(name):
         for d, yaw in DIRS.items():
             for f in range(n):
                 prims = finish(player_model(anim, f, n), yaw)
-                write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h, render(prims, w, h, layer_only=layer))
+                write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h,
+                          render(prims, w, h, anchor=(w / 2.0, h - FOOT_PAD), layer_only=layer))
                 count += 1
     OUTFIT.update({"body": "parka", "head": "", "feet": "", "layer": ""})
     print("%s: %d 張" % (name, count))
@@ -1316,7 +1710,8 @@ def gen_character(name):
             for f in range(n):
                 m = hurt_of(base_model, HURT_BASE[name]) if anim == "hurt" and name in HURT_BASE else base_model
                 prims = finish(m(anim, f, n), yaw)
-                write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h, render(prims, w, h))
+                write_png(os.path.join(folder, "%s_%s_%d.png" % (anim, d, f)), w, h,
+                          render(prims, w, h, anchor=(w / 2.0, h - FOOT_PADS.get(name, FOOT_PAD))))
                 count += 1
     print("%s: %d 張" % (name, count))
 
@@ -1451,6 +1846,9 @@ def gen_items():
 
 # ── 特效（子彈、槍口火光、彈殼、影子）─────────────────────────
 
+BAYER_FX = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+
+
 def gen_fx():
     folder = os.path.join(OUT, "fx")
     os.makedirs(folder, exist_ok=True)
@@ -1507,39 +1905,71 @@ def gen_fx():
     write_png(os.path.join(folder, "slash.png"), w, h, px)
 
     # ── 多格特效（流暢的動作感）──
-    # 刀光 5 格：弧線從後往前掃、最後淡出
-    for f in range(5):
-        w, h = 22, 22
-        px = [_] * (w * h)
-        head = -1.2 + 2.6 * min(1.0, (f + 1) / 3.5)
-        tail = -1.2 + 2.6 * max(0.0, (f - 1) / 3.5)
-        fade = 1.0 if f < 3 else (0.6 if f == 3 else 0.3)
-        for i in range(60):
-            a = tail + (head - tail) * i / 59
-            k = i / 59
-            for rr, col in ((10.0, (255, 255, 255)), (9.0, (210, 235, 255)), (8.0, (150, 200, 255))):
-                x = int(11 + math.cos(a) * rr)
-                y = int(11 + math.sin(a) * rr)
-                al = int(255 * fade * (0.35 + 0.65 * k) * (1.0 if rr == 10.0 else 0.6 if rr == 9.0 else 0.3))
-                if 0 <= x < w and 0 <= y < h and px[y * w + x][3] < al:
-                    px[y * w + x] = col + (al,)
-        write_png(os.path.join(folder, "slash_%d.png" % f), w, h, px)
-    # 命中：冰晶碎片＋暗紅飛濺（感染體被打中）4 格
+    # 刀光 5 格：一大片新月形的弧光，從主角的右手邊（往右看時是畫面下方）掃到左手邊。
+    # 外緣是白色的芯、往內是冷藍色的邊，尾巴越來越細、越來越淡；最後兩格整個淡出。
+    SW, SR = 48, 20.0
+    A0, A1 = 1.4, -1.4
+    spans = [(0.0, 0.42, 1.0), (0.04, 0.8, 1.0), (0.3, 1.0, 1.0), (0.62, 1.0, 0.62), (0.84, 1.0, 0.3)]
+    for f, (tail, head, fade) in enumerate(spans):
+        px = [_] * (SW * SW)
+        for y in range(SW):
+            for x in range(SW):
+                dx, dy = x + 0.5 - SW / 2, y + 0.5 - SW / 2
+                r = math.hypot(dx, dy)
+                if r < SR - 8 or r > SR + 0.6:
+                    continue
+                u = (math.atan2(dy, dx) - A0) / (A1 - A0)   # 0 = 起點、1 = 終點
+                if u < tail or u > head:
+                    continue
+                k = (u - tail) / max(head - tail, 1e-6)      # 0 = 尾巴、1 = 刀尖
+                thick = 6.6 * math.sin(math.pi * min(1.0, k * 0.5 + 0.5 * k * k)) ** 0.8 + 0.6
+                if k > 0.9:
+                    thick *= (1.0 - k) / 0.1 * 0.8 + 0.2
+                d = SR - r
+                if d < -0.4 or d > thick:
+                    continue
+                q = d / max(thick, 0.01)
+                al = fade * (0.25 + 0.75 * k)
+                if q < 0.42:
+                    col, a_ = (255, 255, 255), 1.0
+                elif q < 0.72:
+                    col, a_ = (196, 232, 255), 0.85
+                else:
+                    col, a_ = (104, 176, 255), 0.55
+                # 尾巴用抖色變稀，像素風的淡出
+                if k < 0.35 and BAYER_FX[y % 4][x % 4] / 16.0 > k / 0.35 + 0.15:
+                    continue
+                px[y * SW + x] = col + (int(255 * min(1.0, al * a_)),)
+        write_png(os.path.join(folder, "slash_%d.png" % f), SW, SW, px)
+    # 命中：第一格是一個白色的四角星閃光，接著冰晶碎片＋暗紅飛濺往外噴（感染體被打中）4 格
     rnd = random.Random(11)
-    shards = [(rnd.uniform(0, 6.28), rnd.uniform(0.6, 1.0), rnd.random() < 0.6) for _ in range(10)]
+    shards = [(rnd.uniform(0, 6.28), rnd.uniform(0.55, 1.0), rnd.random() < 0.6) for _ in range(14)]
     for f in range(4):
-        w, h = 15, 15
+        w, h = 23, 23
+        c = 11
         px = [_] * (w * h)
-        r = 1.5 + f * 1.8
+        r = 2.0 + f * 2.6
         for a, sp, ice in shards:
-            x = int(7 + math.cos(a) * r * sp)
-            y = int(7 + math.sin(a) * r * sp)
-            col = (200, 245, 255) if ice else (150, 30, 40)
+            x = int(c + 0.5 + math.cos(a) * r * sp)
+            y = int(c + 0.5 + math.sin(a) * r * sp)
+            col = (200, 245, 255) if ice else (170, 34, 44)
             if 0 <= x < w and 0 <= y < h:
-                px[y * w + x] = col + (255 - f * 50,)
-        if f == 0:
-            for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
-                px[(7 + dy) * w + 7 + dx] = (255, 255, 255, 255)
+                px[y * w + x] = col + (255 - f * 45,)
+                if f < 2 and ice and 0 <= x + 1 < w:
+                    px[y * w + x + 1] = (150, 215, 255, 200 - f * 45)
+        if f < 2:
+            arm = 7 if f == 0 else 4
+            for i in range(-arm, arm + 1):
+                al = 255 if abs(i) < arm - 2 else 150
+                colr = (255, 255, 255, al) if f == 0 else (210, 240, 255, al - 60)
+                px[c * w + c + i] = colr
+                px[(c + i) * w + c] = colr
+                if abs(i) <= arm // 2:
+                    px[(c + i) * w + c + i] = colr
+                    px[(c - i) * w + c + i] = colr
+            if f == 0:
+                for dx, dy in ((1, 1), (-1, 1), (1, -1), (-1, -1), (0, 0)):
+                    px[(c + dy) * w + c + dx] = (255, 255, 255, 255)
         write_png(os.path.join(folder, "hit_%d.png" % f), w, h, px)
     # 拳腳的衝擊圈 4 格
     for f in range(4):
@@ -1713,23 +2143,43 @@ def gen_portraits():
         return [Box(head_local(J, (2.9, 0, -1.5)), (0.25, w, 0.22), mat, J["head_basis"])]
 
     def shen(state):
-        skin = "pale" if state == "danger" else "skin"
-        mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka", "arm": "parka", "hand": skin, "skin": skin}
+        """主角的頭像：一律是戴著頭盔的頭，不露臉。狀態用面罩表現：
+        fine = 乾淨的面罩、琥珀燈；caution = 面罩起霧＋刮痕；danger = 面罩裂開、紅色警示燈、盔上結霜"""
+        mats = {"leg": "pants", "boot": "boot", "hip": "pants", "torso": "parka", "arm": "parka", "hand": "glove",
+                "skin": "glove", "head": "helm"}
 
         def extra(J):
-            p = [Ell(head_local(J, (-1.1, 0, 0.9)), (2.9, 3.25, 2.9), "hair"),
-                 Ell(head_local(J, (-2.8, 0, -1.6)), (1.4, 1.2, 2.4), "hair"),
-                 Ell(head_local(J, (1.4, 0, 2.1)), (1.6, 3.1, 0.9), "hair")]
-            p += face(J)
-            p += [Box(head_local(J, (2.8, y, 0.75)), (0.2, 0.7, 0.18), "hair", J["head_basis"]) for y in (1.15, -1.15)]
-            p += mouth(J, "flesh", 0.7 if state != "fine" else 0.9)
-            p.append(Ell(add(J["chest"], (-0.4, 0, 3.6)), (3.2, 4.0, 1.4), "parka_trim"))
-            if state == "danger":
-                p += [Cap(head_local(J, (2.2, -2.0, -0.8)), head_local(J, (1.6, -2.8, 0.4)), 0.45, "crystal", 0.15),
-                      Cap(head_local(J, (1.0, -2.6, 1.2)), head_local(J, (0.4, -3.1, 2.2)), 0.4, "crystal", 0.12),
-                      Ell(head_local(J, (-0.5, -0.5, 2.6)), (1.8, 2.0, 0.6), "frost")]
+            hb = J["head_basis"]
+
+            def on_visor(y, z, lift=0.12):
+                q = max(0.05, 1.0 - (y / 2.95) ** 2 - ((z - 0.15) / 1.65) ** 2)
+                return head_local(J, (1.25 + 2.7 * math.sqrt(q) + lift, y, z))
+
+            def stroke(y0, z0, y1, z1, mat, th=0.16):
+                ln = math.hypot(y1 - y0, z1 - z0)
+                dy, dz = (y1 - y0) / ln, (z1 - z0) / ln
+                b = (hb[0], add(mul(hb[1], dy), mul(hb[2], dz)), add(mul(hb[1], -dz), mul(hb[2], dy)))
+                return Box(on_visor((y0 + y1) * 0.5, (z0 + z1) * 0.5), (0.3, ln * 0.5, th), mat, b)
+
+            visor = {"fine": "visor", "caution": "visor_fog", "danger": "visor"}[state]
+            p = helmet_prims(J, visor, "alarm" if state == "danger" else "amber")
+            p.append(Ell(chest_local(J, (-0.4, 0, 3.6)), (3.2, 4.0, 1.4), "parka_trim"))
+            p.append(Box(chest_local(J, (3.1, 1.7, 0.3)), (0.5, 1.0, 1.1), "strap"))
+            if state == "fine":
+                p.append(stroke(-1.7, 0.75, -0.7, 0.95, "helm_trim", 0.1))   # 面罩上的一道反光
             elif state == "caution":
-                p.append(Ell(head_local(J, (-0.8, 0.8, 2.6)), (1.6, 1.6, 0.5), "frost"))
+                # 刮痕（斜的兩道）、下緣還沒起霧的一條
+                p += [stroke(-1.9, 0.9, -0.5, -0.3, "frost", 0.09), stroke(0.5, 0.8, 1.6, 0.1, "frost", 0.08),
+                      stroke(-1.4, -0.75, 1.4, -0.75, "visor", 0.22)]
+            else:
+                # 裂痕從右邊一個撞擊點放射出去，盔頂結霜，領口旁邊冒出結晶
+                cx, cz = -0.9, 0.3
+                for ty, tz in ((-2.2, 1.0), (0.4, 1.1), (0.9, -0.2), (-0.3, -0.9), (-2.1, -0.5), (1.9, 0.6)):
+                    p.append(stroke(cx, cz, ty, tz, "frost", 0.09))
+                p.append(Box(on_visor(cx, cz, 0.2), (0.3, 0.3, 0.3), "white", hb))
+                p.append(Ell(head_local(J, (-0.6, -0.6, 3.4)), (2.4, 2.4, 0.7), "frost", hb))
+                p += [spike(chest_local(J, (0.8, -3.4, 4.0)), (0.2, -0.5, 1.0), 2.4, 0.6),
+                      spike(chest_local(J, (0.2, -3.9, 3.6)), (-0.2, -0.9, 0.7), 1.8, 0.5)]
             return p
         return portrait_human({"torso_r": (3.4, 4.2, 5.4)}, mats, extra)
 
@@ -1747,13 +2197,17 @@ def gen_portraits():
     save("kovac", portrait_human({}, {"leg": "white", "boot": "boot", "hip": "white", "torso": "white", "arm": "white",
                                      "hand": "skin", "skin": "skin"}, kovac_extra))
 
-    # 守門派：頭盔、護目鏡、黑色面罩
+    # 守門派：雪地迷彩頭盔、橘色雪鏡、黑色面罩、戰術背心（跟 guard_model 同一套）
     def gate_extra(J):
-        return [Ell(head_local(J, (-0.2, 0, 1.0)), (3.4, 3.3, 2.6), "helmet"),
-                Box(head_local(J, (2.7, 0, 0.5)), (0.5, 2.0, 0.7), "goggle", J["head_basis"]),
-                Ell(add(J["chest"], (0.2, 0, -0.2)), (3.7, 4.5, 4.0), "vest")]
-    save("gate", portrait_human({"torso_r": (3.5, 4.4, 5.4)}, {"leg": "olive", "boot": "boot", "hip": "olive",
-                                 "torso": "olive", "arm": "olive", "hand": "black", "skin": "black"}, gate_extra))
+        hb = J["head_basis"]
+        return [Ell(head_local(J, (-0.3, 0, 1.7)), (3.55, 3.45, 2.35), "camo", hb),
+                Ell(head_local(J, (-1.2, 1.4, 2.9)), (1.6, 1.5, 1.0), "camo_d", hb),
+                Box(head_local(J, (2.8, 0, 0.3)), (0.55, 2.2, 0.8), "lens", hb),
+                Ell(head_local(J, (0.3, 0, -0.9)), (3.0, 3.0, 2.4), "black", hb),
+                Ell(add(J["chest"], (0.2, 0, -0.2)), (3.8, 4.6, 3.9), "rig"),
+                Ell(add(J["chest"], (-0.5, 3.4, 2.6)), (1.6, 1.4, 1.2), "camo_d")]
+    save("gate", portrait_human({"torso_r": (3.5, 4.4, 5.4)}, {"leg": "camo", "boot": "boot", "hip": "camo",
+                                 "torso": "camo", "arm": "camo", "hand": "glove", "skin": "black"}, gate_extra))
     print("portraits: ok")
 
 
@@ -1831,18 +2285,27 @@ def well_model(anim, f, n):
     for (x, y, z), sc in (((-8, -9, 9), 1.0), ((7, -9, 10), 1.1), ((0, -8, 15), 1.2), ((-14, -5, 5), 0.8),
                           ((14, -5, 5), 0.8)):
         c = (x * s_, y * s_, z * s_ - sink)
-        prims.append(Ell(c, (3.0 * sc, 2.4 * sc, 3.4 * sc), "pale"))
-        # 黑洞般的眼窩、張開的嘴
-        for ex in (-1.1, 1.1):
-            prims.append(Ell(add(c, (ex * sc, -2.1 * sc, 0.9 * sc)), (0.7 * sc, 0.5, 0.6 * sc), "vent"))
-        mouth_open = 0.5 + 0.6 * swell + 0.3 * open_
-        prims.append(Ell(add(c, (0, -2.1 * sc, -1.3 * sc)), (0.8 * sc, 0.5, mouth_open * sc), "vent"))
+        prims.append(Ell(c, (2.7 * sc, 2.4 * sc, 3.7 * sc), "dead", basis_lean(0.25 * (1 if x > 0 else -1))))
+        # 沒有眼睛（眼窩被結晶封住）、張開的嘴；臉的周圍一圈被肉吞進去的深色邊
+        prims.append(Box(add(c, (0, -2.2 * sc, 1.1 * sc)), (1.7 * sc, 0.5, 0.45 * sc), "crystal_d" if not dead else "frost"))
+        mouth_open = 0.7 + 0.7 * swell + 0.4 * open_
+        prims.append(Ell(add(c, (0, -2.1 * sc, -1.5 * sc)), (0.9 * sc, 0.6, mouth_open * sc), "vent"))
+        prims.append(Ell(add(c, (0, 1.2, 0.1)), (3.2 * sc, 2.0 * sc, 4.2 * sc), "gum"))
+    # 肉塊表面的瘤、往地上爬的根
+    for c, r in (((-12, -4, 11), 3.2), ((11, -3, 12), 3.0), ((4, -7, 17), 2.6), ((-5, -6, 18), 2.4), ((15, 4, 8), 3.4), ((-16, 3, 7), 3.2)):
+        prims.append(Ell((c[0] * s_, c[1] * s_, c[2] * s_ - sink), (r, r, r * 0.9), "mass"))
+    for ang in (0.5, 1.2, 2.0, 2.7, 3.6, 4.4, 5.1, 5.9):
+        a = (math.cos(ang) * 15, math.sin(ang) * 10 + 4, 3.0)
+        b = (math.cos(ang) * 24, math.sin(ang) * 15 + 4, 0.8)
+        prims.append(Cap(a, b, 1.6, "mass", 0.6))
     for (x, y, z), (dx, dz) in (((-14, -2, 5), (-6, 4)), ((14, -1, 6), (6, 5)), ((-4, -9, 4), (-3, 2)), ((5, -9, 4), (4, 3))):
         reach = 1.0 + 0.25 * breathe + 0.3 * swell
         a = (x * s_, y * s_, z - sink)
         b = add(a, (dx * reach, -2.0, dz * reach))
-        prims.append(Cap(a, b, 1.2, "pale", 0.8))
-        prims.append(Ell(b, (1.1, 1.0, 1.0), "pale"))
+        prims.append(Cap(a, b, 1.2, "dead", 0.8))
+        prims.append(Ell(b, (1.1, 1.0, 1.0), "dead"))
+        for off in (-0.8, 0.0, 0.8):
+            prims.append(Cap(b, add(b, (dx * 0.3 + off * 0.4, -0.6, dz * 0.3 + off)), 0.4, "dead", 0.2))
     # 結晶：從肉塊往外、往上長；裂開時中間的往兩邊倒，露出核心
     for i in range(16):
         ang = rnd.uniform(0, 6.283)
