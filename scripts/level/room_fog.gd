@@ -36,6 +36,7 @@ func update(pos: Vector2) -> void:
 	var rooms := level.visible_rooms(pos)
 	if rooms.is_empty():
 		return  # 站在牆裡（不應該發生）：維持原樣
+	_sync_props.call_deferred()
 	for c in peek_cells:
 		if level.room_of.has(c) and not rooms.has(level.room_of[c]):
 			rooms.append(level.room_of[c])
@@ -43,6 +44,11 @@ func update(pos: Vector2) -> void:
 	if rooms != visible_rooms:
 		visible_rooms = rooms
 		queue_redraw()
+
+
+## 沒看到的房間：裡面的家具整個藏起來（高的地標才不會從黑幕上面露出來）。黑幕關掉（地圖預覽）= 全部顯示。
+func _sync_props() -> void:
+	level.show_prop_rooms(visible_rooms if is_visible_in_tree() else [])
 
 
 func is_hidden_cell(cell: Vector2i) -> bool:

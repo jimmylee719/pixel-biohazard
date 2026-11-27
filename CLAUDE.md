@@ -188,3 +188,17 @@
 - **任務指引箭頭**：手機任務清單 `MissionList` 選任務按確認＝開／關箭頭（`WorldState.toggle_pin`、`Missions.pinned()`）；主線黃色，支線藍紫紅綠白。
   `ObjectiveArrows` 在主角腳邊畫小箭頭（沿導航路徑的方向；目標在別張地圖＝指向門／樓梯／雪地車，`main.objective_doors()`）。箭頭要小。
 - 音樂預設 60%（`OPTIONS_VERSION` 2 會把舊設定檔改一次）。舉槍移動有 `aimwalk_<武器>` 動畫。
+
+## v0.8：地圖第二次重新設計（房間少而有記憶點）
+- 使用者覺得 v0.6／v0.7 的地圖「房間太多，像公寓」。現在的原則（參考經典生存恐怖／潛行遊戲的公開分析，只取原則、不抄地圖）：
+  一棟建築 5～8 個空間；每區一個**主場景**（大廳、機庫、中庭、廠區，長邊 14～22 格）當樞紐，裡面用機器、柱子、車輛、玻璃隔間、
+  貨櫃切出掩體和視線死角；重要空間之間至少兩條路（環狀，不要死巷走廊）；整排一樣的小房間每張地圖最多一處（3～4 間）。
+- 地圖規格檔只剩兩個：`tools/map_specs/redesign_a.py`（碼頭、研究站各層、東翼、燃料庫、機庫、天線塔、鑽井、燈籠站）、
+  `redesign_b.py`（氣象小屋、北港、冰洞、守門一號、郵輪）。`area_patch.py` 有檔案鎖，可以同時跑。
+- **地標物件**（`python3 tools/gen_scene_art.py landmark`，`SetDresser.LANDMARKS` 記每個的格數）：reactor_3x3、turbine_4x2、drill_rig_3x3、
+  snow_crawler_4x2、crane_2x2、specimen_tank_2x2、scanner_3x2、server_bank_3x2、workbench_3x2、reception_desk_4x2、pillar、railing、
+  forklift_2x1、console_bank_4x1、tape_reel_bank_3x1、antenna_mast_2x2、pump_station_3x2、stage_6x2、bar_island_4x2、pool_table_2x2、
+  grand_piano_2x2、lifeboat_3x1、winch_2x2、engine_block_4x3、watchtower_2x2、gate_barrier_3x1、tent_3x2、sled_2x1、ice_drill_2x2。
+  用法：畫一塊剛好那麼大的 C，`props` 的 key 寫左上角那格。高的物件不要緊貼在牆的正北邊（牆頂會蓋住它下面 8px）。
+- 場景繪製：地板依房間種類（lab 環氧、mess 棋盤格、comms 高架地板、theater 紅地毯……）＋漆線、機器周圍的黃黑警示框、門檻；
+  牆面有踢腳、管線、壁燈、門牌；`scripts/level/light_accents.gd` 是純裝飾的光暈（不影響潛行的明暗判定）；`WallCaps` 讓牆頂蓋在家具上。

@@ -194,6 +194,10 @@ def main():
     mod = importlib.util.module_from_spec(sp)
     sp.loader.exec_module(mod)
     only = sys.argv[2:]
+    # 鎖住（同時有兩個人在改不同區域時，不會互相蓋掉）
+    import fcntl
+    lock = open(AREAS_GD + ".lock", "w")
+    fcntl.flock(lock, fcntl.LOCK_EX)
     text = open(AREAS_GD, encoding="utf-8").read()
     legacy = open(LEGACY_GD, encoding="utf-8").read()
     for area_id, spec in mod.AREAS.items():

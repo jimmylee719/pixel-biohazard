@@ -22,3 +22,4 @@ export_credentials.cfg
 
 # ComfyUI 生成的原始大圖（挑選處理後的成品放 assets/）
 /art_raw/
+scripts/world/areas.gd.lock

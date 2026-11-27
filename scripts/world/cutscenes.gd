@@ -41,7 +41,7 @@ const DATA := {
 		{"wait": 1.2},
 		{"title_card": "A F T E R S I G N A L", "sub": "Sixty-four years later", "time": 2.4},
 		{"era": ""},
-		{"pan": Vector2i(10, 18), "time": 0.05, "light": 90.0},
+		{"pan": Vector2i(26, 18), "time": 0.05, "light": 90.0},
 		{"caption": "Greycrow Island, Arctic Ocean - November 2026", "time": 2.0},
 		{"fade_in": 2.0},
 		{"credit": "78°N  -  120 km from the nearest settlement", "time": 3.0},

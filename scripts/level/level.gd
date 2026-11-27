@@ -66,6 +66,13 @@ var _inner_doors: Array[InteriorDoor] = []
 var fog: RoomFog
 ## 這個區域的警戒狀態（ALERT／EVASION／CAUTION、呼叫同伴）
 var alert: AlertNetwork
+## 家具（地圖上的 C）合併後的長方形：畫腳下的影子、機具周圍的警示框用
+var _prop_rects: Array[Rect2i] = []
+## 裝飾用的光暈（SetDresser 依 GLOW 加進來；LightAccents 畫）：{pos, color, size, power}
+var accent_lights: Array[Dictionary] = []
+## 家具的圖和它所在的格子／房間（房間黑幕：沒看到的房間，裡面的家具整個藏起來）
+var _prop_nodes: Array = []
+var _props_shown_for: Array = [-1]
 
 
 func _ready() -> void:
@@ -102,51 +109,245 @@ func _ready() -> void:
 
 
 ## 地板直接畫在世界圖層，會被燈光照亮、在黑暗中看不見。沒開暖氣的室內地板偏藍（結霜）。
+## 順序：地板材質（家具底下也畫）→ 水面 → 地上的漆（標線、警示框、門檻、編號）→ 痕跡 → 陰影 → 出入口。
+## 全部只畫一次（地圖或暖氣狀態變了才重畫），不要在這裡放每幀都變的東西。
 func _draw() -> void:
 	for cell in _floor_cells:
-		var rect := Rect2(Vector2(cell) * TILE, Vector2(TILE, TILE))
-		var src := Rect2(Vector2(posmod(cell.x, 4), posmod(cell.y, 4)) * TILE, Vector2(TILE, TILE))
-		var cell_safe := is_safe_cell(cell)
-		var tex := floor_tex_at(cell)
-		var open_air := not _is_indoor_cell(cell)
-		if tex == null:
-			draw_rect(rect, SNOW_FLOOR_A if open_air else INDOOR_FLOOR_A)
-			continue
-		var tint := Color.WHITE
-		if open_air:
-			tint = Color(1.5, 1.5, 1.5) if tex == Art.tex("tiles/floor_snow") else Color(1.15, 1.15, 1.18)
-		elif cell_safe:
-			tint = Color(1.12, 1.08, 1.0)
-		elif is_cold(_cell_center(cell)):
-			# 沒暖氣的室內：地板偏藍（結霜）
-			tint = Color(0.82, 0.95, 1.18)
-		draw_texture_rect_region(tex, rect, src, tint)
+		_draw_floor_cell(cell)
+	for rect in _prop_rects:
+		for y in range(rect.position.y, rect.end.y):
+			for x in range(rect.position.x, rect.end.x):
+				_draw_floor_cell(Vector2i(x, y))
 	_draw_water()
+	_draw_floor_paint()
 	_draw_floor_decals()
 	_draw_floor_shadows()
 	for door_id in _data.doors:
-		var cell: Vector2i = _data.doors[door_id].cell
-		draw_rect(Rect2(Vector2(cell) * TILE + Vector2(2, 2), Vector2(TILE - 4, TILE - 4)), DOOR_COLOR)
+		_draw_exit_mat(_data.doors[door_id].cell)
 
 
-## 牆、家具旁邊的地板陰影（光從左上來：右邊、下面的地板影子比較長），讓東西看起來「站」在地上
+func _draw_floor_cell(cell: Vector2i) -> void:
+	var rect := Rect2(Vector2(cell) * TILE, Vector2(TILE, TILE))
+	var src := Rect2(Vector2(posmod(cell.x, 4), posmod(cell.y, 4)) * TILE, Vector2(TILE, TILE))
+	var kind := floor_kind_at(cell)
+	var tex := Art.tex("tiles/floor_lab") if kind == "safe" else Art.tex(SetDresser.FLOOR_TEX.get(kind, "tiles/floor_slab"))
+	var open_air := not _is_indoor_cell(cell)
+	if tex == null:
+		draw_rect(rect, SNOW_FLOOR_A if open_air else INDOOR_FLOOR_A)
+		return
+	var tint := Color.WHITE
+	if open_air:
+		tint = Color(1.5, 1.5, 1.5) if kind == "snow" else Color(1.15, 1.15, 1.18)
+	elif kind == "safe":
+		tint = Color(1.12, 1.08, 1.0)
+	elif is_cold(_cell_center(cell)):
+		# 沒暖氣的室內：地板偏藍（結霜）
+		tint = Color(0.82, 0.95, 1.18)
+	# 大範圍的深淺變化（很緩）：大廳的地板才不會像一張重複的壁紙
+	var k := 1.0 + 0.045 * (sin(cell.x * 0.37 + cell.y * 0.23) + sin(cell.x * 0.13 - cell.y * 0.31 + 1.7))
+	draw_texture_rect_region(tex, rect, src, Color(tint.r * k, tint.g * k, tint.b * k))
+
+
+## 這格的地板材質（SetDresser.FLOOR_TEX 的鍵；安全屋 = "safe"）
+func floor_kind_at(cell: Vector2i) -> String:
+	if is_safe_cell(cell):
+		return "safe"
+	return SetDresser.set_data(set_at(cell)).get("floor", "concrete")
+
+
+func _is_wall_cell(cell: Vector2i) -> bool:
+	return "#=".contains(char_at(cell))
+
+
+func _is_floor_cell(cell: Vector2i) -> bool:
+	return not (SOLID_CHARS + "=~").contains(char_at(cell))
+
+
+## 區域的出入口（換地圖的門）：鋼製門檻板＋兩道警示條
+func _draw_exit_mat(cell: Vector2i) -> void:
+	var p := Vector2(cell) * TILE
+	draw_rect(Rect2(p + Vector2(1, 1), Vector2(TILE - 2, TILE - 2)), Color(0.15, 0.16, 0.19))
+	draw_rect(Rect2(p + Vector2(2, 2), Vector2(TILE - 4, TILE - 4)), Color(0.30, 0.31, 0.35))
+	draw_rect(Rect2(p + Vector2(2, 2), Vector2(TILE - 4, 1)), Color(0.42, 0.44, 0.49))
+	for i in 3:
+		draw_rect(Rect2(p + Vector2(3 + i * 4, 4), Vector2(2, 2)), Color(0.80, 0.64, 0.16))
+		draw_rect(Rect2(p + Vector2(3 + i * 4, TILE - 6), Vector2(2, 2)), Color(0.80, 0.64, 0.16))
+	draw_rect(Rect2(p + Vector2(4, 7), Vector2(TILE - 8, 2)), Color(0.20, 0.21, 0.24))
+
+
+## 地上的漆和金屬件（畫在陰影下面，會被牆腳的陰影壓暗）：
+##   沿牆的標線（依房間種類的顏色：實驗室青綠、倉庫／機房黃色、地毯的鑲邊）、
+##   大型機具周圍的黃黑警示框、室內門的門檻、碼頭的泊位編號、雪地上的車轍。
+func _draw_floor_paint() -> void:
+	for cell in _floor_cells:
+		var ch := char_at(cell)
+		var p := Vector2(cell) * TILE
+		if ch == "+":
+			# 門檻：一條鋼板（門開著的時候看得到）
+			var side := _is_wall_cell(cell + Vector2i.LEFT) or _is_wall_cell(cell + Vector2i.RIGHT)
+			var r := Rect2(p + Vector2(0, 4), Vector2(TILE, 8)) if side else Rect2(p + Vector2(4, 0), Vector2(8, TILE))
+			draw_rect(r, Color(0.20, 0.21, 0.25))
+			draw_rect(Rect2(r.position, Vector2(r.size.x, 1) if side else Vector2(1, r.size.y)), Color(0.38, 0.40, 0.45))
+			draw_rect(Rect2(r.position + (Vector2(0, 7) if side else Vector2(7, 0)), Vector2(r.size.x, 1) if side else Vector2(1, r.size.y)), Color(0.08, 0.08, 0.10))
+			continue
+		var info := SetDresser.set_data(set_at(cell))
+		if info.has("line") and not is_safe_cell(cell):
+			_draw_wall_line(cell, info.line)
+		# 碼頭邊（下面是水）：每六格漆一個泊位編號
+		if char_at(cell + Vector2i.DOWN) == "~" and cell.x % 6 == 3 and ch == ".":
+			SetDresser.draw_text(self, p + Vector2(4, 4), "B%d" % (cell.x / 6 % 9 + 1), Color(0.82, 0.66, 0.16, 0.7))
+	# 機具周圍的警示框
+	for rect in _prop_rects:
+		if rect.size.x < 2 or rect.size.y < 2:
+			continue
+		var forced := prop_override(rect.position)
+		if SetDresser.MACHINES.has(forced) or (forced == "" and SetDresser.set_data(set_at(rect.position)).get("hazard_box", false)
+				and _is_indoor_cell(rect.position)):
+			_draw_hazard_box(rect)
+	_draw_tracks()
+
+
+## 沿著牆、離牆 5px 的一條線（轉角會接起來）。磨損：固定亂數缺幾段。
+func _draw_wall_line(cell: Vector2i, col: Color) -> void:
+	var p := Vector2(cell) * TILE
+	var n := _is_wall_cell(cell + Vector2i.UP)
+	var s := _is_wall_cell(cell + Vector2i.DOWN)
+	var w := _is_wall_cell(cell + Vector2i.LEFT)
+	var e := _is_wall_cell(cell + Vector2i.RIGHT)
+	var worn := absi(hash(cell * 9 + Vector2i(3, area_id.length())))
+	if col.g < 0.7 and worn % 6 == 0:
+		return  # 這一格的漆磨掉了
+	var x0 := 5.0 if w else 0.0
+	var x1 := 11.0 if e else float(TILE)
+	var y0 := 9.0 if n else 0.0
+	var y1 := 4.0 if s else float(TILE)
+	if n:
+		draw_rect(Rect2(p + Vector2(x0, 9), Vector2(x1 - x0, 1)), col)
+	if s:
+		draw_rect(Rect2(p + Vector2(x0, 3), Vector2(x1 - x0, 1)), col)
+	if w:
+		draw_rect(Rect2(p + Vector2(5, y0), Vector2(1, y1 - y0)), col)
+	if e:
+		draw_rect(Rect2(p + Vector2(10, y0), Vector2(1, y1 - y0)), col)
+	# 凸出來的牆角：把兩邊的線接起來
+	if not n and not w and _is_wall_cell(cell + Vector2i(-1, -1)):
+		draw_rect(Rect2(p + Vector2(0, 9), Vector2(6, 1)), col)
+		draw_rect(Rect2(p + Vector2(5, 0), Vector2(1, 9)), col)
+	if not n and not e and _is_wall_cell(cell + Vector2i(1, -1)):
+		draw_rect(Rect2(p + Vector2(10, 9), Vector2(6, 1)), col)
+		draw_rect(Rect2(p + Vector2(10, 0), Vector2(1, 9)), col)
+	if not s and not w and _is_wall_cell(cell + Vector2i(-1, 1)):
+		draw_rect(Rect2(p + Vector2(0, 3), Vector2(6, 1)), col)
+		draw_rect(Rect2(p + Vector2(5, 4), Vector2(1, 12)), col)
+	if not s and not e and _is_wall_cell(cell + Vector2i(1, 1)):
+		draw_rect(Rect2(p + Vector2(10, 3), Vector2(6, 1)), col)
+		draw_rect(Rect2(p + Vector2(10, 4), Vector2(1, 12)), col)
+
+
+## 大型機具周圍的黃黑相間警示框（離機具 3px、只畫在地板上）
+func _draw_hazard_box(rect: Rect2i) -> void:
+	var r := Rect2(Vector2(rect.position) * TILE - Vector2(4, 4), Vector2(rect.size) * TILE + Vector2(8, 8))
+	var yellow := Color(0.82, 0.66, 0.14, 0.8)
+	var black := Color(0.05, 0.05, 0.06, 0.7)
+	var i := 0
+	var x := r.position.x
+	while x < r.end.x:
+		for y in [r.position.y, r.end.y - 2]:
+			if _is_floor_cell(cell_of(Vector2(x + 2, y + 1))):
+				draw_rect(Rect2(x, y, 4, 2), yellow if i % 2 == 0 else black)
+		x += 4
+		i += 1
+	var y2 := r.position.y + 2
+	while y2 < r.end.y - 2:
+		for x2 in [r.position.x, r.end.x - 2]:
+			if _is_floor_cell(cell_of(Vector2(x2 + 1, y2 + 2))):
+				draw_rect(Rect2(x2, y2, 2, 4), yellow if i % 2 == 0 else black)
+		y2 += 4
+		i += 1
+
+
+## 雪地廠區的車轍：挑幾排、幾列，連續七格以上的空地才畫（看起來是車子真的開過的路線）
+func _draw_tracks() -> void:
+	var th := Art.tex("decor/track_h")
+	var tv := Art.tex("decor/track_v")
+	if th == null or tv == null:
+		return
+	var open := {}
+	for cell in _floor_cells:
+		if char_at(cell) == "." and not _is_indoor_cell(cell) and floor_kind_at(cell) == "snow":
+			open[cell] = true
+	if open.is_empty():
+		return
+	var salt := area_id.length()
+	for cell in open:
+		# 每一段從最左（最上）那格開始算長度
+		if absi(hash(Vector2i(cell.y, salt))) % 5 == 0 and not open.has(cell + Vector2i.LEFT):
+			var n := 1
+			while open.has(cell + Vector2i(n, 0)):
+				n += 1
+			if n >= 7:
+				for i in n:
+					draw_texture(th, Vector2(cell + Vector2i(i, 0)) * TILE)
+		if absi(hash(Vector2i(salt + 5, cell.x))) % 6 == 0 and not open.has(cell + Vector2i.UP):
+			var m := 1
+			while open.has(cell + Vector2i(0, m)):
+				m += 1
+			if m >= 7:
+				for i in m:
+					draw_texture(tv, Vector2(cell + Vector2i(0, i)) * TILE)
+
+
+## 牆、家具旁邊的地板陰影（光從左上來：右邊、下面的地板影子比較長），讓東西看起來「站」在地上。
+## 牆的影子比家具的深；牆角再壓一點（環境遮蔽）；家具腳下另外有一塊貼地的影子；戶外的牆腳積雪。
 func _draw_floor_shadows() -> void:
 	for cell in _floor_cells:
 		var p := Vector2(cell) * TILE
-		var n := OCCLUDER_CHARS.contains(char_at(cell + Vector2i.UP))
-		var w := OCCLUDER_CHARS.contains(char_at(cell + Vector2i.LEFT))
+		var cn := char_at(cell + Vector2i.UP)
+		var cw := char_at(cell + Vector2i.LEFT)
+		var n := OCCLUDER_CHARS.contains(cn)
+		var w := OCCLUDER_CHARS.contains(cw)
 		var e := OCCLUDER_CHARS.contains(char_at(cell + Vector2i.RIGHT))
 		var nw := OCCLUDER_CHARS.contains(char_at(cell + Vector2i(-1, -1)))
 		if n:
-			for i in 5:
-				draw_rect(Rect2(p + Vector2(0, i), Vector2(TILE, 1)), Color(0, 0, 0.03, 0.42 - i * 0.08))
+			var deep := cn == "#"
+			var rows := 6 if deep else 4
+			for i in rows:
+				draw_rect(Rect2(p + Vector2(0, i), Vector2(TILE, 1)), Color(0, 0, 0.03, (0.46 if deep else 0.34) * (1.0 - float(i) / rows)))
 		if w:
-			for i in 6:
-				draw_rect(Rect2(p + Vector2(i, 0), Vector2(1, TILE)), Color(0, 0, 0.03, 0.36 - i * 0.06))
+			var deep_w := cw == "#"
+			var cols := 5 if deep_w else 4
+			for i in cols:
+				draw_rect(Rect2(p + Vector2(i, 0), Vector2(1, TILE)), Color(0, 0, 0.03, (0.36 if deep_w else 0.28) * (1.0 - float(i) / cols)))
 		elif nw and not n:
-			draw_colored_polygon(PackedVector2Array([p, p + Vector2(6, 0), p + Vector2(0, 6)]), Color(0, 0, 0.03, 0.3))
+			draw_colored_polygon(PackedVector2Array([p, p + Vector2(6, 0), p + Vector2(0, 6)]), Color(0, 0, 0.03, 0.28))
 		if e:
 			draw_rect(Rect2(p + Vector2(TILE - 2, 0), Vector2(2, TILE)), Color(0, 0, 0.03, 0.18))
+		if n and w:
+			draw_rect(Rect2(p, Vector2(4, 4)), Color(0, 0, 0.03, 0.2))
+		if n and e:
+			draw_rect(Rect2(p + Vector2(TILE - 4, 0), Vector2(4, 4)), Color(0, 0, 0.03, 0.16))
+		# 戶外的雪地：牆腳堆一道被風吹過來的積雪
+		if (cn == "#" or char_at(cell + Vector2i.DOWN) == "#") and not _is_indoor_cell(cell) and floor_kind_at(cell) == "snow":
+			var h := absi(hash(cell * 5 + Vector2i(1, 2)))
+			var snow := Color(0.84, 0.88, 0.95, 0.5)
+			if cn == "#":
+				for i in 4:
+					draw_rect(Rect2(p + Vector2(i * 4, 0), Vector2(4, 1 + (h >> (i * 2)) % 3)), snow)
+			else:
+				for i in 4:
+					var hh := 1 + (h >> (i * 2 + 8)) % 3
+					draw_rect(Rect2(p + Vector2(i * 4, 8 - hh), Vector2(4, hh)), snow)
+	# 家具腳下的影子：單格的小東西（燈柱、盆栽）是一小塊，大型物件是整塊、前緣比較深
+	for rect in _prop_rects:
+		var r := Rect2(Vector2(rect.position) * TILE, Vector2(rect.size) * TILE)
+		if rect.size.x == 1:
+			for y in range(rect.position.y, rect.end.y):
+				var q := Vector2(rect.position.x, y) * TILE
+				draw_rect(Rect2(q + Vector2(2, 8), Vector2(12, 7)), Color(0, 0, 0.03, 0.3))
+				draw_rect(Rect2(q + Vector2(1, 10), Vector2(14, 5)), Color(0, 0, 0.03, 0.28))
+		else:
+			draw_rect(r.grow_individual(-1, -3, -1, 0), Color(0, 0, 0.03, 0.34))
+			draw_rect(Rect2(r.position + Vector2(0, r.size.y - 6), Vector2(r.size.x, 6)), Color(0, 0, 0.03, 0.26))
 
 
 ## 戶外區域裡的室內空間（例如倉庫）：地板畫成室內的樣子
@@ -293,8 +494,22 @@ func set_at(cell: Vector2i) -> String:
 func floor_tex_at(cell: Vector2i) -> Texture2D:
 	if is_safe_cell(cell):
 		return Art.tex("tiles/floor_lab")
-	var d := SetDresser.set_data(set_at(cell))
-	return Art.tex(SetDresser.FLOOR_TEX.get(d.get("floor", "concrete"), "tiles/floor_concrete"))
+	return Art.tex(SetDresser.FLOOR_TEX.get(floor_kind_at(cell), "tiles/floor_slab"))
+
+
+## SetDresser 放家具時登記：這張圖屬於哪一格（房間黑幕用）
+func register_prop(node: CanvasItem, cell: Vector2i) -> void:
+	_prop_nodes.append([node, cell])
+
+
+## 只顯示這些房間裡的家具（rooms 是空的 = 全部顯示）。RoomFog 在看得到的房間變了的時候呼叫。
+func show_prop_rooms(rooms: Array) -> void:
+	if rooms == _props_shown_for:
+		return
+	_props_shown_for = rooms.duplicate()
+	for entry in _prop_nodes:
+		var node: CanvasItem = entry[0]
+		node.visible = rooms.is_empty() or not room_of.has(entry[1]) or rooms.has(room_of[entry[1]])
 
 
 ## 牆的材質：看牆旁邊的地板是哪種房間（下面 > 上面 > 左右）
@@ -671,27 +886,37 @@ func _build_solids() -> void:
 	_structure_layer.follow_viewport_enabled = true
 	add_child(_structure_layer)
 
+	# 牆頂：貼圖已經是最後的顏色；外框不畫（稜線、牆面由 WallFaces 畫）
+	var caps := {}
 	for rect in _merge_rects("#"):
 		var wall := _add_solid(rect, WALL_COLOR, WALL_EDGE_COLOR, WALL_RAISE)
+		(_structure_layer.get_child(_structure_layer.get_child_count() - 1) as CanvasItem).visible = false
 		var style := wall_style_at(rect.position + Vector2i(0, rect.size.y - 1))
-		var wall_tex := Art.tex(SetDresser.WALL_TEX.get(style, "tiles/wall_concrete"))
+		var wall_tex := Art.tex(SetDresser.WALL_TEX.get(style, "tiles/wall_slab"))
 		if wall_tex:
 			wall.texture = wall_tex
 			wall.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-			wall.color = Color(0.45, 0.47, 0.54) if style == "concrete" else Color(0.62, 0.64, 0.7)
+			wall.color = Color.WHITE
+		# 牆的北邊（後面）是家具、置物櫃：牆頂凸出來的那一段要補畫在家具上面
+		for x in range(rect.position.x, rect.end.x):
+			if "CH".contains(char_at(Vector2i(x, rect.position.y - 1))):
+				caps[Vector2i(x, rect.position.y)] = wall_tex
 	# 家具、設備：依房間種類擺（SetDresser）。y 排序：前面的蓋住後面的。
 	var props := Node2D.new()
 	props.name = "Props"
 	props.y_sort_enabled = true
 	# 這個圖層不受黑暗影響（地形永遠看得懂），所以家具本身壓暗一點，才不會在暗的房間裡發亮
 	props.modulate = Color(0.62, 0.65, 0.74)
-	var prop_rects := _merge_rects("C")
-	for rect in prop_rects:
+	_prop_rects = _merge_rects("C")
+	var dressed: Array[Rect2i] = []
+	for rect in _prop_rects:
 		var base := _add_solid(rect, CABINET_COLOR, CABINET_EDGE_COLOR)
 		var base_outline: CanvasItem = _structure_layer.get_child(_structure_layer.get_child_count() - 1)
-		base.color = Color(0.05, 0.055, 0.07, 0.55)  # 家具底下的影子
+		# 有圖的家具：底下不畫色塊（地板和貼地的影子畫在 _draw），不然小東西旁邊會多一塊黑方塊
+		base.visible = false
 		base_outline.visible = false
 		if SetDresser.dress(self, rect, props) == 0:
+			base.visible = true
 			base_outline.visible = true
 			if SetDresser.set_data(set_at(rect.position)).get("rocks", false):
 				base.color = ROCK_COLOR.darkened(0.35)
@@ -699,15 +924,33 @@ func _build_solids() -> void:
 			else:
 				base.color = CABINET_COLOR
 				_add_furniture(rect)
-	_structure_layer.add_child(props)
+		else:
+			dressed.append(rect)
+	_prop_rects = dressed
 	for rect in _merge_rects("="):
 		_add_window(rect)
 	for rect in _merge_rects("~"):
 		_add_water(rect)
+	# 牆面畫在家具下面：靠牆的高櫃子、地標會蓋住後面的牆面（櫃子在牆前面）
 	var faces := WallFaces.new()
 	faces.name = "WallFaces"
 	_structure_layer.add_child(faces)
 	faces.setup(self)
+	_structure_layer.add_child(props)
+	for rect in _merge_rects("H"):
+		_add_solid(rect, LOCKER_COLOR, LOCKER_EDGE_COLOR)
+		_add_prop_sprites(rect, Art.tex("props/locker"))
+	var wall_caps := WallFaces.new()
+	wall_caps.name = "WallCaps"
+	wall_caps.mode = WallFaces.Mode.CAPS
+	wall_caps.caps = caps
+	_structure_layer.add_child(wall_caps)
+	wall_caps.setup(self)
+	# 裝飾用的光暈（壁燈、螢幕、警示燈）：加色疊在最上面
+	var accents := LightAccents.new()
+	accents.name = "LightAccents"
+	_structure_layer.add_child(accents)
+	accents.setup(self, faces)
 	var front := CanvasLayer.new()
 	front.name = "OverWall"
 	front.layer = 1
@@ -716,9 +959,6 @@ func _build_solids() -> void:
 	var over := OverWall.new()
 	over.level = self
 	front.add_child(over)
-	for rect in _merge_rects("H"):
-		_add_solid(rect, LOCKER_COLOR, LOCKER_EDGE_COLOR)
-		_add_prop_sprites(rect, Art.tex("props/locker"))
 
 
 ## 室內的主題（區域資料 theme）：決定家具、地板痕跡、牆上的細節
@@ -780,22 +1020,46 @@ func _add_furniture(cell_rect: Rect2i) -> void:
 			_structure_layer.add_child(s)
 
 
-## 地板的痕跡（紙張、血跡、電線、鐵格板、油漬……依主題），畫在地板上、受光影響
+## 地板的痕跡（紙張、血跡、電線、鐵格板、油漬……依房間種類），畫在地板上、受光影響。
+## 有原因的痕跡優先：通往戶外的門口有吹進來的雪和濕腳印、沒暖氣的房間結霜、碼頭邊積水；其他才是零星的雜物。
 func _draw_floor_decals() -> void:
 	for cell in _floor_cells:
 		if char_at(cell) != "." or is_safe_cell(cell):
 			continue
+		var at := Vector2(cell) * TILE
+		var h := absi(hash(cell * 7 + Vector2i(area_id.length() * 13, 3)))
+		var indoor := _is_indoor_cell(cell)
+		if indoor:
+			# 旁邊就是戶外：雪從門口吹進來
+			var blown := false
+			for d in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				var nb: Vector2i = cell + d
+				if _is_floor_cell(nb) and not _is_indoor_cell(nb) and floor_kind_at(nb) == "snow":
+					blown = true
+			if blown:
+				_decal("snow_blown", at + Vector2(0, 3))
+				continue
+			if is_cold(_cell_center(cell)) and h % 100 < 5:
+				_decal("frost" if h % 3 != 0 else "bootprints", at)
+				continue
+		elif char_at(cell + Vector2i.DOWN) == "~" and h % 100 < 30:
+			_decal("puddle", at + Vector2(0, 3))
+			continue
 		var set_info := SetDresser.set_data(set_at(cell))
 		# 戶外（雪地、甲板）只用那種地面自己的痕跡，不放室內的警示線、鐵格板
-		var pool: Array = set_info.get("decals", [] if not _is_indoor_cell(cell) else THEME_DECALS.get(theme_at(cell), []))
-		if pool.is_empty():
+		var pool: Array = set_info.get("decals", [] if not indoor else THEME_DECALS.get(theme_at(cell), []))
+		if pool.is_empty() or h % 100 >= 9:
 			continue
-		var h := absi(hash(cell * 7 + Vector2i(area_id.length() * 13, 3)))
-		if h % 100 >= 10:
-			continue
-		var tex := Art.tex("decor/" + pool[(h / 100) % pool.size()])
-		if tex:
-			draw_texture(tex, Vector2(cell) * TILE)
+		var pick: String = pool[(h / 100) % pool.size()]
+		if pick == "stain" and not (_is_floor_cell(cell + Vector2i.RIGHT) and _is_floor_cell(cell + Vector2i.DOWN)):
+			continue  # 大片的污漬要有兩格寬的空地
+		_decal(pick, at)
+
+
+func _decal(decal: String, at: Vector2) -> void:
+	var tex := Art.tex("decor/" + decal)
+	if tex:
+		draw_texture(tex, at + Vector2(maxf(0.0, floorf((TILE - tex.get_width()) * 0.5)), 0) if tex.get_width() < TILE else at)
 
 
 ## 戶外的 C：每格一顆積雪的岩石（三種隨機，固定亂數），底下的色塊當成岩縫
@@ -891,16 +1155,28 @@ func _add_water(cell_rect: Rect2i) -> void:
 func _draw_water() -> void:
 	for cell in _water_cells:
 		var p := Vector2(cell) * TILE
-		draw_rect(Rect2(p, Vector2(TILE, TILE)), Color(0.035, 0.075, 0.105))
+		# 離岸越遠越深
+		var depth := 0
+		while depth < 3 and char_at(cell + Vector2i(0, -depth - 1)) == "~":
+			depth += 1
+		var base := Color(0.045, 0.095, 0.13).lerp(Color(0.02, 0.045, 0.07), depth / 3.0)
+		draw_rect(Rect2(p, Vector2(TILE, TILE)), base)
 		var h := absi(hash(cell * 11))
-		# 水面的反光（固定的短橫線）
-		draw_rect(Rect2(p + Vector2(h % 9, 3 + (h / 9) % 4), Vector2(5, 1)), Color(0.10, 0.20, 0.26))
-		draw_rect(Rect2(p + Vector2((h / 37) % 10, 10 + (h / 370) % 4), Vector2(4, 1)), Color(0.07, 0.15, 0.20))
-		# 岸邊：碼頭的水泥邊緣和它在水裡的影子
+		# 水面的反光（固定的短橫線，兩種亮度）
+		draw_rect(Rect2(p + Vector2(h % 9, 3 + (h / 9) % 4), Vector2(5, 1)), base.lightened(0.14))
+		draw_rect(Rect2(p + Vector2((h / 37) % 10, 10 + (h / 370) % 4), Vector2(4, 1)), base.lightened(0.08))
+		if h % 4 == 0:
+			draw_rect(Rect2(p + Vector2((h / 5) % 8, 7), Vector2(7, 1)), Color(0.20, 0.34, 0.42, 0.5))
+		# 岸邊：碼頭的水泥邊緣（亮的上緣、黃黑警示條）和它在水裡的影子、繫船的鐵環
 		if char_at(cell + Vector2i.UP) != "~":
-			draw_rect(Rect2(p, Vector2(TILE, 3)), Color(0.34, 0.36, 0.40))
+			draw_rect(Rect2(p, Vector2(TILE, 3)), Color(0.30, 0.32, 0.36))
+			draw_rect(Rect2(p, Vector2(TILE, 1)), Color(0.42, 0.44, 0.49))
 			draw_rect(Rect2(p + Vector2(0, 3), Vector2(TILE, 1)), Color(0.86, 0.68, 0.16) if (cell.x % 2 == 0) else Color(0.10, 0.10, 0.11))
-			draw_rect(Rect2(p + Vector2(0, 4), Vector2(TILE, 4)), Color(0.01, 0.03, 0.05))
+			draw_rect(Rect2(p + Vector2(0, 4), Vector2(TILE, 5)), Color(0.01, 0.03, 0.05))
+			draw_rect(Rect2(p + Vector2(0, 9), Vector2(TILE, 1)), Color(0.01, 0.03, 0.05, 0.5))
+			if cell.x % 4 == 1:
+				draw_rect(Rect2(p + Vector2(6, 5), Vector2(4, 3)), Color(0.34, 0.24, 0.16))
+				draw_rect(Rect2(p + Vector2(7, 6), Vector2(2, 1)), Color(0.01, 0.03, 0.05))
 
 
 ## 窗戶：玻璃（看得穿、光透得過去），走不過去
@@ -928,6 +1204,20 @@ func _add_window(cell_rect: Rect2i) -> void:
 	glass.color = Color(0.55, 0.75, 0.9, 0.35)
 	glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_structure_layer.add_child(glass)
+	# 窗框上緣的亮邊、窗台、玻璃上一道反光、每格一根窗櫺
+	var bars: Array = [[frame.position, Vector2(frame.size.x, 1), Color(0.50, 0.54, 0.62)],
+		[rect.position + Vector2(0, rect.size.y - 3), Vector2(rect.size.x, 3), Color(0.12, 0.13, 0.16)],
+		[rect.position + Vector2(0, rect.size.y - 4), Vector2(rect.size.x, 1), Color(0.40, 0.43, 0.50)],
+		[glass.position + Vector2(1, 1), Vector2(glass.size.x - 2, 1), Color(0.80, 0.92, 1.0, 0.35)]]
+	for i in range(1, cell_rect.size.x):
+		bars.append([Vector2(rect.position.x + i * TILE - 1, glass.position.y), Vector2(2, glass.size.y), Color(0.2, 0.22, 0.26)])
+	for b in bars:
+		var bar := ColorRect.new()
+		bar.position = b[0]
+		bar.size = b[1]
+		bar.color = b[2]
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_structure_layer.add_child(bar)
 
 
 ## 地圖上這格的符號（超出地圖 = 牆）

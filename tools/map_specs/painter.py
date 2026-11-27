@@ -44,6 +44,56 @@ class Map:
     def block(self, x, y, w, h, ch="C"):
         return self.room(x, y, w, h, ch)
 
+    # ── 以下是 redesign_a.py 用的小工具 ──
+    @classmethod
+    def parse(cls, text):
+        """把一張直接畫好的文字地圖（多行字串）變成 Map；每列一樣長才收。"""
+        rows = [r for r in text.split("\n") if r.strip() != ""]
+        for y, r in enumerate(rows):
+            assert len(r) == len(rows[0]), "第 %d 列長度 %d（應該 %d）：%s" % (y, len(r), len(rows[0]), r)
+        m = cls(len(rows[0]), len(rows))
+        m.g = [list(r) for r in rows]
+        return m
+
+    def find(self, ch, n=0):
+        """第 n 個（由上到下、由左到右）ch 的座標。"""
+        i = 0
+        for y, row in enumerate(self.g):
+            for x, c in enumerate(row):
+                if c == ch:
+                    if i == n:
+                        return (x, y)
+                    i += 1
+        raise KeyError("地圖上沒有第 %d 個 %s" % (n, ch))
+
+    def count(self, ch):
+        return sum(row.count(ch) for row in self.g)
+
+    def rects(self, ch="C"):
+        """和 Level._merge_rects 一樣的合併規則：回傳 [(x, y, w, h)]，用來確認大型物件的那一塊大小對不對。"""
+        result, open_ = [], {}
+        for y, row in enumerate(self.g):
+            runs, x = [], 0
+            while x < self.w:
+                if row[x] == ch:
+                    s = x
+                    while x < self.w and row[x] == ch:
+                        x += 1
+                    runs.append((s, x))
+                else:
+                    x += 1
+            nxt = {}
+            for run in runs:
+                if run in open_:
+                    i = open_[run]
+                    result[i][3] += 1
+                    nxt[run] = i
+                else:
+                    result.append([run[0], y, run[1] - run[0], 1])
+                    nxt[run] = len(result) - 1
+            open_ = nxt
+        return [tuple(r) for r in result]
+
     def rows(self):
         return ["".join(r) for r in self.g]
 
