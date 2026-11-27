@@ -92,6 +92,7 @@ func _run() -> void:
 	await _test_aftersignal()
 	await _test_mgs_systems()
 	await _test_real_maps()
+	_test_radio_calls()
 	await _test_survival()
 
 	print("")
@@ -1136,6 +1137,8 @@ func _test_title() -> void:
 		texts.append_array([u.label, u.sent, u.reply])
 	texts.append_array(UplinkMessages.INTRO)
 	texts.append_array(UplinkMessages.HOLD_REPLY)
+	for call in RadioCalls.DATA:
+		texts.append_array(call.lines)
 	for id in Cutscenes.DATA:
 		for step in Cutscenes.DATA[id]:
 			for key in ["caption", "say", "text", "sub", "name", "role", "credit"]:
@@ -3075,3 +3078,15 @@ func _test_real_maps() -> void:
 	WorldState.new_game()
 	await _main.load_area(Areas.START_AREA, Areas.START_ENTRY, false)
 	_enable_all()
+
+
+## 主線無線電通話：完成主線任務之後，在無線電聽到柯瓦奇的話，每段只播一次
+func _test_radio_calls() -> void:
+	var ids := Missions.DATA.map(func(m): return m.id)
+	_check(RadioCalls.DATA.all(func(c): return c.after in ids), "radio calls: every call follows a real mission")
+	WorldState.data.flags.erase("call:find_shelter")
+	var done_before := Missions.is_done("find_shelter")
+	var first := RadioCalls.receive()
+	var second := RadioCalls.receive()
+	_check(second.is_empty(), "radio calls: each call plays once")
+	_check(done_before == first.any(func(t): return t.contains("Frostchime")), "radio calls: only after the mission is done")

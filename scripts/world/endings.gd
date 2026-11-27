@@ -27,7 +27,7 @@ const DATA := {
 			"The rescue flight comes on the third morning. Blankets, hot tea, a medic who won't stop talking.",
 			"They take the survivors, the logs, the sealed sample cases. Nobody opens the sample cases.",
 			"Somewhere over the sea, behind the cargo net, something begins to click.",
-			"2099. The city sings with one voice, and every child learns the name of the pilot who brought the song home.",
+			"2099. The city sings with one voice, and every child learns the name of the courier who brought the song home.",
 		],
 	},
 	"last_light": {

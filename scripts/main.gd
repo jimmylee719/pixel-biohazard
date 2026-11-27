@@ -11,7 +11,7 @@ const OUTDOOR_DARKNESS := Color(0.2, 0.22, 0.3)
 ## 安全屋：溫暖、比較亮，讓玩家感到安心（出門那一刻的落差也是恐怖的一部分）
 const SAFE_DARKNESS := Color(0.34, 0.28, 0.22)
 const TITLE_SCENE := "res://scenes/title.tscn"
-const KOVAC_INTRO := ("KOVAC: \"...is anyone on this channel? This is Dr. Ina Kovac, I left Greycrow two weeks ago. If you're in the clean room, you're safe. Listen carefully.\"")
+const KOVAC_INTRO := ("KOVAC: \"Shen. I left Greycrow on the last flight out, two weeks ago - day three. I'm the one who named this thing. Find the director's records upstairs. I need to know what he did after I left.\"")
 const SURVIVAL_MENU_SCENE := "res://scenes/survival_menu.tscn"
 const ENEMY_SCENES := {
 	"patroller": preload("res://scenes/enemy.tscn"),
@@ -1411,6 +1411,7 @@ func _on_power_restored() -> void:
 	level.sync_from_state()
 	_apply_darkness()
 	show_message(tr("The generator roars to life. Lights flicker on across the station - and the heating with them."), true)
+	play_cutscene("power_on")
 
 
 func _end_attempt(text: String, color: Color, new_game := false, delay := RESET_DELAY) -> void:
@@ -1739,6 +1740,8 @@ func _on_radio_used() -> void:
 	if not WorldState.has_flag("radio:intro"):
 		WorldState.set_flag("radio:intro")
 		_radio_transcript.append(tr(KOVAC_INTRO))
+	for text in RadioCalls.receive():
+		_radio_transcript.append(tr(text))
 	for text in Missions.receive_radio():
 		_radio_transcript.append(tr(text))
 	WorldState.save_checkpoint(current_area_id(), "radio")

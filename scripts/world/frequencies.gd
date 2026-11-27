@@ -7,7 +7,7 @@
 ##   label    記在備忘錄裡的名稱
 ##   lines    聽到的內容（依序顯示）
 ##   reveal   聽到後設定的旗標（讓地圖上的隱藏物品出現）
-##   known    一開始就知道（主角是飛行員，知道航空緊急頻率）
+##   known    一開始就知道（主角以前是搜救直升機副駕駛，認得國際求救頻率 121.50；補給艇的求救信標也用它導引）
 ## 頻率線索放在地圖上的錄音帶、筆記裡（Areas 的 learn 欄位）；沒有任何線索的頻率只能靠訊號強度慢慢找。
 class_name Frequencies
 extends RefCounted
@@ -23,11 +23,11 @@ const SIGNAL_RANGE := 60
 
 const DATA := [
 	{
-		"freq": 12150, "id": "guard", "label": "Air emergency",
+		"freq": 12150, "id": "guard", "label": "Distress",
 		"known": true,
 		"lines": [
-			"[121.50] ...EMERGENCY LOCATOR. AIRCRAFT B-77031. POSITION GREYCROW ISLAND SOUTH SHORE...",
-			"That's your own beacon. Under it, fainter: a second one. B-6204 - the supply flight that vanished three weeks ago.",
+			"[121.50] ...DISTRESS BEACON. LAUNCH KITTIWAKE THREE. POSITION GREYCROW ISLAND, SEA GATE...",
+			"That's your own beacon. Under it, fainter: a second one. B-6204 - the supply flight that vanished nine days ago.",
 		],
 	},
 	{

@@ -20,7 +20,7 @@ const DATA := [
 	{
 		"id": "enter_station", "main": true,
 		"title": "Get inside the station",
-		"desc": "The blizzard will kill you out here. Find a way into the research station.",
+		"desc": "Nobody met the launch. Go up from the sea gate and find a way into the research station.",
 		"steps": [{"type": "enter_area", "target": "station_1f"}],
 	},
 	{
@@ -35,7 +35,7 @@ const DATA := [
 	{
 		"id": "find_stairs", "main": true, "requires": ["find_shelter"],
 		"title": "Reach the upper floor",
-		"desc": "Kovac says the antenna controls are upstairs. The stairs are in the lounge.",
+		"desc": "Kovac wants the director's records. His office is on the upper floor - the stairs are off the main hall.",
 		"steps": [{"type": "enter_area", "target": "station_2f"}],
 	},
 	{

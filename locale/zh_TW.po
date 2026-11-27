@@ -105,8 +105,8 @@ msgstr "彼得（潦草的字跡）：「床鋪小屋我一直開著暖氣，留
 msgid "Get inside the station"
 msgstr "進入研究站"
 
-msgid "The blizzard will kill you out here. Find a way into the research station."
-msgstr "在外面會被暴風雪凍死。找路進入研究站。"
+msgid "Nobody met the launch. Go up from the sea gate and find a way into the research station."
+msgstr "沒有人來接船。從海閘碼頭往上走，找路進入研究站。"
 
 msgid "Find somewhere safe"
 msgstr "找到安全的地方"
@@ -117,8 +117,8 @@ msgstr "走廊旁邊一定有密封的房間。找到它，用無線電聯絡。
 msgid "Reach the upper floor"
 msgstr "到達樓上"
 
-msgid "Kovac says the antenna controls are upstairs. The stairs are in the lounge."
-msgstr "柯瓦奇說天線的控制在樓上。樓梯在交誼廳。"
+msgid "Kovac wants the director's records. His office is on the upper floor - the stairs are off the main hall."
+msgstr "柯瓦奇要站長的紀錄。站長室在樓上——樓梯在大廳旁邊。"
 
 msgid "Halvorsen's records"
 msgstr "哈爾沃森的紀錄"
@@ -240,14 +240,14 @@ msgstr "海上的救援隊後來回報：灰鴉島上亮起一道強光。然後
 msgid "You know before the lift stops: the cold in your blood isn't the weather anymore."
 msgstr "升降機還沒停下，你就知道了：血裡的寒意，已經不是天氣造成的。"
 
-msgid "Air emergency"
-msgstr "航空緊急頻率"
+msgid "Distress"
+msgstr "國際求救頻率"
 
-msgid "[121.50] ...EMERGENCY LOCATOR. AIRCRAFT B-77031. POSITION GREYCROW ISLAND SOUTH SHORE..."
-msgstr "[121.50] ……緊急定位信標。航空器 B-77031。位置：灰鴉島南岸……"
+msgid "[121.50] ...DISTRESS BEACON. LAUNCH KITTIWAKE THREE. POSITION GREYCROW ISLAND, SEA GATE..."
+msgstr "[121.50] ……求救信標。補給艇「三趾鷗三號」。位置：灰鴉島，海閘碼頭……"
 
-msgid "That's your own beacon. Under it, fainter: a second one. B-6204 - the supply flight that vanished three weeks ago."
-msgstr "那是你自己的信標。底下還有一個更微弱的：B-6204——三週前失蹤的那班補給機。"
+msgid "That's your own beacon. Under it, fainter: a second one. B-6204 - the supply flight that vanished nine days ago."
+msgstr "那是你自己的信標。底下還有一個更微弱的：B-6204——九天前失蹤的那班補給機。"
 
 msgid "Mendez"
 msgstr "曼德茲"
@@ -597,8 +597,8 @@ msgstr "發訊"
 msgid "Close"
 msgstr "關閉"
 
-msgid "KOVAC: \"...is anyone on this channel? This is Dr. Ina Kovac, I left Greycrow two weeks ago. If you're in the clean room, you're safe. Listen carefully.\""
-msgstr "柯瓦奇：「……這個頻道有人嗎？我是伊娜．柯瓦奇博士，兩週前離開了灰鴉。如果你在無菌室裡，你是安全的。仔細聽好。」"
+msgid "KOVAC: \"Shen. I left Greycrow on the last flight out, two weeks ago - day three. I'm the one who named this thing. Find the director's records upstairs. I need to know what he did after I left.\""
+msgstr "柯瓦奇：「沈若寧。我兩個星期前搭最後一班飛機離開灰鴉島——事件第三天。這東西的名字是我取的。去樓上找站長的紀錄。我要知道我走了之後他做了什麼。」"
 
 msgid "YOU DIED"
 msgstr "你死了"
@@ -1113,8 +1113,8 @@ msgstr "壓在獵槍下的紙條：「追著狗下來的。牠們已經不是狗
 msgid "LAB LOG, East Wing: \"Sealed the wing on the director's order. Twelve still inside. He says the cold will keep them asleep. He says a lot of things.\""
 msgstr "東翼實驗日誌：「依站長命令封閉東翼。裡面還有十二個人。他說寒冷會讓他們一直睡著。他說的話可多了。」"
 
-msgid "MEMO - A. KOVAC (dated before she left): \"It isn't a disease. It's a hibernation strategy that uses us as the burrow. Whoever is paying for this already knows that.\""
-msgstr "備忘錄——A．柯瓦奇（日期在她離開之前）：「這不是疾病。這是一種冬眠策略，而我們是它的巢穴。出錢的人早就知道了。」"
+msgid "MEMO - I. KOVAC (dated before she left): \"It isn't a disease. It's a hibernation strategy that uses us as the burrow. Whoever is paying for this already knows that.\""
+msgstr "備忘錄——I．柯瓦奇（日期在她離開之前）：「這不是疾病。這是一種冬眠策略，而我們是它的巢穴。出錢的人早就知道了。」"
 
 msgid "Shen"
 msgstr "沈若寧"
@@ -1395,11 +1395,11 @@ msgstr "［已有］"
 msgid "[KOVAC]"
 msgstr "［柯瓦奇］"
 
-msgid "...anyone at North Latitude? This is Ana Kovac, on the mainland relay. Is anyone still alive up there?"
+msgid "...anyone at North Latitude? This is Ina Kovac, on the mainland relay. Is anyone still alive up there?"
 msgstr "……北緯站還有人嗎？我是艾娜．柯瓦奇，在本土的中繼站。那邊還有人活著嗎？"
 
-msgid "Supply pilot. Shen Ruoning. Your station is full of people who aren't people anymore."
-msgstr "補給駕駛，沈若寧。你們的研究站裡都是……已經不是人的人。"
+msgid "Supply courier. Shen Ruoning. Your station is full of people who aren't people anymore."
+msgstr "補給運送員，沈若寧。你們的研究站裡都是……已經不是人的人。"
 
 msgid "Then listen carefully. They can't see you. They hear everything. Stay quiet, stay cold - and stay away from the drill shaft."
 msgstr "那就仔細聽好。它們看不見你，但什麼都聽得到。保持安靜、待在冷的地方——還有，離鑽探井遠一點。"
@@ -1614,8 +1614,8 @@ msgstr "他們的指揮部。圍牆、卡車、崗哨——裡面某處，就是
 msgid "If anyone on this island knows what's really going on, it's in there."
 msgstr "如果這座島上有人知道到底發生了什麼事，答案就在裡面。"
 
-msgid "Barracks, an armory, holding cells. They built a whole base in a month."
-msgstr "寢室、軍械庫、拘留牢房。他們一個月就蓋出一整座基地。"
+msgid "Barracks, an armory, holding cells. This concrete is sixty years old - they were here long before the outbreak."
+msgstr "寢室、軍械庫、拘留牢房。這些水泥有六十年了——疫情爆發之前，他們早就在這裡。"
 
 msgid "...and a lab. With the same thing in it as the station."
 msgstr "……還有實驗室。裡面的東西跟研究站的一樣。"
@@ -1635,8 +1635,8 @@ msgstr "作戰白板：「第一優先：完整回收鑽探岩芯。第二優先
 msgid "UNSENT LETTER, commander's desk: \"They told us it was a chemical spill. Then they told us to keep the infected alive. Then they told us the infected were the cargo. I have stopped asking what we are guarding.\""
 msgstr "指揮官桌上沒寄出的信：「他們說是化學外洩。然後要我們讓感染者活著。然後又說感染者就是貨物。我已經不再問我們到底在守什麼了。」"
 
-msgid "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Specimens: four live, crated. Aircraft: one, grounded by ice. The supply pilot's helicopter.\""
-msgstr "通訊紀錄：「本土每六小時要一次人數回報。研究站倖存者：不計。樣本：活體四個，已裝箱。飛機：一架，結冰停飛。是那個補給飛行員的直升機。」"
+msgid "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Specimens: four live, crated. Vessels: one launch, iced in at the sea gate. The courier is not accounted for.\""
+msgstr "通訊紀錄：「本土每六小時要一次人數回報。研究站倖存者：不計。樣本：活體四個，已裝箱。船：補給艇一艘，凍在海閘碼頭。運送員下落不明。」"
 
 msgid "SCRATCHED INTO THE CELL WALL: \"I'm not sick. I told them I'm not sick. They took blood every day and they never told me the results. If you read this - they're afraid of the cold room. Ask why.\""
 msgstr "刻在牢房牆上的字：「我沒生病。我跟他們說了我沒生病。他們每天抽血，從來不告訴我結果。如果你看到這個——他們很怕冷藏室。問問為什麼。」"
@@ -1678,7 +1678,7 @@ msgid "UNSENT LETTER, commander's desk: \"They told us it was a chemical spill. 
 msgstr "指揮官桌上沒寄出的信：「他們說是化學外洩。然後要我們讓被覆寫的人活著。然後又說被覆寫的人就是貨物。我已經不再問我們到底在守什麼了。」"
 
 msgid "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Receivers: four live, crated, ears taped. Aircraft: one, grounded by ice. The supply pilot's helicopter.\""
-msgstr "通訊紀錄：「本土每六小時要一次人數回報。研究站倖存者：不計。接收體：活的四個，已裝箱，耳朵貼上膠帶。飛機：一架，結冰停飛。是那個補給飛行員的直升機。」"
+msgstr "通訊紀錄：「本土每六小時要一次人數回報。研究站倖存者：不計。接收體：活的四個，已裝箱，耳朵貼上膠帶。船：補給艇一艘，凍在海閘碼頭。運送員下落不明。」"
 
 msgid "RECEIVER REPORT S-4: \"Subject keeps singing at 126.05, the same pitch as the core. When the two are in the same room, both get louder. Recommend they are never shipped together.\""
 msgstr "接收體報告 S-4：「受試體一直在 126.05 唱歌，和岩芯是同一個音高。兩者在同一個房間時，聲音都會變大。建議絕對不要一起運送。」"
@@ -1719,8 +1719,8 @@ msgstr "他們帶走了倖存者、紀錄，還有封好的錄音帶箱。沒有
 msgid "Somewhere over the sea, behind the cargo net, a tape machine starts turning on its own."
 msgstr "海上某處，貨網後面，一台錄音機自己開始轉了起來。"
 
-msgid "2099. The city sings with one voice, and every child learns the name of the pilot who brought the song home."
-msgstr "2099 年。那座城市用同一個聲音歌唱，每個孩子都學過那個把歌帶回家的飛行員的名字。"
+msgid "2099. The city sings with one voice, and every child learns the name of the courier who brought the song home."
+msgstr "2099 年。那座城市用同一個聲音歌唱，每個孩子都學過那個把歌帶回家的運送員的名字。"
 
 msgid "From the sea, the rescue crew will report a single bright light on Greycrow. Then, on every frequency, silence."
 msgstr "海上的救援人員會回報：灰鴉島上有一道很亮的光。然後，每個頻率都安靜了。"
@@ -1749,8 +1749,8 @@ msgstr "少校，這不是摩斯電碼。是音樂。音樂底下……是一座
 msgid "[THE CHOIR]"
 msgstr "[合唱]"
 
-msgid "...hold position. we will come to you. we always come to you..."
-msgstr "……原地等待。我們會去接你。我們一直都會去接你……"
+msgid "...kenji. hold position. we will come to you. we always come to you..."
+msgstr "……健二。原地等待。我們會去接你。我們一直都會去接你……"
 
 msgid "It just said my name."
 msgstr "它剛剛叫了我的名字。"
@@ -2064,8 +2064,8 @@ msgstr "典獄長"
 msgid "MV Boreal Star - frozen in the pack ice off North Harbor"
 msgstr "北極星號——卡在北港外的浮冰裡"
 
-msgid "Expedition cruise ship  -  missing since March 2025"
-msgstr "極地探險郵輪　——　2025 年 3 月失蹤"
+msgid "Expedition cruise ship  -  missing since May 2025"
+msgstr "極地探險郵輪　——　2025 年 5 月失蹤"
 
 msgid "A cruise ship. Ten decks, a thousand windows - and not one of them lit."
 msgstr "一艘郵輪。十層甲板、上千扇窗——沒有一扇亮著。"
@@ -2091,8 +2091,8 @@ msgstr "守門二號指揮官——狙擊手"
 msgid "[WARDEN]"
 msgstr "[典獄長]"
 
-msgid "Supply pilot. I counted your steps from the gangway. Forty-one. You favour the left leg."
-msgstr "補給飛行員。我從棧橋開始數妳的腳步。四十一步。妳比較偏左腳。"
+msgid "Courier. I counted your steps from the gangway. Forty-one. You favour the left leg."
+msgstr "運送員。我從棧橋開始數妳的腳步。四十一步。妳比較偏左腳。"
 
 msgid "Stay down in the snow. It's quieter for both of us."
 msgstr "待在雪地裡別動。這樣對我們兩個都比較安靜。"
@@ -2270,3 +2270,63 @@ msgstr "背包"
 
 msgid "Phone"
 msgstr "手機"
+
+msgid "The director's office. Chair pushed back. Coffee frozen solid in the cup."
+msgstr "站長室。椅子被推開，杯子裡的咖啡凍成一塊。"
+
+msgid "A second radio on the desk, taped to one frequency. He was talking to someone the station didn't know about."
+msgstr "桌上有第二台無線電，旋鈕用膠帶固定在一個頻率上。他在和站上沒人知道的對象通話。"
+
+msgid "His terminal is still logged in. Read it."
+msgstr "他的終端機還沒登出。看看裡面寫了什麼。"
+
+msgid "Lights. Pumps. Heating. The whole station is breathing again."
+msgstr "燈、幫浦、暖氣。整座站又開始呼吸了。"
+
+msgid "...and so is everything that was asleep in the cold. I just woke them up."
+msgstr "……在冷的地方睡著的那些，也是。我把它們叫醒了。"
+
+msgid "Shen, that's the hangar door on my board. Power's back. So is the lift in the drill shaft. Don't go near it yet."
+msgstr "沈若寧，我這邊的面板上機庫門亮了。電來了，鑽探井的升降機也通電了。先不要靠近它。"
+
+msgid "Hangar first. There's a snowcat in there that can reach the antenna."
+msgstr "先去機庫。裡面有一台雪地車，開得到天線塔。"
+
+msgid "Bones in the ice around it. Old ones, laid out in a ring. And one in a station parka."
+msgstr "它周圍的冰裡有骨頭。很老的骨頭，排成一圈。還有一具穿著站上的外套。"
+
+msgid "KOVAC: \"The rules, once. They are blind. They hear a dropped spoon from two rooms away. And they hate the cold - it puts them back to sleep.\""
+msgstr "柯瓦奇：「規則我只說一次。它們看不見。隔兩個房間掉一根湯匙它們都聽得到。還有，它們怕冷——冷會讓它們睡回去。」"
+
+msgid "KOVAC: \"I called it Frostchime. Forty thousand years in the permafrost, and we drilled straight into its bed.\""
+msgstr "柯瓦奇：「我叫它霜鳴菌。它在凍土裡睡了四萬年，而我們一鑽就鑽進它的床。」"
+
+msgid "KOVAC: \"The Ark. So that's who paid for the drill. Halvorsen told us it was a polar foundation.\""
+msgstr "柯瓦奇：「方舟。原來鑽井的錢是他們出的。哈爾沃森跟我們說是一個極地基金會。」"
+
+msgid "KOVAC: \"He wasn't a monster, Shen. He thought he could keep them asleep and sort it out in the spring. That's worse, in a way.\""
+msgstr "柯瓦奇：「他不是怪物，沈若寧。他以為可以讓它們一直睡，等春天再處理。某方面來說，這更糟。」"
+
+msgid "KOVAC: \"You can't call out without power. The generator is in the basement. The diesel is at the depot, out in the snow.\""
+msgstr "柯瓦奇：「沒有電就發不出訊號。發電機在地下室，柴油在燃料庫，要走進雪地。」"
+
+msgid "KOVAC: \"That basement is older than the station. In 1962 it was a listening post. They heard something down there and signed a treaty to forget it.\""
+msgstr "柯瓦奇：「那個地下室比研究站還老。1962 年它是一座監聽站。他們在那底下聽到了某個東西，然後簽了一份協定來忘記它。」"
+
+msgid "KOVAC: \"If the antenna still stands, you get one message out. Think about who you want to answer.\""
+msgstr "柯瓦奇：「如果天線還立著，妳只發得出一則訊息。想清楚妳希望誰來回答。」"
+
+msgid "KOVAC: \"A bear. Then it doesn't need people. It needs anything warm that can hear.\""
+msgstr "柯瓦奇：「一頭熊。所以它不一定要人。只要是溫暖的、聽得到的，它都要。」"
+
+msgid "KOVAC: \"Take the snowcat to the tower. And Shen - if something answers that isn't the rescue centre, don't talk to it.\""
+msgstr "柯瓦奇：「開雪地車去天線塔。還有，沈若寧——如果回答妳的不是救援中心，不要跟它說話。」"
+
+msgid "KOVAC: \"I heard it too. One-two-six-oh-five. 'Hold position.' It said that to you like it knew you.\""
+msgstr "柯瓦奇：「我也聽到了。一二六點零五。『原地等待。』它對妳說那句話的口氣，像是認識妳。」"
+
+msgid "KOVAC: \"It isn't coming from the mainland. It's coming from under your feet - and from somewhere that hasn't happened yet.\""
+msgstr "柯瓦奇：「它不是從大陸來的。它來自妳腳底下——也來自一個還沒發生的地方。」"
+
+msgid "KOVAC: \"The bed of the colony is at the bottom of the shaft. As long as it sings, something will keep answering. I'm sorry. I should be the one going down.\""
+msgstr "柯瓦奇：「菌落的本體在井底。只要它還在唱，就會一直有東西回答。對不起。該下去的人是我。」"

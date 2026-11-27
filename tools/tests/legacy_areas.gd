@@ -927,7 +927,7 @@ const DATA := {
 		"names": {"5,5": "wing_log", "41,15": "kovac_memo"},
 		"messages": {
 			"wing_log": "LAB LOG, East Wing: \"Sealed the wing on the director's order. Twelve still inside. He says the cold will keep them asleep. He says a lot of things.\"",
-			"kovac_memo": "MEMO - A. KOVAC (dated before she left): \"It isn't a disease. It's a hibernation strategy that uses us as the burrow. Whoever is paying for this already knows that.\"",
+			"kovac_memo": "MEMO - I. KOVAC (dated before she left): \"It isn't a disease. It's a hibernation strategy that uses us as the burrow. Whoever is paying for this already knows that.\"",
 		},
 	},
 
@@ -1093,7 +1093,7 @@ const DATA := {
 		"messages": {
 			"g1_orders": "OPERATIONS BOARD: \"Priority one: recover the drill core intact. Priority two: recover live specimens. Priority three: personnel. Strike priority three if it slows one or two.\"",
 			"commander_letter": "UNSENT LETTER, commander's desk: \"They told us it was a chemical spill. Then they told us to keep the infected alive. Then they told us the infected were the cargo. I have stopped asking what we are guarding.\"",
-			"comms_log": "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Specimens: four live, crated. Aircraft: one, grounded by ice. The supply pilot's helicopter.\"",
+			"comms_log": "COMMS LOG: \"Mainland asks for a head count every six hours. Station survivors: not counted. Specimens: four live, crated. Vessels: one launch, iced in at the sea gate. The courier is not accounted for.\"",
 			"cell_scratch": "SCRATCHED INTO THE CELL WALL: \"I'm not sick. I told them I'm not sick. They took blood every day and they never told me the results. If you read this - they're afraid of the cold room. Ask why.\"",
 			"specimen_report": "SPECIMEN REPORT S-4: \"Subject keeps singing at the same pitch as the core sample. When the two are in the same room, both grow. Recommend they are never shipped together.\"",
 		},
