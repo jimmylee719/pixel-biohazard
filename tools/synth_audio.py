@@ -5,7 +5,7 @@
 遊戲先找 assets/audio/{sfx,music,ambience}/ 的正式素材，找不到才用這裡的暫代版，
 所以之後放進正式素材就會自動取代，不用刪這些檔案。
 
-格式：22050 Hz、16 位元。音效是單聲道（遊戲裡用 2D 定位播放）；音樂和環境音是立體聲。
+格式：音效 44100 Hz（v0.16 起，暫態比較清楚）、音樂和環境音 22050 Hz，16 位元。音效是單聲道（遊戲裡用 2D 定位播放）；音樂和環境音是立體聲。
 音樂、環境音都調到同一個響度（RMS 約 -17 dBFS，比音效小聲），遊戲裡的相對音量在 sound_list.gd 調。
 音樂全部圍繞同一個「訊號動機」寫（見 MOTIF），循環的檔案頭尾接得起來（見「立體聲引擎」的說明）。
 
@@ -824,12 +824,12 @@ def reverb(x, rt=2.0, damp=0.3, size=1.0, spread=0):
     """Schroeder 殘響：6 個梳狀 + 3 個全通。rt = 衰減 60 dB 的秒數；左右聲道用不同的 spread"""
     acc = None
     for D0 in _COMBS:
-        D = int(D0 * size) + spread
+        D = int(D0 * size * SR / 22050) + spread
         y = _comb(x, D, 10 ** (-3.0 * D / (SR * rt)), damp)
         acc = y if acc is None else add2(acc, y)
     acc = [v * 0.22 for v in acc]
     for D0 in _APS:
-        acc = _allpass(acc, int(D0 * size) + spread)
+        acc = _allpass(acc, int(D0 * size * SR / 22050) + spread)
     return acc
 
 
@@ -1426,6 +1426,129 @@ def mission_complete(rng):
     return mix((add2(L, R), 0, 1.0), (top, 0, 0.35), length=n(1.7))
 
 
+# ── v0.16：每把槍自己的聲音、更多地面、新機制的聲音 ──────────────
+
+def pluck(rng, f, sec, damp=0.996, bright=0.5):
+    """Karplus-Strong 撥弦（弓弦、鋼索）：一段雜訊在延遲線裡來回、越來越暗"""
+    D = max(2, int(SR / f))
+    buf = [rng.uniform(-1, 1) for _ in range(D)]
+    buf = lp(buf, 2000 + 6000 * bright)
+    out = []
+    i = 0
+    for _ in range(n(sec)):
+        a = buf[i % D]
+        b = buf[(i + 1) % D]
+        v = damp * 0.5 * (a + b)
+        buf[i % D] = v
+        out.append(a)
+        i += 1
+    return out
+
+
+def revolver_shot(rng):
+    """.357 左輪：比手槍低、更重、尾巴長，帶一點彈巢的金屬餘音"""
+    shot = gunshot(rng, 60, 1.1, 0.24, 0.03, 1.3)
+    ring = tone_partials(0.6, [(rng.uniform(2900, 3300), 0.3, 1.0), (4700, 0.15, 0.6)], 0.12, rng)
+    return mix((shot, 0, 1.0), (ring, 0.01, 0.12), length=n(1.1))
+
+
+def rifle_shot(rng):
+    """獵槍（步槍）：超音速的尖銳爆裂＋很重的低頻，戶外的遠處回聲"""
+    crack = env(hp(noise(0.05, rng), 3500), 0.0001, 0.008)
+    shot = gunshot(rng, 52, 1.4, 0.3, 0.025, 1.5)
+    out = mix((crack, 0, 1.2), (shot, 0, 1.0), length=n(1.6))
+    for dt, g in ((0.21, 0.22), (0.43, 0.12)):
+        _acc(out, n(dt * rng.uniform(0.92, 1.08)), lp(shot, 1200), g)
+    return out
+
+
+def smg_shot(rng):
+    """衝鋒槍：一發一發很短（連發時才不會糊在一起），比手槍亮一點"""
+    return gunshot(rng, 95, 0.42, 0.08, 0.014, 0.6)
+
+
+def suppressed_shot(rng):
+    """裝了消音器：悶悶的「噗」＋滑套的金屬聲，沒有爆裂"""
+    puff = env(biquad(noise(0.12, rng), "bp", rng.uniform(700, 900), 0.9), 0.0004, 0.025)
+    low = env(sine(0.12, lambda t: 140 * (1 + 1.5 * math.exp(-t * 60))), 0.0005, 0.02)
+    slide = mix((click(rng, 3200, 0.004), 0, 1.0), (click(rng, 2400, 0.005), 0.035, 0.7))
+    return room(mix((puff, 0, 1.0), (low, 0, 0.6), (slide, 0.012, 0.35), length=n(0.25)), 0.25, 0.15, 0.15)
+
+
+def crossbow_shot(rng):
+    """十字弓：弓弦「嗡」一聲（撥弦）＋木頭托架喀一聲＋箭出去的風聲"""
+    f = rng.uniform(95, 115)
+    string = env(pluck(rng, f, 0.45, 0.994, 0.7), 0.0005, 0.12)
+    clack = mix((click(rng, 1800, 0.008), 0, 1.0), (thump(rng, 180, 0.02, 1500, 0.02), 0, 0.6))
+    air = whoosh(rng, 0.18, 1500, 4000, 2.5)
+    return mix((string, 0, 0.9), (clack, 0, 0.7), (air, 0.01, 0.35), length=n(0.5))
+
+
+def nailgun_shot(rng):
+    """釘槍：氣壓「嗤」＋釘子打出去的金屬「鏘」＋機身喀噠"""
+    air = env(hp(noise(0.1, rng), 2500), 0.001, 0.025)
+    thunk = env(metal_hit(rng, 0.2, rng.uniform(850, 1000)), 0.0005, 0.04)
+    body = thump(rng, 200, 0.015, 2200, 0.015)
+    return mix((air, 0, 0.8), (thunk, 0.004, 0.5), (body, 0, 0.6), length=n(0.25))
+
+
+def flare_shot(rng):
+    """信號槍：空心的「砰」＋燃燒的嘶嘶聲飛出去"""
+    pop = mix((thump(rng, 170, 0.04, 1200, 0.04), 0, 1.0), (env(biquad(noise(0.2, rng), "bp", 550, 1.2), 0.001, 0.05), 0, 0.7))
+    hiss = env(hp(noise(0.9, rng), 2800), 0.02, 0.35, 0.1)
+    return mix((pop, 0, 1.0), (hiss, 0.03, 0.35), length=n(1.0))
+
+
+def step_wood(rng):
+    """木地板（小屋、甲板、劇場）：空心的低音共鳴＋偶爾一聲吱嘎"""
+    board = env(biquad(noise(0.2, rng), "bp", rng.uniform(170, 240), 5.0), 0.001, 0.06)
+    heel = env(lp(noise(0.08, rng), 1100), 0.001, 0.015)
+    toe = env(biquad(noise(0.08, rng), "bp", 1100, 1.2), 0.002, 0.02)
+    parts = [(board, 0, 1.2), (heel, 0, 0.5), (toe, rng.uniform(0.05, 0.07), 0.25)]
+    if rng.random() < 0.35:
+        parts.append((creak(rng, 0.18, rng.uniform(380, 460), rng.uniform(300, 360)), 0.04, 0.18))
+    return mix(*parts, length=n(0.32))
+
+
+def step_carpet(rng):
+    """地毯（辦公室、客艙、劇場）：很悶、很軟，幾乎只有低頻和布料的摩擦"""
+    soft = env(lp(noise(0.12, rng), 650), 0.004, 0.035)
+    low = env(sine(0.12, 85), 0.003, 0.03)
+    brush = bell(biquad(noise(0.1, rng), "bp", 2200, 0.7), 0.3)
+    return mix((soft, 0, 1.0), (low, 0, 0.4), (brush, 0.02, 0.05), length=n(0.25))
+
+
+def choke_struggle(rng):
+    """被勒住的人：喉嚨被壓住的悶哼、抽氣（斷斷續續）＋衣服摩擦"""
+    L = 1.2
+    gasps = []
+    t = 0.0
+    while t < L - 0.2:
+        d = rng.uniform(0.18, 0.32)
+        v = voice(rng, d, rng.uniform(105, 130), rng.uniform(90, 110), (380, 820), 0.12, 0)
+        gasps.append((bell(lp(v, 1400), 0.4), t, rng.uniform(0.5, 1.0)))
+        t += d + rng.uniform(0.05, 0.15)
+    rustle = bell(biquad(noise(L, rng), "bp", 1600, 0.7), 0.5)
+    return mix(*gasps, (rustle, 0, 0.25), (thump(rng, 110, 0.03, 900, 0.03), rng.uniform(0.3, 0.7), 0.3), length=n(L))
+
+
+def crystal_resonance(rng):
+    """結晶共鳴：骨頭的結晶碎裂（短的碎裂聲）之後，一組不和諧的玻璃泛音慢慢浮起來、互相拍頻、再淡掉"""
+    crack = mix((crackle(0.25, 400, rng, 3500, 0.002), 0, 1.0), (glass(rng, 0.3, 6), 0, 0.5))
+    base = rng.uniform(1180, 1320)
+    partials = [(base, 0.5, 1.0), (base * 1.503, 0.35, 0.9), (base * 2.12, 0.25, 0.7), (base * 2.99, 0.15, 0.5),
+                (base * 1.007, 0.4, 1.0)]  # 最後一個和第一個差一點點 → 會「嗚嗚」地拍頻
+    ring = tone_partials(1.6, partials, 0.55, rng)
+    swell = [v * min(1.0, i / n(0.12)) for i, v in enumerate(ring)]
+    return room(mix((crack, 0, 0.8), (swell, 0.03, 0.7), length=n(1.6)), 0.9, 0.3, 0.6)
+
+
+def radio_song(rng):
+    """頻率誘餌放的「歌」：短波電台裡的訊號動機（D、E、降 B、停、A）"""
+    root = rng.choice((74, 62))
+    return radio_voice(root, 0.22, rng.randrange(1 << 20), MOTIF, 0.4)
+
+
 SFX = {
     "step_concrete": (step_concrete, 4), "step_snow": (step_snow, 4), "step_metal": (step_metal, 4),
     "player_hurt": (player_hurt, 3), "player_death": (player_death, 1), "shiver_breath": (shiver_breath, 2),
@@ -1449,6 +1572,11 @@ SFX = {
     "well_pulse_blast": (well_pulse_blast, 1), "well_crystal_crack": (well_crystal_crack, 1),
     "alert_sting": (alert_sting, 1), "suspicious_sting": (suspicious_sting, 1), "ui_move": (ui_move, 1),
     "ui_confirm": (ui_confirm, 1), "ui_cancel": (ui_cancel, 1), "mission_complete": (mission_complete, 1),
+    # v0.16
+    "revolver_shot": (revolver_shot, 2), "rifle_shot": (rifle_shot, 2), "smg_shot": (smg_shot, 3),
+    "suppressed_shot": (suppressed_shot, 3), "crossbow_shot": (crossbow_shot, 2), "nailgun_shot": (nailgun_shot, 2),
+    "flare_shot": (flare_shot, 1), "step_wood": (step_wood, 4), "step_carpet": (step_carpet, 4),
+    "choke_struggle": (choke_struggle, 3), "crystal_resonance": (crystal_resonance, 2), "radio_song": (radio_song, 2),
 }
 LOOP_SFX = {"fire_loop"}
 
@@ -1921,6 +2049,8 @@ MUSIC = {"title": music_title, "explore_station": music_explore_station, "explor
 
 def _job(job):
     kind, id_, v, count = job
+    global SR
+    SR = 44100 if kind == "sfx" else 32000  # 音效 44.1k（暫態、玻璃、雪的細節）；音樂、環境音 32k（多一點高頻空氣感，檔案不會太大）
     if kind == "sfx":
         name = id_ if count == 1 else "%s_%d" % (id_, v + 1)
         write("sfx", name, SFX[id_][0](random.Random("%s:%d" % (id_, v))), loop=id_ in LOOP_SFX)

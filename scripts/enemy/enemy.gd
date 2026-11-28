@@ -989,7 +989,7 @@ func _resonate() -> void:
 	fx.radius = RESONANCE_TILES * TILE
 	_level.add_child(fx)
 	fx.global_position = global_position
-	Sfx.play("well_crystal_crack", global_position, 0.15, -6.0)
+	Sfx.play("crystal_resonance", global_position, 0.1)
 	NoiseBus.emit_noise(global_position, RESONANCE_TILES * TILE, self)
 	if _player and global_position.distance_to(_player.global_position) < 12.0 * TILE:
 		WorldState.set_flag("seen:resonance")

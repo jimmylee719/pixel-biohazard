@@ -337,22 +337,7 @@ func shoot() -> bool:
 	var origin := player.global_position
 	var silenced := weapon == "pistol" and WorldState.suppressor_on()
 	NoiseBus.emit_noise(origin, (SUPPRESSED_NOISE_TILES if silenced else s.noise_tiles) * Player.TILE, player)
-	match String(s.get("pose", weapon)) if not s.get("muffled", false) else "muffled":
-		"muffled":
-			Sfx.play("pistol_shot", origin, 0.05, -14.0)
-			Sfx.play("knife_swing", origin, 0.1, -4.0)
-		"shotgun", "rifle", "revolver":
-			Sfx.play("shotgun_shot", origin, 0.04, 2.0 if weapon == "rifle" else 0.0)
-		"nailgun", "crossbow":
-			Sfx.play("knife_swing", origin, 0.1, -6.0)
-		"flare_gun":
-			Sfx.play("pistol_shot", origin, 0.1, -6.0)
-		_:
-			if silenced:
-				Sfx.play("pistol_shot", origin, 0.05, -14.0)
-				Sfx.play("knife_swing", origin, 0.1, -4.0)
-			else:
-				Sfx.play("pistol_shot", origin, 0.04)
+	Sfx.play(shot_sound(weapon, silenced or s.get("muffled", false)), origin, 0.04)
 	Sfx.rumble(60 if weapon == "pistol" else 110, 0.6)
 	var hit := false
 	var end: Vector2
@@ -482,6 +467,17 @@ func _blocks_shot(level: Level, cell: Vector2i) -> bool:
 				return not door.is_open
 		return false
 	return ch == "#" or ch == "C" or ch == "H" or ch == ""
+
+
+## 每把槍自己的槍聲（v0.16，tools/synth_audio.py）
+const SHOT_SOUNDS := {"shotgun": "shotgun_shot", "rifle": "rifle_shot", "revolver": "revolver_shot", "smg": "smg_shot",
+	"nailgun": "nailgun_shot", "crossbow": "crossbow_shot", "harpoon": "crossbow_shot", "flare_gun": "flare_shot"}
+
+
+static func shot_sound(weapon: String, quiet: bool) -> String:
+	if quiet:
+		return "suppressed_shot"
+	return SHOT_SOUNDS.get(weapon, "pistol_shot")
 
 
 func start_reload() -> bool:
@@ -655,6 +651,8 @@ func _process_choke(delta: float) -> void:
 	choke_left -= delta
 	if fmod(choke_left, 1.0) < delta:
 		Sfx.rumble(25, 0.3)
+	if fmod(choke_left, 1.25) < delta and choke_left > 0.5:
+		Sfx.play("choke_struggle", grabbed.global_position, 0.08)
 	if choke_left <= 0.0:
 		var e := grabbed
 		_release_grab()

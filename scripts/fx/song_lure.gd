@@ -36,7 +36,11 @@ func _physics_process(delta: float) -> void:
 		_next = _t + PULSE
 		_rings.append(0.0)
 		NoiseBus.emit_noise(global_position, RANGE_TILES * Player.TILE, self)
-		Sfx.play("radio_tune" if int(_t / PULSE) % 2 == 0 else "radio_static", global_position, 0.15, -4.0)
+		# 每兩段放一次「歌」（短波裡的訊號動機），中間是雜訊
+		if int(_t / PULSE) % 2 == 0:
+			Sfx.play("radio_song", global_position, 0.02)
+		else:
+			Sfx.play("radio_static", global_position, 0.15, -8.0)
 	queue_redraw()
 
 

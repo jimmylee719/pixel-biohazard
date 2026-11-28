@@ -3491,6 +3491,14 @@ func _test_v15() -> void:
 			fx_found = true
 	_check(fx_found, "resonance: a crystal ring effect plays")
 	_check(humans_far, "resonance: humans ignore it (rule in Enemy._on_noise)")
+	# v0.16 聲音：每把槍自己的槍聲、地板材質的腳步
+	var shots := {}
+	for w in ["pistol", "shotgun", "rifle", "revolver", "smg", "nailgun", "crossbow", "flare_gun"]:
+		shots[PlayerCombat.shot_sound(w, false)] = true
+	_check(shots.size() == 8 and PlayerCombat.shot_sound("pistol", true) == "suppressed_shot", "audio: every gun has its own shot (%d) and a suppressed one" % shots.size())
+	for id in shots.keys() + ["suppressed_shot", "step_wood", "step_carpet", "choke_struggle", "crystal_resonance", "radio_song"]:
+		_check(SoundList.SFX.has(id), "audio: %s is in the sound list" % id)
+	_check(Level.STEP_BY_FLOOR.get("wood", "") == "wood" and Level.STEP_BY_FLOOR.get("carpet", "") == "carpet", "audio: wooden and carpeted floors have their own footsteps")
 	for e in _main.enemies:
 		if is_instance_valid(e):
 			e.process_mode = Node.PROCESS_MODE_INHERIT

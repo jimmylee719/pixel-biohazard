@@ -1,4 +1,4 @@
-# DEEPWAKE／驚蟄：音效與音樂提示詞
+# AFTERSIGNAL／《迴頻》：音效與音樂提示詞
 
 給生成影音的 agent 用的清單。**檔名就是表格裡的 id**，遊戲直接用檔名找聲音，名字錯了就不會出聲。
 清單和程式裡的 `scripts/audio/sound_list.gd` 一致（測試會檢查）；要新增聲音時兩邊都要加。
@@ -19,7 +19,7 @@
   > Realistic, dry, close-miked foley for a dark top-down survival horror game set in an Arctic research station. No music. Short, clean start.
 
 - **共通風格（音樂）**：每一條音樂提示詞前面都加上這段：
-  > Original dark ambient score for a survival horror game. Setting: an isolated Arctic research station in 2031, polar night, blizzard, a frozen archaea organism that "sings". Palette: low bowed strings, detuned analog synth pads, prepared piano, metallic scrapes, sparse sub-bass pulses, distant processed choir. Cold, sparse, uneasy. No vocals with lyrics. Do not imitate any existing game or film theme.
+  > Original dark ambient score for a survival horror game. Setting: an isolated Arctic island research station in 2026, polar night, blizzard, an ancient frozen bacterium whose colony "sings" on a radio frequency (126.05 MHz). Recurring motif: the five-note signal figure D, E, B-flat, rest, A. Palette: low bowed strings, detuned analog synth pads, prepared piano, metallic scrapes, sparse sub-bass pulses, distant processed choir. Cold, sparse, uneasy. No vocals with lyrics. Do not imitate any existing game or film theme.
 
 ## 2. 音效（sfx）
 
@@ -123,6 +123,23 @@
 | `ui_confirm` | 0.2 秒 | ×1 | A short muted confirmation click with a soft low electronic blip. |
 | `ui_cancel` | 0.2 秒 | ×1 | A short muted lower-pitched click for closing a menu. |
 | `mission_complete` | 1.5 秒 | ×1 | A restrained, cold, low synth chord swelling briefly to mark an objective completed. Not triumphant. |
+
+### v0.16 追加
+
+| id | 長度 | 版本 | 提示詞 |
+|---|---|---|---|
+| `revolver_shot` | 1.1 秒 | ×2 | A .357 revolver gunshot indoors: heavier and lower than a 9mm pistol, sharp crack, long concrete-corridor tail, faint metallic ring of the cylinder. |
+| `rifle_shot` | 1.6 秒 | ×2 | A hunting rifle shot: supersonic crack, deep heavy boom, distant outdoor echoes off ice cliffs. |
+| `smg_shot` | 0.4 秒 | ×3 | A single short submachine gun shot, bright and tight, quick decay so automatic fire stays distinct. |
+| `suppressed_shot` | 0.4 秒 | ×3 | A suppressed pistol shot: muffled low puff, no crack, a small metallic slide clack. |
+| `crossbow_shot` | 0.5 秒 | ×2 | A crossbow firing: taut bowstring thrum, wooden stock clack, short arrow whoosh. |
+| `nailgun_shot` | 0.25 秒 | ×2 | A pneumatic nail gun: sharp air hiss, metallic nail thunk, plastic body clack. |
+| `flare_shot` | 1.0 秒 | ×1 | A flare gun firing: hollow pop, then a burning hiss flying away. |
+| `step_wood` | 0.3 秒 | ×4 | Single boot footstep on old hollow wooden floorboards, low resonant thud, occasional small creak. |
+| `step_carpet` | 0.25 秒 | ×4 | Single soft boot footstep on thick carpet, muffled, mostly low thump and faint fabric. |
+| `choke_struggle` | 1.2 秒 | ×3 | A man being choked from behind: strained muffled grunts and broken gasps through a compressed throat, clothing rustle. Not graphic. |
+| `crystal_resonance` | 1.6 秒 | ×2 | A brittle crystal shattering inside a body, then a dissonant glassy ringing chord that swells, beats slowly and fades. |
+| `radio_song` | 2.8 秒 | ×2 | A short-wave radio playing a strange five-note tone melody (D, E, B-flat, rest, A) through heavy static and wobbling tape pitch. |
 
 ## 3. 音樂（music）
 

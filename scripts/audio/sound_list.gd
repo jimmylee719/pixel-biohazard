@@ -12,6 +12,8 @@ const SFX := {
 	"step_concrete": {"vol": -14.0, "dist": 8},
 	"step_snow": {"vol": -12.0, "dist": 8},
 	"step_metal": {"vol": -12.0, "dist": 8},
+	"step_wood": {"vol": -12.0, "dist": 8},
+	"step_carpet": {"vol": -16.0, "dist": 6},
 	"player_hurt": {"vol": -4.0, "dist": 0},
 	"player_death": {"vol": -2.0, "dist": 0},
 	"shiver_breath": {"vol": -10.0, "dist": 0},
@@ -24,6 +26,13 @@ const SFX := {
 	# 武器
 	"pistol_shot": {"vol": -2.0, "dist": 30},
 	"shotgun_shot": {"vol": 0.0, "dist": 36},
+	"revolver_shot": {"vol": -1.0, "dist": 34},
+	"rifle_shot": {"vol": 0.0, "dist": 40},
+	"smg_shot": {"vol": -4.0, "dist": 30},
+	"suppressed_shot": {"vol": -8.0, "dist": 6},
+	"crossbow_shot": {"vol": -6.0, "dist": 8},
+	"nailgun_shot": {"vol": -6.0, "dist": 8},
+	"flare_shot": {"vol": -4.0, "dist": 20},
 	"gun_empty": {"vol": -8.0, "dist": 0},
 	"reload": {"vol": -8.0, "dist": 0},
 	"knife_swing": {"vol": -8.0, "dist": 8},
@@ -72,6 +81,10 @@ const SFX := {
 	"well_pulse_charge": {"vol": -2.0, "dist": 40},
 	"well_pulse_blast": {"vol": 0.0, "dist": 40},
 	"well_crystal_crack": {"vol": -2.0, "dist": 40},
+	# v0.16：新機制
+	"choke_struggle": {"vol": -8.0, "dist": 6},
+	"crystal_resonance": {"vol": -6.0, "dist": 20},
+	"radio_song": {"vol": -8.0, "dist": 16},
 	# 介面與提示
 	"alert_sting": {"vol": -3.0, "dist": 0},
 	"suspicious_sting": {"vol": -8.0, "dist": 0},

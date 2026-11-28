@@ -613,9 +613,19 @@ func step_surface(pos: Vector2) -> String:
 		return r.step
 	if r.is_empty() and _data.has("step"):
 		return _data.step
+	# v0.16：依地板材質（SetDresser 的 floor）
+	var kind := floor_kind_at(cell_of(pos))
+	if STEP_BY_FLOOR.has(kind):
+		return STEP_BY_FLOOR[kind]
 	if not _is_indoor_cell(cell_of(pos)):
 		return "snow"
 	return "concrete"
+
+
+## 地板材質 → 腳步聲（沒列的：戶外 = 雪、室內 = 水泥）
+const STEP_BY_FLOOR := {"wood": "wood", "deck": "wood", "carpet": "carpet", "carpet_red": "carpet", "metal": "metal",
+	"access": "metal", "snow": "snow", "dock": "concrete", "concrete": "concrete", "epoxy": "concrete", "tile": "concrete",
+	"lino": "concrete", "checker": "concrete", "rock": "concrete", "safe": "concrete"}
 
 
 ## 區域的音樂（區域資料 music 可以指定）：安全屋、Boss 戰、戶外、室內

@@ -285,3 +285,10 @@
   只有感染者聽得到（人類忽略），同類過來看（不警戒），睡著的凍眠體會醒。所以殺怪有代價：撂倒、繞路是真正的選項。
 - 柯瓦奇的提示來電 `FieldRadio.EVENT` 的 resonance／lure（旗標 `seen:resonance`、`seen:lure`）。截圖：`capture.tscn -- <資料夾> v15`。
 - 拳擊左右手：不會連續三套都同一邊（`_same_side`）。
+
+## v0.16：合成音效改良（使用者選「改進合成版」，不用付費 AI）
+- `tools/synth_audio.py`：音效改 44.1 kHz、音樂和環境音 32 kHz（`_job` 依種類設 `SR`；`reverb` 的延遲依 SR 換算）。
+- 每把槍自己的槍聲 `PlayerCombat.shot_sound()`／`SHOT_SOUNDS`：revolver、rifle、smg、suppressed（消音手槍、卡賓槍、麻醉槍）、crossbow（魚叉槍共用）、nailgun、flare。
+- 腳步依地板材質 `Level.STEP_BY_FLOOR`（木頭、地毯另外有聲音；區域資料 `step` 仍然優先）。
+- 新機制的聲音：`choke_struggle`（裸絞時每 1.25 秒）、`crystal_resonance`（結晶共鳴）、`radio_song`（頻率誘餌放的訊號動機）。
+- 新增的 id 都在 `sound_list.gd` 和 `docs/AUDIO_PROMPTS.md`（v0.16 追加）。之後有正式素材時放進 `assets/audio/{sfx,music,ambience}/` 會自動取代合成版。
