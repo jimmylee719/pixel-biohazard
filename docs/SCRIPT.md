@@ -768,6 +768,11 @@
 - A hunter's crossbow. No report at all, and it hits like a rifle at close range.
   獵人的十字弓。完全沒有槍聲，近距離的威力像步槍。
 
+**Tranquilliser pistol／麻醉槍**
+
+- From the station's kennel. One dart and a grown man sleeps for most of a minute.
+  來自研究站的狗舍。一發，一個大男人就會睡上將近一分鐘。
+
 **LANTERN carbine／燈籠站卡賓槍**
 
 - Sealed in the recording room since 1962. Factory suppressor, rifle rounds. Somebody expected to need it quietly.

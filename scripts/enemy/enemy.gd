@@ -178,6 +178,19 @@ var radio_interrupted := false
 var _answered := false
 ## 被踢倒／摔倒在地上（硬直結束前）
 var knocked_down := false
+## v0.12：舉槍逼降（hold-up）、麻醉（睡著）、屍體被發現、藏進櫃子
+signal held_up_changed(on: bool)
+var held_up := false
+var _held_timer := 0.0
+var _held_slack := 0.0
+var _dropped_loot := false
+var _sleep_timer := 0.0
+## 屍體／睡著的人已經被同伴看到（不會重複通報）
+var body_found := false
+## 被塞進置物櫃
+var stashed := false
+## 什麼時候倒下的（毫秒，無線電定時回報用）
+var down_since := 0
 ## 被主角抓住（CQC）
 var grabbed := false
 ## 被擊退的力道夠大：撞到牆會額外受傷
@@ -379,6 +392,18 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		_update_visibility(delta)
 		return
+	if _sleep_timer > 0.0:
+		_sleep_timer -= delta
+		velocity = Vector2.ZERO
+		_update_visibility(delta)
+		if _sleep_timer <= 0.0:
+			_wake_from_sleep()
+		return
+	if held_up:
+		_process_held_up(delta)
+		_update_visibility(delta)
+		return
+	_check_hold_up()
 	if is_dormant:
 		in_cold = _level != null and _level.is_cold(global_position)
 		_check_wake()
@@ -655,6 +680,9 @@ func _can_hit_player(reach: float) -> bool:
 func take_damage(amount: float, from_pos: Vector2, stagger: float) -> void:
 	if is_dead:
 		return
+	if _sleep_timer > 0.0:
+		_sleep_timer = 0.0  # 睡著被打 = 直接醒來
+		_wake_from_sleep()
 	if front_armor > 0.0 and from_pos != global_position:
 		var to_attacker := (from_pos - global_position).normalized()
 		if to_attacker.dot(facing) > 0.3:
@@ -677,6 +705,102 @@ func take_damage(amount: float, from_pos: Vector2, stagger: float) -> void:
 	_make_contact(from_pos)
 	if state != State.ALERT:
 		_set_state(State.ALERT)
+
+
+# ── v0.12：舉槍逼降、麻醉、藏屍 ────────────────────────────
+
+func is_human() -> bool:
+	return faction == "human" and not is_boss()
+
+
+func is_asleep() -> bool:
+	return _sleep_timer > 0.0
+
+
+## 從背後近距離用槍指著沒發現你的人類 = 他舉手投降（不動、不通報）。手放下太久或走遠，他會反應過來。
+const HOLD_UP_TILES := 3.2
+
+
+func _check_hold_up() -> void:
+	if not is_human() or _player == null or state == State.ALERT or sees_player or grabbed:
+		return
+	var c: PlayerCombat = _player.combat
+	if not c.aiming or c.target != self or not c.has_weapon():
+		return
+	var to_player := _player.global_position - global_position
+	if to_player.length() > HOLD_UP_TILES * TILE or facing.dot(to_player.normalized()) > 0.2:
+		return
+	held_up = true
+	_held_timer = 0.0
+	_held_slack = 0.0
+	velocity = Vector2.ZERO
+	radio_timer = 0.0
+	held_up_changed.emit(true)
+	Sfx.play("gun_empty", global_position, 0.1, -6.0)
+
+
+func _process_held_up(delta: float) -> void:
+	velocity = Vector2.ZERO
+	_held_timer += delta
+	var c: PlayerCombat = _player.combat
+	var covered := c.aiming and global_position.distance_to(_player.global_position) < HOLD_UP_TILES * TILE * 1.6
+	_held_slack = 0.0 if covered else _held_slack + delta
+	# 指著兩秒以上 = 他把身上的東西丟出來（每人一次）
+	if covered and _held_timer > 2.0 and not _dropped_loot:
+		_dropped_loot = true
+		if _level:
+			var loot: Array = [["ammo", 6], ["med", 1], ["ammo", 8], ["magnum_rounds", 2]]
+			var pick: Array = loot[absi(hash(enemy_key)) % loot.size()]
+			_level.add_dynamic_item(pick[0], pick[1], global_position + facing * -10.0, "holdup:" + enemy_key)
+	if _held_slack > 2.5:
+		held_up = false
+		held_up_changed.emit(false)
+		awareness = 1.0
+		_make_contact(_player.global_position)
+		_set_state(State.ALERT)
+
+
+## 麻醉：睡 seconds 秒（人類；怪物只會睡一半時間）。睡著時可以拖走、藏起來。
+func put_to_sleep(seconds: float) -> void:
+	if is_dead or is_boss():
+		return
+	if held_up:
+		held_up = false
+		held_up_changed.emit(false)
+	_sleep_timer = seconds if is_human() else seconds * 0.5
+	down_since = Time.get_ticks_msec()
+	body_found = false
+	velocity = Vector2.ZERO
+	radio_timer = 0.0
+	state = State.UNAWARE
+	awareness = 0.0
+	_body.scale = Vector2(1.2, 0.6)
+	if _level:
+		_level.add_body_handle(self)
+
+
+func _wake_from_sleep() -> void:
+	_sleep_timer = 0.0
+	if stashed:
+		return
+	_body.scale = Vector2.ONE
+	awareness = suspicious_threshold + 0.05
+	_investigate(global_position + facing * 20.0)
+
+
+## 塞進置物櫃：不見、不會被發現（死的一直不見；睡著的醒來也出不來＝這一區少一個人）
+func stash() -> void:
+	stashed = true
+	body_found = true
+	visible = false
+	collision_layer = 0
+	if is_in_group("enemies"):
+		remove_from_group("enemies")
+	if not is_dead:
+		_sleep_timer = 0.0
+		is_dead = true
+	if enemy_key != "":
+		WorldState.mark_enemy_dead(enemy_key, global_position)
 
 
 ## 被打飛：dir 方向、speed 像素／秒；knockdown = 倒在地上（硬直加長，可以補刀、擒拿）
@@ -831,6 +955,8 @@ func _die() -> void:
 	if enemy_key != "":
 		WorldState.mark_enemy_dead(enemy_key, global_position)
 	_apply_dead_state()
+	if is_human() and _level:
+		_level.add_body_handle(self)
 	# 身上插著十字弓的箭：倒下後可以拔回來
 	if int(get_meta("bolts", 0)) > 0 and _player and is_instance_valid(_player):
 		_player.combat.drop_bolts(self)
@@ -838,6 +964,10 @@ func _die() -> void:
 
 
 func _apply_dead_state() -> void:
+	if held_up:
+		held_up = false
+		held_up_changed.emit(false)
+	down_since = Time.get_ticks_msec()
 	is_dead = true
 	health = 0.0
 	velocity = Vector2.ZERO

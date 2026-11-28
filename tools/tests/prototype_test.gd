@@ -95,6 +95,7 @@ func _run() -> void:
 	_test_radio_calls()
 	await _test_extras()
 	await _test_open_world()
+	await _test_stealth_v12()
 	await _test_survival()
 
 	print("")
@@ -3217,3 +3218,52 @@ func _test_open_world() -> void:
 	_main._update_arrows(1.0)
 	_check(not _main.objective_arrows.visible, "mission arrows are not drawn on screen")
 	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
+
+
+## v0.12：舉槍逼降、麻醉、屍體被發現、拖屍體藏進櫃子
+func _test_stealth_v12() -> void:
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
+	WorldState.cutscenes = false
+	await _enter("north_harbor", "harbor")
+	var guards: Array = _main.enemies.filter(func(e): return is_instance_valid(e) and e.is_human() and not e.is_dead)
+	_check(guards.size() >= 2, "stealth: the harbour has guards (%d)" % guards.size())
+	if guards.size() < 2:
+		return
+	var g: Enemy = guards[0]
+	# 舉槍逼降：從背後、近距離、拿著槍瞄準
+	WorldState.inv_add("pistol", 1)
+	WorldState.equipped = "pistol"
+	g.state = Enemy.State.UNAWARE
+	g.facing = Vector2.RIGHT
+	_player.global_position = g.global_position - Vector2(30, 0)
+	_player.combat.aiming = true
+	_player.combat.target = g
+	await _frames(3)
+	_check(g.held_up, "hold-up: a guard aimed at from behind raises his hands")
+	_player.combat.aiming = false
+	_player.combat.target = null
+	g.held_up = false
+	# 麻醉：睡著、身上有把手可以拖
+	g.put_to_sleep(30.0)
+	await _frames(2)
+	_check(g.is_asleep() and not g.is_dead, "tranquilliser: the guard falls asleep, alive")
+	var handle: BodyHandle = null
+	for i in _main.level.get_interactables():
+		if i is BodyHandle and i.body == g:
+			handle = i
+	_check(handle != null, "a sleeping guard has a drag handle")
+	# 被同伴看到 → 戒備
+	var w: Enemy = guards[1]
+	g.down_since = Time.get_ticks_msec()
+	w.global_position = g.global_position + Vector2(-18, 0)
+	w.facing = Vector2.RIGHT
+	_main._check_bodies()
+	_check(g.body_found and _main.level.alert.phase != AlertNetwork.Phase.NONE, "a guard who sees the body raises the caution")
+	# 拖到櫃子旁邊塞進去
+	if handle:
+		handle.interact(_player)
+		_check(_player.dragging == g, "dragging the body")
+		_player.dragging = null
+	g.stash()
+	_check(g.stashed and not g.visible, "a body stashed in a locker disappears")
+	_check(PlayerCombat.WEAPONS.has("dart_pistol") and Art.tex("props/dart_pistol") != null and Codex.ENTRIES.has("dart_pistol"), "tranquilliser has data, icon and codex")

@@ -6,7 +6,7 @@ const RESET_DELAY := 1.5
 const FADE_TIME := 0.2
 const MESSAGE_TIME := 6.0
 ## 室內很暗但看得出房間的樣子（v0.10：整張地圖都看得到）；戶外有雪地反光，稍微亮一點
-const INDOOR_DARKNESS := Color(0.18, 0.19, 0.25)
+const INDOOR_DARKNESS := Color(0.25, 0.26, 0.31)
 const OUTDOOR_DARKNESS := Color(0.2, 0.22, 0.3)
 ## 安全屋：溫暖、比較亮，讓玩家感到安心（出門那一刻的落差也是恐怖的一部分）
 const SAFE_DARKNESS := Color(0.34, 0.28, 0.22)
@@ -33,7 +33,7 @@ const ENEMY_SCENES := {
 const FINAL_MISSION := "the_shaft"
 const ENDING_DELAY := 1.5
 ## 恢復電力後，研究站室內有燈（比較亮）
-const POWERED_DARKNESS := Color(0.32, 0.32, 0.36)
+const POWERED_DARKNESS := Color(0.45, 0.44, 0.46)
 
 var level: Level
 var enemies: Array[Enemy] = []
@@ -630,6 +630,9 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 		_enemy_root.add_child(enemy)
 		enemy.setup(def.points, _player, level)
 		enemies.append(enemy)
+		enemy.held_up_changed.connect(func(on: bool):
+			if on:
+				show_message(tr("\"Don't shoot!\" He freezes with his hands up. Keep aiming and he'll empty his pockets.")))
 		if enemy.is_boss():
 			enemy.boss_event.connect(_on_boss_event)
 
@@ -2357,6 +2360,39 @@ func _update_field_radio(delta: float) -> void:
 		queue_radio("fcall:event:alert", FieldRadio.steps(FieldRadio.EVENT.alert))
 	if level.tracks and level.tracks.followed:
 		queue_radio("fcall:event:tracks", FieldRadio.steps(FieldRadio.EVENT.tracks))
+	_check_bodies()
+
+
+## v0.12：屍體被看到 → 通報、整區戒備；倒下太久沒人回報（無線電定時點名）→ 派人去看
+const CHECK_IN_MS := 40000
+var _check_in_sent := {}
+
+
+func _check_bodies() -> void:
+	var net := level.alert
+	for b in enemies:
+		if not is_instance_valid(b) or not b.is_human() or b.stashed or b.body_found or not (b.is_dead or b.is_asleep()):
+			continue
+		for e in enemies:
+			if not is_instance_valid(e) or e == b or e.is_dead or e.is_asleep() or e.held_up or not e.is_human():
+				continue
+			var to: Vector2 = b.global_position - e.global_position
+			if to.length() < e.vision_range and e.facing.dot(to.normalized()) > cos(e.get_half_angle()) \
+					and Sight.is_clear(e, e.global_position, b.global_position):
+				b.body_found = true
+				show_message(tr("Enemy radio: \"Man down! We have a man down!\""), true)
+				Sfx.play("radio_static")
+				if net:
+					net.raise_caution(b.global_position)
+				e.answer_call(b.global_position)
+				break
+		if not b.body_found and Time.get_ticks_msec() - b.down_since > CHECK_IN_MS and not _check_in_sent.has(b.get_instance_id()):
+			_check_in_sent[b.get_instance_id()] = true
+			for e in enemies:
+				if is_instance_valid(e) and not e.is_dead and not e.is_asleep() and e.is_human() and not e.held_up:
+					show_message(tr("Enemy radio: \"Post, report... Post, respond.\" Somebody is coming to check."), true)
+					e.answer_call(b.global_position)
+					break
 
 
 ## 天氣：換天氣時通知；戶外的暗度跟著慢慢變

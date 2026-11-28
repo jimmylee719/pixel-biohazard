@@ -373,7 +373,33 @@ func get_navigation_map() -> RID:
 
 
 func get_interactables() -> Array[Interactable]:
+	_interactables = _interactables.filter(func(i): return is_instance_valid(i))
 	return _interactables
+
+
+## 遊戲中途出現的物品（舉槍逼降時丟出來的東西）：不記存檔
+func add_dynamic_item(item: String, count: int, pos: Vector2, id: String) -> ItemPickup:
+	var p := ItemPickup.new()
+	p.pickup_item = item
+	p.pickup_count = count
+	p.item_id = id
+	p.level = self
+	p.position = pos
+	add_child(p)
+	p.sync_from_state()
+	_interactables.append(p)
+	return p
+
+
+## 倒下的人身上的把手（拖屍體、藏進櫃子）
+func add_body_handle(body: Enemy) -> void:
+	var h := BodyHandle.new()
+	h.body = body
+	h.level = self
+	h.item_id = "body:%d" % body.get_instance_id()
+	add_child(h)
+	h.global_position = body.global_position
+	_interactables.append(h)
 
 
 ## 執行中新增的互動物件（例如木箱破掉後掉出來的東西）

@@ -10,8 +10,10 @@ const K := "[KOVAC]"
 
 ## 第一次進入這個區域（region id = 區域 id）
 const AREA := {
-	"station_1f": [[K, "That's the main hall. Everything on the ground floor opens onto it - mess, labs, the garage. Use the loop: never get cornered in a dead end."]],
-	"station_2f": [[K, "Dormitories and offices. The floor is carpet up there - your boots are quieter, but so are theirs."]],
+	"station_1f": [[K, "That's the main hall. Everything on the ground floor opens onto it - mess, labs, the garage. Use the loop: never get cornered in a dead end."],
+		[K, "If a calm voice tells you to 'please remain indoors', that's the station's home assistant. It started saying it the night the drill came up. Nobody programmed that."]],
+	"station_2f": [[K, "Dormitories and offices. The floor is carpet up there - your boots are quieter, but so are theirs."],
+		[K, "Halvorsen told the board the drill was a geological survey for an Arctic data centre. Nobody builds a data centre on Greycrow. Somebody wanted what was under the ice."]],
 	"fuel_depot": [[K, "You're outside. Watch the cold bar. And Shen - snow keeps footprints. Anyone with eyes can follow them straight to you."],
 		[K, "Weather changes fast out there. A blizzard hides you, but it eats your body heat."]],
 	"station_b1": [[K, "The basement. Generator hall in the middle, the old listening post around it. The drill shaft door is at the south end."]],

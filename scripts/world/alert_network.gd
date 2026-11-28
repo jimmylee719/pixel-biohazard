@@ -104,3 +104,14 @@ func _spread_search() -> void:
 		var e := node as Enemy
 		if e and not e.is_dead and not e.is_dormant and not e.is_boss() and e.state != Enemy.State.UNAWARE:
 			e.search_near(last_known)
+
+
+## v0.12：發現屍體 → 整區戒備（還沒在警戒時才降到 CAUTION；已經 ALERT 就不動）
+func raise_caution(at: Vector2) -> void:
+	last_known = at
+	if phase == Phase.NONE or phase == Phase.CAUTION:
+		_set_phase(Phase.CAUTION)
+		timer = caution_time
+		for node in get_tree().get_nodes_in_group("enemies"):
+			if node is Enemy:
+				node.set_vigilant(caution_vigilance)

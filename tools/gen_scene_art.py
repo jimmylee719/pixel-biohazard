@@ -1294,6 +1294,12 @@ def gen_stash():
     _save("props", "chart", 16, 12, render([box(0, 3, 0, 6.4, 5, 0.4, "paper"), box(-2.5, 1.5, 0.4, 2.2, 0.4, 0.2, "black"),
                                             box(1.5, 3.4, 0.4, 2.8, 0.4, 0.2, "black"), box(3.4, 5.2, 0.4, 0.9, 0.9, 0.3, "red_metal"),
                                             box(-3.8, 5, 0.4, 1.6, 0.4, 0.2, "black")], 16, 12, anchor=(8, 10)))
+    _save("props", "dart_pistol", 18, 12, render([box(1.5, 3, 1.4, 4.2, 0.9, 1.2, "steel_dk"), box(-1.4, 3, -1.2, 1.0, 0.7, 2.0, "black"),
+                                                  Cap((5.6, 3, 1.4), (8, 3, 1.4), 0.5, "steel"), box(0.5, 3, 2.9, 1.6, 0.8, 0.5, "orange"),
+                                                  box(-2.4, 3, 1.4, 0.8, 0.8, 1.0, "steel_dk")], 18, 12, anchor=(9, 9)))
+    _save("props", "darts", 12, 10, render([box(0, 3, 0, 4, 2.6, 1.6, "enamel")] +
+                                           [Cap((-2.4 + i * 1.6, 3, 1.6), (-2.4 + i * 1.6, 3, 4.2), 0.35, "steel") for i in range(4)] +
+                                           [box(-2.4 + i * 1.6, 3, 4.4, 0.5, 0.5, 0.6, "orange") for i in range(4)], 12, 10, anchor=(6, 8)))
     print("stash: ok")
 
 

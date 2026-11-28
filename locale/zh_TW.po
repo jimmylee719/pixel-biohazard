@@ -2546,3 +2546,45 @@ msgstr "天空放晴了。極光。很美——而且每個哨兵都看得比平
 
 msgid "Someone's following your footprints. Lead them into a loop - or wait for the snow to cover them."
 msgstr "有人在跟著妳的腳印走。把他們帶進繞圈的路線——或者等雪把腳印蓋掉。"
+
+msgid "Tranquilliser pistol"
+msgstr "麻醉槍"
+
+msgid "A vet's dart pistol from the station kennel. Puts a person to sleep for most of a minute; slows the infected for a while. Nobody dies."
+msgstr "研究站狗舍的獸醫用麻醉槍。人會睡將近一分鐘，感染者也會安靜一陣子。沒有人會死。"
+
+msgid "Sedative darts"
+msgstr "麻醉鏢"
+
+msgid "Veterinary sedative. Four to a clip."
+msgstr "獸醫用鎮靜劑。一個彈匣四發。"
+
+msgid "From the station's kennel. One dart and a grown man sleeps for most of a minute."
+msgstr "來自研究站的狗舍。一發，一個大男人就會睡上將近一分鐘。"
+
+msgid "Drag the sleeper into a locker before someone finds him."
+msgstr "趁還沒被人發現，把睡著的人拖進置物櫃。"
+
+msgid "Drag the body"
+msgstr "拖走"
+
+msgid "Drop the body"
+msgstr "放下"
+
+msgid "Hide the body in the locker"
+msgstr "塞進置物櫃"
+
+msgid "\"Don't shoot!\" He freezes with his hands up. Keep aiming and he'll empty his pockets."
+msgstr "「別開槍！」他舉起雙手不敢動。繼續指著他，他會把身上的東西交出來。"
+
+msgid "Enemy radio: \"Man down! We have a man down!\""
+msgstr "敵方無線電：「有人倒了！有人倒下了！」"
+
+msgid "Enemy radio: \"Post, report... Post, respond.\" Somebody is coming to check."
+msgstr "敵方無線電：「哨點，回報……哨點，請回答。」有人要過來查看了。"
+
+msgid "If a calm voice tells you to 'please remain indoors', that's the station's home assistant. It started saying it the night the drill came up. Nobody programmed that."
+msgstr "如果有個平靜的聲音叫妳「請留在室內」，那是研究站的家用助理。鑽頭出井那天晚上它就開始這樣說了。沒有人設定過那句話。"
+
+msgid "Halvorsen told the board the drill was a geological survey for an Arctic data centre. Nobody builds a data centre on Greycrow. Somebody wanted what was under the ice."
+msgstr "哈爾沃森跟董事會說，鑽井是替北極資料中心做的地質調查。沒有人會把資料中心蓋在灰鴉島。有人想要的是冰底下的東西。"

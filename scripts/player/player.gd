@@ -182,6 +182,11 @@ func _physics_process(delta: float) -> void:
 		velocity = velocity.move_toward(Vector2.ZERO, acceleration * delta)
 		move_and_slide()
 		return
+	if dragging:
+		if not is_instance_valid(dragging) or dragging.stashed or (not dragging.is_dead and not dragging.is_asleep()) or is_hiding:
+			dragging = null
+		else:
+			dragging.global_position = dragging.global_position.lerp(global_position - facing * 11.0, 0.35)
 	_update_infection(delta)
 	_update_body_temp(delta)
 	_update_hazard(delta)
@@ -456,8 +461,14 @@ func is_carrying() -> bool:
 	return WorldState.carrying != ""
 
 
+## 拖著走的屍體（BodyHandle）
+var dragging: Enemy = null
+
+
 func get_speed_mult() -> float:
 	var mult := 1.0
+	if dragging:
+		mult *= 0.55
 	if WorldState.carrying == "fuel":
 		mult *= 0.85
 	if WorldState.health < wounded_threshold:

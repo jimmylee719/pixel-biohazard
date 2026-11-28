@@ -99,6 +99,8 @@ func _draw_map(r: Rect2) -> void:
 			var ch := lv.char_at(Vector2i(x, y))
 			if ch != "#" and ch != "=" and ch != "~":
 				continue
+			if ch == "#" and not _near_floor(lv, Vector2i(x, y)):
+				continue  # 地圖外的空白（合併地圖的空隙）不畫，只畫貼著地板的牆
 			var p := center + (Vector2(x, y) - pc) * CELL
 			var cell_r := Rect2(p, Vector2(CELL, CELL)).intersection(r)
 			if cell_r.size.x > 0 and cell_r.size.y > 0:
@@ -133,6 +135,14 @@ func _draw_map(r: Rect2) -> void:
 	var side := f.orthogonal()
 	draw_colored_polygon(PackedVector2Array([center + f * 4.0, center - f * 2.5 + side * 2.5, center - f * 2.5 - side * 2.5]),
 		Color(0.95, 1.0, 1.0))
+
+
+func _near_floor(lv: Level, c: Vector2i) -> bool:
+	for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN, Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+		var ch := lv.char_at(c + d)
+		if ch != "" and ch != "#" and ch != " ":
+			return true
+	return false
 
 
 func _draw_static(r: Rect2, amount := 1.0) -> void:

@@ -13,6 +13,10 @@ const DATA := {
 	"station_1f": {
 		"42,11": {"kind": "mod", "id": "ext_mag"},
 	},
+	"south_shore": {
+		"6,24": {"kind": "item", "item": "dart_pistol", "count": 1},
+		"7,24": {"kind": "item", "item": "darts", "count": 4},
+	},
 	"station_2f": {
 		"34,1": {"kind": "chart", "id": "harpoon", "reveal": "reveal:harpoon", "mission": "cache_harpoon",
 			"text": "WHALER'S SKETCH: \"Old harbour, west shed, behind the lockers. Grandfather's harpoon gun still hangs there. Oiled it myself in the spring. - Ivo\""},

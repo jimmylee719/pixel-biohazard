@@ -6,8 +6,8 @@ shader_type canvas_item;
 uniform sampler2D screen_texture : hint_screen_texture, filter_nearest;
 uniform float grain = 0.055;
 uniform float vignette = 0.55;
-uniform float saturation = 0.8;
-uniform float contrast = 1.1;
+uniform float saturation = 0.98;
+uniform float contrast = 1.12;
 uniform float era = 0.0;
 // 2.5D 的鏡頭傾斜（0 = 正俯視；0.2 左右 = 像鏡頭往前傾的斜角視角：上面比較遠、比較小）
 uniform float tilt = 0.0;
@@ -27,8 +27,10 @@ void fragment() {
 	c = (c - 0.5) * contrast + 0.5;
 	// 冷調的軍事感（偏青灰）：只在現在的時代
 	if (era < 0.5) {
-		c = mix(c, c * vec3(0.88, 1.0, 1.03), 0.75);
-		c += (1.0 - l) * vec3(-0.006, 0.012, 0.016);
+		// v0.12：配色往第二代那種「乾淨、多一點色彩」靠：陰影偏鋼青，亮處（燈、火、螢幕）偏暖，飽和度高一點
+		c = mix(c, c * vec3(0.93, 1.0, 1.03), 0.45);
+		c += (1.0 - l) * vec3(-0.004, 0.008, 0.014);
+		c += smoothstep(0.5, 1.0, l) * vec3(0.04, 0.02, -0.012);
 	}
 	// 顆粒的大小固定是「畫面高度的 1/270」（原本的像素大小），視窗放大時顆粒不會變細
 	float grain_px = max(1.0, floor(1.0 / (SCREEN_PIXEL_SIZE.y * 270.0)));

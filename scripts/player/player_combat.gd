@@ -88,6 +88,10 @@ const WEAPONS := {
 	"crossbow": {"ammo": "bolts", "mag": 1, "reload": 1.7, "cooldown": 0.3, "range": 200.0,
 		"damage_min": 60.0, "damage_max": 110.0, "stagger": 0.8, "noise_tiles": 1.5, "falloff": false, "quiet": true,
 		"retrieve": true},
+	# 麻醉槍（v0.12）：不殺人——打中的人睡 sleep 秒（怪物睡一半），幾乎沒有聲音。平衡者的打法
+	"dart_pistol": {"ammo": "darts", "mag": 4, "reload": 1.6, "cooldown": 0.5, "range": 150.0,
+		"damage_min": 0.0, "damage_max": 0.0, "stagger": 0.0, "noise_tiles": 2.0, "falloff": false, "pose": "pistol",
+		"sleep": 45.0, "muffled": true},
 	# 特殊武器（要先找到藏寶圖，見 Extras）：pose = 用哪一把槍的姿勢和槍聲
 	# 燈籠站卡賓槍：原廠消音的 1962 年卡賓槍，吃步槍彈、很安靜
 	"carbine": {"ammo": "rifle_rounds", "mag": 8, "reload": 2.0, "cooldown": 0.45, "range": 220.0,
@@ -325,7 +329,10 @@ func shoot() -> bool:
 		if s.falloff:
 			var dist := origin.distance_to(target.global_position)
 			damage *= clampf(1.3 - dist / s.range, 0.3, 1.0)
-		target.take_damage(damage, origin, s.stagger)
+		if s.has("sleep"):
+			target.put_to_sleep(s.sleep)
+		else:
+			target.take_damage(damage, origin, s.stagger)
 		_stick_bolt(target, s)
 		Sfx.play("bullet_hit_flesh", target.global_position)
 		end = target.global_position
