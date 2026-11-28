@@ -57,12 +57,23 @@ const DATA := {
 		"desc": "A hunter's crossbow. Silent, hits hard, one bolt at a time. Bolts that hit can be pulled back out."},
 	"bolts": {"name": "Crossbow bolts", "stack": 8, "kind": "ammo",
 		"desc": "Carbon shafts, broadhead tips. Reusable if you can reach the body."},
+	"carbine": {"name": "LANTERN carbine", "stack": 1, "kind": "weapon",
+		"desc": "A 1962 listening-post carbine with a factory suppressor. Rifle rounds, eight to a magazine, and barely louder than a cough."},
+	"harpoon": {"name": "Harpoon gun", "stack": 1, "kind": "weapon",
+		"desc": "A whaler's shoulder gun, older than the station. Fires crossbow bolts with a charge behind them. One shot; it goes through almost anything."},
 	"knife": {"name": "Combat knife", "stack": 1, "kind": "kit",
 		"desc": "Fixed blade, always on your vest. Slash, slash, thrust. Sheathe it to fight bare-handed instead: jab, hook, kick."},
 	"lighter": {"name": "Lighter", "stack": 1, "kind": "kit",
 		"desc": "Brass petrol lighter. Lights oil drums, firebombs and kindling. It never leaves your pocket."},
 	"kindling": {"name": "Kindling", "stack": 4, "kind": "campfire",
 		"desc": "Split pallet wood and oily rags. Use it to light a small fire at your feet: warmth for a while - and light anyone can see."},
+}
+
+## 武器改裝件（Extras 的 mod）：拿了就一直生效、不佔格子（旗標 mod:<id>），效果在 PlayerCombat.weapon_stats()
+const MODS := {
+	"ext_mag": {"name": "Extended magazine", "desc": "Pistol and SMG hold half again as many rounds."},
+	"red_dot": {"name": "Reflex sight", "desc": "Your aim settles much faster."},
+	"foregrip": {"name": "Foregrip", "desc": "Less kick: your aim recovers quicker between shots."},
 }
 
 ## 地圖符號 → [物品, 數量]

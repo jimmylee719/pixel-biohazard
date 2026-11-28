@@ -10,6 +10,7 @@
 ## requires：前置任務，全部完成後這個任務才會出現。
 ## reward：完成時給的東西（bottles = 空瓶數、intel = 取得某區域的巡邏情報、items = {物品: 數量}、
 ##         flag = 設定一個旗標，例如讓隱藏的補給出現）。
+## flag：有這個欄位的支線，要有這個旗標才會出現（藏寶圖：Extras 的 chart 設定 reveal 旗標）。
 ## radio：有這個欄位的支線，要先在安全屋用無線電「聽到」才會出現（內容就是無線電訊息）。
 extends Node
 
@@ -160,6 +161,18 @@ const DATA := [
 		],
 		"reward": {"items": {"rifle_rounds": 6, "med": 1}},
 	},
+	{
+		"id": "cache_harpoon", "main": false, "flag": "reveal:harpoon",
+		"title": "Weapon cache: harpoon gun",
+		"desc": "Ivo's sketch: his grandfather's harpoon gun hangs in the west shed of the North Harbor, behind the lockers.",
+		"steps": [{"type": "collect", "target": "cache_harpoon"}],
+	},
+	{
+		"id": "cache_carbine", "main": false, "flag": "reveal:carbine",
+		"title": "Weapon cache: LANTERN carbine",
+		"desc": "An Accord inventory from 1962: a suppressed carbine was sealed in the old recording room, in the station basement beside the reel recorder.",
+		"steps": [{"type": "collect", "target": "cache_carbine"}],
+	},
 ]
 
 
@@ -186,6 +199,8 @@ func is_available(mission_id: String) -> bool:
 	var m := get_mission(mission_id)
 	if not _requirements_met(m):
 		return false
+	if m.has("flag") and not WorldState.has_flag(m.flag):
+		return false  # 要先找到那張藏寶圖
 	return not m.has("radio") or WorldState.has_flag("radio:" + mission_id)
 
 

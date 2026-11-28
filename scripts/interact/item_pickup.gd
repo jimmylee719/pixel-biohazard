@@ -16,10 +16,14 @@ const COLORS := {
 	"heat_pack": Color(1.0, 0.6, 0.25),
 }
 ## 撿到武器時彈匣裡已經有的子彈
-const START_LOADED := {"pistol": 6, "shotgun": 2, "rifle": 3, "nailgun": 12, "flare_gun": 1, "revolver": 6, "smg": 24, "crossbow": 1}
+const START_LOADED := {"pistol": 6, "shotgun": 2, "rifle": 3, "nailgun": 12, "flare_gun": 1, "revolver": 6, "smg": 24, "crossbow": 1, "carbine": 8, "harpoon": 1}
 
 var pickup_item := ""
 var pickup_count := 1
+## 放在哪種桌子上（stash/stand_<種類>；Level 決定，"" = 放地上）。桌子擋路、拿走東西之後留著。
+var stand := ""
+## 桌面比地板高幾個像素
+const STAND_TOP := 9.0
 
 
 func can_interact(player: Player) -> bool:
@@ -48,7 +52,7 @@ func interact(_player: Player) -> void:
 func sync_from_state() -> void:
 	_sync_taken()
 	# 道具放在容器裡：拿走之後容器留在原地（打開、空的）
-	if stash_art() != "":
+	if stash_art() != "" or stand != "":
 		visible = is_revealed()
 		queue_redraw()
 
@@ -60,7 +64,7 @@ const STASH := {"med": "medbox", "antibiotic": "cooler", "ammo": "ammo_box", "sh
 	"flare_gun": "weapon_case", "nailgun": "toolbox", "fire_axe": "axe_case", "ethanol": "chem_crate", "heat_pack": "backpack",
 	"suppressor": "weapon_case", "bottle": "bottle_crate", "stone": "duffel",
 	"revolver": "weapon_case", "smg": "weapon_case", "crossbow": "weapon_case", "magnum_rounds": "ammo_box", "bolts": "duffel",
-	"crowbar": "toolbox"}
+	"crowbar": "toolbox", "carbine": "weapon_case", "harpoon": "weapon_case"}
 ## 生活區（辦公室、宿舍、實驗室……）的子彈、雜物收在抽屜裡，不是軍用彈藥箱
 const CIVIL_SETS := ["office", "dorm", "lab", "lounge", "mess", "medical", "cabin", "saloon", "theater", "hut"]
 
@@ -76,21 +80,34 @@ func stash_art() -> String:
 	return kind
 
 
+## 沒有容器時直接畫哪張圖
+func icon_art() -> String:
+	return "props/" + pickup_item
+
+
 func _draw() -> void:
+	var lift := 0.0
+	if stand != "":
+		var table := Art.tex("stash/stand_" + stand)
+		if table:
+			draw_rect(Rect2(-7, 6, 14, 2), Color(0, 0, 0.02, 0.35))
+			draw_texture(table, Vector2(-table.get_width() * 0.5, 8 - table.get_height()).floor())
+			lift = STAND_TOP
 	var stash := stash_art()
 	if stash != "":
 		var st := Art.tex("stash/" + stash + ("" if enabled else "_open"))
 		if st:
-			draw_rect(Rect2(-st.get_width() * 0.4, 5, st.get_width() * 0.8, 2), Color(0, 0, 0.02, 0.35))
-			draw_texture(st, Vector2(-st.get_width() * 0.5, 8 - st.get_height()).floor())
+			if lift == 0.0:
+				draw_rect(Rect2(-st.get_width() * 0.4, 5, st.get_width() * 0.8, 2), Color(0, 0, 0.02, 0.35))
+			draw_texture(st, Vector2(-st.get_width() * 0.5, 8 - st.get_height() - lift).floor())
 			return
 	if not enabled:
 		return
-	var tex := Art.tex("props/" + pickup_item)
+	var tex := Art.tex(icon_art())
 	if tex:
-		# 地上的小影子＋物品圖（tools/gen_pixel_art.py）
-		draw_rect(Rect2(-tex.get_width() * 0.4, tex.get_height() * 0.5 - 2, tex.get_width() * 0.8, 2), Color(0, 0, 0, 0.35))
-		draw_texture(tex, (-tex.get_size() * 0.5).floor())
+		# 小影子＋物品圖（tools/gen_pixel_art.py）
+		draw_rect(Rect2(-tex.get_width() * 0.4, tex.get_height() * 0.5 - 2 - lift, tex.get_width() * 0.8, 2), Color(0, 0, 0, 0.35))
+		draw_texture(tex, (-tex.get_size() * 0.5 - Vector2(0, lift)).floor())
 		return
 	var c: Color = COLORS.get(pickup_item, Color.WHITE)
 	match pickup_item:

@@ -352,6 +352,8 @@ func get_effective_range() -> float:
 	var r := vision_range
 	if _player:
 		r *= _player.get_detection_range_mult()
+		if _level and not _level.is_indoor_at(global_position):
+			r *= float(Weather.value("sight"))  # 天氣：暴風雪看不遠、晴天看得遠
 	if _vigilance_timer > 0.0:
 		r *= vigilance_range_mult
 	return r
@@ -922,6 +924,14 @@ func _set_state(new_state: State) -> void:
 		elif previous != State.ALERT and voice == "watcher" and not is_boss():
 			Sfx.play("watcher_groan", global_position, 0.1, 3.0)
 	state_changed.emit(new_state)
+
+
+## 看到雪地上的新腳印（SnowTracks）：起疑，往最新的腳印找過去
+func notice_tracks(pos: Vector2) -> void:
+	if is_dead or is_dormant or (state != State.UNAWARE and state != State.SEARCH):
+		return
+	awareness = maxf(awareness, suspicious_threshold + 0.05)
+	_investigate(pos)
 
 
 func _investigate(pos: Vector2) -> void:

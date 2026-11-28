@@ -2262,8 +2262,8 @@ msgstr "刀收著。刺拳、鉤拳、踢：傷害低，但能把人打退、踢
 msgid "Bright and narrow. Everything in the beam can see where it comes from."
 msgstr "又亮又窄。被照到的東西都知道光從哪來。"
 
-msgid "[%s] arrow on/off"
-msgstr "[%s] 開／關指引箭頭"
+msgid "[%s] mark on map"
+msgstr "[%s] 在地圖上標記／取消"
 
 msgid "Backpack"
 msgstr "背包"
@@ -2330,3 +2330,219 @@ msgstr "柯瓦奇：「它不是從大陸來的。它來自妳腳底下——也
 
 msgid "KOVAC: \"The bed of the colony is at the bottom of the shaft. As long as it sings, something will keep answering. I'm sorry. I should be the one going down.\""
 msgstr "柯瓦奇：「菌落的本體在井底。只要它還在唱，就會一直有東西回答。對不起。該下去的人是我。」"
+
+msgid "LANTERN carbine"
+msgstr "燈籠站卡賓槍"
+
+msgid "A 1962 listening-post carbine with a factory suppressor. Rifle rounds, eight to a magazine, and barely louder than a cough."
+msgstr "1962 年監聽站的卡賓槍，原廠就有消音器。吃步槍彈，一個彈匣八發，聲音比咳嗽大不了多少。"
+
+msgid "Harpoon gun"
+msgstr "捕鯨魚叉槍"
+
+msgid "A whaler's shoulder gun, older than the station. Fires crossbow bolts with a charge behind them. One shot; it goes through almost anything."
+msgstr "捕鯨人的肩射槍，比研究站還老。用火藥把十字弓的箭打出去。一次一發，幾乎什麼都打得穿。"
+
+msgid "Sealed in the recording room since 1962. Factory suppressor, rifle rounds. Somebody expected to need it quietly."
+msgstr "1962 年起就封在錄音室裡。原廠消音器、步槍彈。當年有人預料到會需要安靜地用它。"
+
+msgid "As quiet as the nail gun, and it hits like a rifle."
+msgstr "和釘槍一樣安靜，打起來像獵槍。"
+
+msgid "A whaler's shoulder gun from the old harbour. It throws a bolt hard enough to pin a bear to the ice."
+msgstr "舊港口捕鯨人的肩射槍。射出去的箭足以把一頭熊釘在冰上。"
+
+msgid "One shot, a long reload. Pull the bolt back out afterwards."
+msgstr "一發，裝填很久。打完記得把箭拔回來。"
+
+msgid "Extended magazine"
+msgstr "加長彈匣"
+
+msgid "Pistol and SMG hold half again as many rounds."
+msgstr "手槍和衝鋒槍的彈匣多裝一半的子彈。"
+
+msgid "Reflex sight"
+msgstr "內紅點瞄具"
+
+msgid "Your aim settles much faster."
+msgstr "準心收得快很多。"
+
+msgid "Foregrip"
+msgstr "前握把"
+
+msgid "Less kick: your aim recovers quicker between shots."
+msgstr "後座力變小：每一發之間準心恢復得比較快。"
+
+msgid "Study the sketch"
+msgstr "看這張圖"
+
+msgid "%s fitted. %s"
+msgstr "裝上%s。%s"
+
+msgid "Weapon cache marked on your map (M)."
+msgstr "武器藏匿點已標在地圖上（M）。"
+
+msgid "WHALER'S SKETCH: \"Old harbour, west shed, behind the lockers. Grandfather's harpoon gun still hangs there. Oiled it myself in the spring. - Ivo\""
+msgstr "捕鯨人的手繪圖：「舊港口，西邊的棚屋，置物櫃後面。爺爺的魚叉槍還掛在那裡。春天我親手上過油。——Ivo」"
+
+msgid "ACCORD INVENTORY, 1962 (photocopy): \"LANTERN post, recording room: one suppressed carbine, sealed with the reels. Never collected.\""
+msgstr "協定財產清冊，1962 年（影本）：「燈籠站，錄音室：消音卡賓槍一把，和帶子一起封存。從未領回。」"
+
+msgid "Weapon cache: harpoon gun"
+msgstr "武器藏匿點：捕鯨魚叉槍"
+
+msgid "Ivo's sketch: his grandfather's harpoon gun hangs in the west shed of the North Harbor, behind the lockers."
+msgstr "Ivo 的手繪圖：他爺爺的魚叉槍掛在北港西邊的棚屋裡，置物櫃後面。"
+
+msgid "Weapon cache: LANTERN carbine"
+msgstr "武器藏匿點：燈籠站卡賓槍"
+
+msgid "An Accord inventory from 1962: a suppressed carbine was sealed in the old recording room, in the station basement beside the reel recorder."
+msgstr "1962 年的協定財產清冊：一把消音卡賓槍被封在舊錄音室裡，就在研究站地下室的盤式錄音機旁邊。"
+
+msgid "Radio"
+msgstr "無線電"
+
+msgid "INCOMING  [%s]"
+msgstr "來電　[%s]"
+
+msgid "NO CARRIER"
+msgstr "沒有訊號"
+
+msgid "Only static. There is nobody to call in 1962."
+msgstr "只有雜訊。1962 年沒有人可以打。"
+
+msgid "Nothing urgent from my end. Stay warm, stay quiet."
+msgstr "我這邊沒有急事。保暖，保持安靜。"
+
+msgid "What you're doing now: %s"
+msgstr "妳現在要做的：%s"
+
+msgid "It's marked on your map. Press the map key to see it."
+msgstr "已經標在妳的地圖上了。按地圖鍵就看得到。"
+
+msgid "Weather: %s"
+msgstr "天氣：%s"
+
+msgid "Clear - aurora"
+msgstr "晴（極光）"
+
+msgid "Snowfall"
+msgstr "下雪"
+
+msgid "Blizzard"
+msgstr "暴風雪"
+
+msgid "GREYCROW ISLAND"
+msgstr "灰鴉島"
+
+msgid "Polar night  |  %s  |  < > change map"
+msgstr "永夜　｜　%s　｜　< > 換地圖"
+
+msgid "North Latitude Station"
+msgstr "北緯站"
+
+msgid "Antenna Tower"
+msgstr "天線塔"
+
+msgid "Weather Camp"
+msgstr "氣象營地"
+
+msgid "North Harbor / Gate One"
+msgstr "北港／守門一號"
+
+msgid "MV Boreal Star"
+msgstr "北極星號"
+
+msgid "That's the main hall. Everything on the ground floor opens onto it - mess, labs, the garage. Use the loop: never get cornered in a dead end."
+msgstr "那是大廳。一樓所有地方都通到那裡——餐廳、實驗室、車庫。利用繞圈的路線，別讓自己被堵在死路裡。"
+
+msgid "Dormitories and offices. The floor is carpet up there - your boots are quieter, but so are theirs."
+msgstr "宿舍和辦公室。上面鋪地毯——妳的腳步比較安靜，它們的也是。"
+
+msgid "You're outside. Watch the cold bar. And Shen - snow keeps footprints. Anyone with eyes can follow them straight to you."
+msgstr "妳到外面了。注意體溫。還有，沈若寧——雪會留下腳印。有眼睛的東西都能順著它直接找到妳。"
+
+msgid "Weather changes fast out there. A blizzard hides you, but it eats your body heat."
+msgstr "外面的天氣變得很快。暴風雪能把妳藏起來，但也會吃掉妳的體溫。"
+
+msgid "The basement. Generator hall in the middle, the old listening post around it. The drill shaft door is at the south end."
+msgstr "地下室。中間是發電機大廳，周圍是舊的監聽站。鑽探井的門在南端。"
+
+msgid "The weather camp. Three huts and an instrument field. Pieter kept one hut heated - find it before the wind finds you."
+msgstr "氣象營地。三間小屋和一片儀器場。Pieter 讓其中一間一直有暖氣——在風找到妳之前先找到它。"
+
+msgid "The old whaling harbour. Those are Accord soldiers, not infected. They see in the dark well enough, and they carry radios."
+msgstr "舊捕鯨港。那些是協定的士兵，不是感染者。他們在黑暗裡看得夠清楚，而且帶著無線電。"
+
+msgid "If one of them gets a call off, the whole harbour comes looking. Take the radio man first, or don't be seen at all."
+msgstr "只要其中一個通報出去，整個港口都會來找妳。先解決拿無線電的，或者乾脆別被看到。"
+
+msgid "Ice caves. Crawlers live under the floor down there. They feel your steps - walk soft, or walk on the far bank."
+msgstr "冰洞。爬行者住在下面的地板底下。它們感覺得到妳的腳步——放輕腳步，或走對岸。"
+
+msgid "The isolation atrium. If one of the singers sees you, every infected on that floor will hear it. Kill it quietly or not at all."
+msgstr "隔離中庭。只要被一隻詠者看到，整層的感染者都會聽到。要殺就安靜地殺，不然就別碰。"
+
+msgid "Gate One. A fenced yard, trucks, a gatehouse. Their headquarters is the building behind it."
+msgstr "守門一號。圍起來的廠區、卡車、警衛亭。他們的總部是後面那棟建築。"
+
+msgid "Inside their base. Barracks, armoury, cells. Whatever they really came here for, the paperwork is in this building."
+msgstr "在他們的基地裡了。寢室、軍械庫、牢房。不管他們真正來這裡做什麼，文件都在這棟樓裡。"
+
+msgid "The Boreal Star. Ten decks and every window dark. Somebody is up on the sun deck with a rifle - stay under the overhangs."
+msgstr "北極星號。十層甲板，每一扇窗都是暗的。頂層甲板上有人拿著步槍——待在遮蔽底下。"
+
+msgid "The atrium. Hear that through the walls? That's not a recording."
+msgstr "中庭。聽到牆後面的聲音了嗎？那不是錄音。"
+
+msgid "The antenna tower. If the dish is iced over, find the de-icer before you climb."
+msgstr "天線塔。如果天線碟結冰了，爬上去之前先找到除冰器。"
+
+msgid "The shaft. Four hundred metres of it. Whatever is at the bottom has been waiting a very long time."
+msgstr "鑽探井。四百公尺深。底下的東西已經等了很久很久。"
+
+msgid "Watchers. Station staff, still walking their rounds. Blind - they hunt by sound. Sneak, and you can pass within a metre."
+msgstr "值班者。研究站的人員，還在走生前的巡邏路線。看不見——靠聲音獵食。潛行的話，離一公尺都能走過去。"
+
+msgid "A chimer. Hear the clicking? It's listening to the echo. Stand still when it clicks and it loses you."
+msgstr "鳴骨者。聽到喀喀聲了嗎？它在聽回音。它喀的時候站著別動，它就找不到妳。"
+
+msgid "Some of the bodies aren't dead, only cold. If the heating comes on, they wake. Give every body a wide berth."
+msgstr "有些屍體不是死了，只是冷了。暖氣一開它們就會醒。每一具屍體都離遠一點。"
+
+msgid "A crawler. It feels footsteps through the floor. Walking isn't quiet enough near one - sneak."
+msgstr "爬行者。它透過地板感覺腳步。在它附近用走的不夠安靜——要潛行。"
+
+msgid "A husk. Slow, but one grab is a heavy dose of spores. Don't let it corner you."
+msgstr "膨脹者。很慢，但被抓一下就是一大口孢子。別讓它把妳逼到角落。"
+
+msgid "A singer. If it sees you, it calls everything nearby. Kill it first, or don't be seen."
+msgstr "詠者。被它看到，它會把附近所有東西都叫來。先殺它，不然就別被看到。"
+
+msgid "A runner - freshly turned. Fast. You won't outrun it in the open; break line of sight and hide."
+msgstr "狂奔者——剛變不久。很快。在空曠的地方跑不贏它；切斷視線然後躲起來。"
+
+msgid "A spitter. It throws spore clots from a distance. Close the gap or stay behind cover."
+msgstr "噴孢者。它會從遠處吐孢子團。拉近距離，或待在掩體後面。"
+
+msgid "The front of that one is armour. Get behind it. Throw something, let it turn, then shoot its back."
+msgstr "那一隻的正面是盔甲。繞到它後面。丟個東西讓它轉身，再打它的背。"
+
+msgid "The dogs. Their noses still work - they'll follow your tracks in the snow, and they're faster than you."
+msgstr "那些狗。鼻子還管用——它們會順著妳在雪地上的腳印追過來，而且跑得比妳快。"
+
+msgid "Soldiers. Unlike the infected, they see. Stay out of their cone of view, and stay out of the light."
+msgstr "士兵。和感染者不一樣，他們看得見。別進他們的視野，也別站在光底下。"
+
+msgid "They've seen you. Break line of sight and keep moving. When they lose you they'll search - wait it out somewhere dark."
+msgstr "他們看到妳了。切斷視線，繼續移動。跟丟之後他們會搜索——找個暗的地方等過去。"
+
+msgid "Blizzard. Nobody out there can see or hear much - including you. Move now if you need to, but you'll freeze twice as fast."
+msgstr "暴風雪。外面誰都看不清、聽不清——妳也是。要動就趁現在，但妳會凍得快一倍。"
+
+msgid "The sky's cleared. Aurora. Pretty - and every sentry can see three times as far. Stay off the open snow."
+msgstr "天空放晴了。極光。很美——而且每個哨兵都看得比平常遠得多。別走空曠的雪地。"
+
+msgid "Someone's following your footprints. Lead them into a loop - or wait for the snow to cover them."
+msgstr "有人在跟著妳的腳印走。把他們帶進繞圈的路線——或者等雪把腳印蓋掉。"

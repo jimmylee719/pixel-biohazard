@@ -88,10 +88,17 @@ const WEAPONS := {
 	"crossbow": {"ammo": "bolts", "mag": 1, "reload": 1.7, "cooldown": 0.3, "range": 200.0,
 		"damage_min": 60.0, "damage_max": 110.0, "stagger": 0.8, "noise_tiles": 1.5, "falloff": false, "quiet": true,
 		"retrieve": true},
+	# 特殊武器（要先找到藏寶圖，見 Extras）：pose = 用哪一把槍的姿勢和槍聲
+	# 燈籠站卡賓槍：原廠消音的 1962 年卡賓槍，吃步槍彈、很安靜
+	"carbine": {"ammo": "rifle_rounds", "mag": 8, "reload": 2.0, "cooldown": 0.45, "range": 220.0,
+		"damage_min": 55.0, "damage_max": 100.0, "stagger": 0.7, "noise_tiles": 4.0, "falloff": false, "pose": "rifle", "muffled": true},
+	# 捕鯨魚叉槍：一發、非常痛、幾乎什麼都打得穿，箭可以拔回來
+	"harpoon": {"ammo": "bolts", "mag": 1, "reload": 2.4, "cooldown": 0.4, "range": 230.0,
+		"damage_min": 130.0, "damage_max": 220.0, "stagger": 1.4, "noise_tiles": 6.0, "falloff": false, "retrieve": true, "pose": "crossbow"},
 }
 ## 子彈穿牆：薄牆（連續牆格數 ≤ 第一個數字）打得穿，每穿一道牆傷害乘上第二個數字。
 ## 牆、櫃子、置物櫃、關著的門都算；厚的外牆、岩壁打不穿。散彈、釘槍、信號彈不會穿。
-const PIERCE := {"pistol": [1, 0.55], "rifle": [2, 0.8], "revolver": [1, 0.75], "smg": [1, 0.5]}
+const PIERCE := {"pistol": [1, 0.55], "rifle": [2, 0.8], "revolver": [1, 0.75], "smg": [1, 0.5], "carbine": [1, 0.7], "harpoon": [2, 0.9]}
 ## 子彈打到敵人的判定寬度（像素）
 const SHOT_HIT_WIDTH := 7.0
 
@@ -99,7 +106,7 @@ const SHOT_HIT_WIDTH := 7.0
 var magazine_size: int:
 	get:
 		var w := current_weapon()
-		return WEAPONS[w].mag if w != "" else 0
+		return weapon_stats(w).mag if w != "" else 0
 
 var aiming := false
 var target: Enemy = null
@@ -156,7 +163,25 @@ func has_weapon() -> bool:
 
 
 func stats() -> Dictionary:
-	return WEAPONS.get(current_weapon(), {})
+	return weapon_stats(current_weapon())
+
+
+## 這把槍實際的數值 = WEAPONS ＋ 已經裝上的改裝件（Items.MODS，旗標 mod:<id>）
+static func weapon_stats(weapon: String) -> Dictionary:
+	if not WEAPONS.has(weapon):
+		return {}
+	var s: Dictionary = WEAPONS[weapon].duplicate()
+	if WorldState.has_flag("mod:ext_mag") and (weapon == "pistol" or weapon == "smg"):
+		s.mag = int(s.mag * 1.5)
+	if WorldState.has_flag("mod:foregrip"):
+		s["recoil"] = minf(float(s.get("recoil", 0.3)) + 0.25, 0.9)
+	return s
+
+
+## 這把槍用哪一把的姿勢、動畫（特殊武器沿用現有的圖）
+func pose_weapon() -> String:
+	var w := current_weapon()
+	return WEAPONS.get(w, {}).get("pose", w)
 
 
 func reload_progress() -> float:
@@ -226,7 +251,7 @@ func _update_aim(delta: float) -> void:
 		if player.is_shivering():
 			rate *= 0.6  # 手在發抖
 		var cap := moving_focus_cap if moving else 1.0
-		aim_focus = minf(aim_focus + rate * delta / aim_focus_time, maxf(cap, minf(aim_focus, 1.0)))
+		aim_focus = minf(aim_focus + rate * delta / (aim_focus_time * (0.55 if WorldState.has_flag("mod:red_dot") else 1.0)), maxf(cap, minf(aim_focus, 1.0)))
 		if moving:
 			aim_focus = minf(aim_focus, cap)
 
@@ -266,7 +291,7 @@ func shoot() -> bool:
 	var weapon := current_weapon()
 	if weapon == "" or _cooldown > 0.0 or reloading:
 		return false
-	var s: Dictionary = WEAPONS[weapon]
+	var s: Dictionary = weapon_stats(weapon)
 	if WorldState.get_loaded(weapon) <= 0:
 		if not start_reload():
 			Sfx.play("gun_empty")
@@ -276,7 +301,10 @@ func shoot() -> bool:
 	var origin := player.global_position
 	var silenced := weapon == "pistol" and WorldState.suppressor_on()
 	NoiseBus.emit_noise(origin, (SUPPRESSED_NOISE_TILES if silenced else s.noise_tiles) * Player.TILE, player)
-	match weapon:
+	match String(s.get("pose", weapon)) if not s.get("muffled", false) else "muffled":
+		"muffled":
+			Sfx.play("pistol_shot", origin, 0.05, -14.0)
+			Sfx.play("knife_swing", origin, 0.1, -4.0)
 		"shotgun", "rifle", "revolver":
 			Sfx.play("shotgun_shot", origin, 0.04, 2.0 if weapon == "rifle" else 0.0)
 		"nailgun", "crossbow":
@@ -421,7 +449,7 @@ func start_reload() -> bool:
 	var weapon := current_weapon()
 	if weapon == "" or reloading:
 		return false
-	var s: Dictionary = WEAPONS[weapon]
+	var s: Dictionary = weapon_stats(weapon)
 	if WorldState.get_loaded(weapon) >= s.mag or WorldState.inv_count(s.ammo) <= 0:
 		return false
 	reloading = true
@@ -435,7 +463,7 @@ func _finish_reload() -> void:
 	var weapon := current_weapon()
 	if weapon == "":
 		return
-	var s: Dictionary = WEAPONS[weapon]
+	var s: Dictionary = weapon_stats(weapon)
 	var got := WorldState.inv_remove(s.ammo, s.mag - WorldState.get_loaded(weapon))
 	WorldState.set_loaded(weapon, WorldState.get_loaded(weapon) + got)
 

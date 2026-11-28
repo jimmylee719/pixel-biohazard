@@ -28,6 +28,8 @@ func _init() -> void:
 		"inventory": [_key(KEY_TAB), _joy(JOY_BUTTON_BACK)],
 		"map": [_key(KEY_M), _joy(JOY_BUTTON_DPAD_UP)],
 		"phone": [_key(KEY_P), _joy(JOY_BUTTON_DPAD_DOWN)],
+		# 野戰無線電（v0.11）：接來電／自己打給柯瓦奇
+		"call": [_key(KEY_V), _joy(JOY_BUTTON_DPAD_LEFT)],
 		"pause": [_key(KEY_ESCAPE), _joy(JOY_BUTTON_START)],
 		"debug_toggle": [_key(KEY_F3)],
 	}

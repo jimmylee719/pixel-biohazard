@@ -93,6 +93,8 @@ func _run() -> void:
 	await _test_mgs_systems()
 	await _test_real_maps()
 	_test_radio_calls()
+	await _test_extras()
+	await _test_open_world()
 	await _test_survival()
 
 	print("")
@@ -1139,6 +1141,19 @@ func _test_title() -> void:
 	texts.append_array(UplinkMessages.HOLD_REPLY)
 	for call in RadioCalls.DATA:
 		texts.append_array(call.lines)
+	for table in [FieldRadio.AREA, FieldRadio.ENEMY, FieldRadio.EVENT]:
+		for lines in table.values():
+			for l in lines:
+				texts.append(l[1])
+	for w in Weather.KINDS.values():
+		texts.append(w.name)
+	for p in Island.PLACES.values():
+		texts.append(p.name)
+	for id in Items.MODS:
+		texts.append_array([Items.MODS[id].name, Items.MODS[id].desc])
+	for area in Extras.DATA.values():
+		for ex in area.values():
+			texts.append(ex.get("text", ""))
 	for id in Cutscenes.DATA:
 		for step in Cutscenes.DATA[id]:
 			for key in ["caption", "say", "text", "sub", "name", "role", "credit"]:
@@ -2311,7 +2326,7 @@ func _test_phone() -> void:
 	await _press("move_left")
 	_check(phone.app == "status" and "Condition" in phone.get_text(), "狀態 App")
 	await _frames(20)
-	_check(not _main.objective_arrows.targets.is_empty() or _main.mission_target(Missions.tracked_mission()).is_empty(), "主線有箭頭指路")
+	_check(_main.map_pins(_main.level.area_id).size() > 0 or _main.mission_target(Missions.tracked_mission()).is_empty(), "主線標在地圖上（v0.11 起畫面上不畫箭頭）")
 	_main.set_phone_app("map")
 	_check(phone.app == "map", "地圖 App")
 	_main.set_phone_app("gear")
@@ -2953,7 +2968,8 @@ func _test_real_maps() -> void:
 		var a: Dictionary = Areas.all()[id]
 		var old: Dictionary = LegacyAreas.DATA[id]
 		for field in ["names", "gear", "stairs"]:
-			var x: Array = a.get(field, {}).values()
+			# 和舊地圖比的是地圖本身（Areas.DATA），追加的調查點（Extras）另外由 _test_extras 檢查
+			var x: Array = Areas.DATA[id].get(field, {}).values()
 			var y: Array = old.get(field, {}).values()
 			x.sort()
 			y.sort()
@@ -3090,3 +3106,114 @@ func _test_radio_calls() -> void:
 	var second := RadioCalls.receive()
 	_check(second.is_empty(), "radio calls: each call plays once")
 	_check(done_before == first.any(func(t): return t.contains("Frostchime")), "radio calls: only after the mission is done")
+
+
+## v0.10：追加的調查點（Extras）、桌子、改裝件、藏寶圖
+func _test_extras() -> void:
+	Areas.use_layout()
+	for id in Extras.DATA:
+		var rows: Array = Areas.DATA[id].map
+		for key in Extras.DATA[id]:
+			var xy := String(key).split(",")
+			_check(String(rows[int(xy[1])])[int(xy[0])] == ".", "extras: %s %s is a floor cell" % [id, key])
+			var ex: Dictionary = Extras.DATA[id][key]
+			if ex.kind == "mod":
+				_check(Items.MODS.has(ex.id) and Art.tex("props/" + ex.id) != null, "extras: mod %s has data and an icon" % ex.id)
+			elif ex.kind == "chart":
+				_check(not Missions.get_mission(ex.mission).is_empty(), "extras: chart %s has a mission" % ex.id)
+	for w in ["carbine", "harpoon"]:
+		_check(Art.tex("props/" + w) != null and Items.DATA.has(w) and Codex.ENTRIES.has(w), "special weapon %s has icon, item and codex" % w)
+	# 改裝件：加長彈匣、前握把
+	_check(PlayerCombat.weapon_stats("pistol").mag == 8, "pistol magazine is 8 without the mod")
+	WorldState.set_flag("mod:ext_mag")
+	_check(PlayerCombat.weapon_stats("pistol").mag == 12 and PlayerCombat.weapon_stats("rifle").mag == 5, "extended magazine: pistol 12, rifle unchanged")
+	WorldState.data.flags.erase("mod:ext_mag")
+	# 藏寶圖任務：有旗標才出現，目標找得到
+	_check(not Missions.is_available("cache_harpoon"), "cache mission hidden before the chart")
+	WorldState.set_flag("reveal:harpoon")
+	_check(Missions.is_available("cache_harpoon"), "cache mission appears after the chart")
+	var t: Dictionary = _main.mission_target(Missions.get_mission("cache_harpoon"))
+	_check(t.get("area", "") == Areas.root_of("north_harbor") and t.get("cell") != null, "cache mission points at the harbour shed")
+	WorldState.data.flags.erase("reveal:harpoon")
+	# 正式地圖：道具放在桌上，桌子不會把路堵死（check_maps 另外檢查連通）
+	WorldState.cutscenes = false
+	await _enter("station_1f", "front")
+	var stands := 0
+	var extra_seen := false
+	for item in _main.level.get_interactables():
+		if item is ItemPickup and item.stand != "":
+			stands += 1
+		if item is ExtraPickup:
+			extra_seen = true
+	_check(stands >= 3, "real map: pickups sit on stands (%d)" % stands)
+	_check(extra_seen, "real map: the extended magazine is placed")
+	# 新過場（站長室、恢復電力）在正式地圖上真的播得完：開始之後按跳過，確認會正常結束、旗標有設
+	WorldState.cutscenes = true
+	for id in ["director_office", "power_on"]:
+		WorldState.data.flags.erase("scene:" + id)
+		_main.play_cutscene(id)
+		await _frames(20)
+		var started: bool = _main.cutscene.active
+		_main.cutscene.skipping = true
+		for i in 240:
+			if not _main.cutscene.active:
+				break
+			await _frames(1)
+		_check(started and not _main.cutscene.active and WorldState.has_flag("scene:" + id) and not get_tree().paused,
+			"cutscene %s starts, can be skipped, and hands control back" % id)
+	WorldState.cutscenes = false
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
+
+
+## v0.11：天氣、雪地腳印、野戰無線電、雷達、全島地圖、箭頭不顯示
+func _test_open_world() -> void:
+	# 天氣：暴風雪讓戶外的敵人看不遠
+	Weather.set_kind("blizzard")
+	_check(is_equal_approx(float(Weather.value("sight")), 0.6) and float(Weather.value("cold")) > 1.0, "weather: blizzard cuts sight, adds cold")
+	Weather.set_kind("snow")
+	for id in FieldRadio.ENEMY:
+		_check(Codex.ENTRIES.has(id), "field radio: enemy call %s matches a codex entry" % id)
+	for id in FieldRadio.AREA:
+		_check(Areas.all().has(id), "field radio: area call %s matches an area" % id)
+	for id in Island.PLACES:
+		for r in Island.PLACES[id].roots:
+			_check(Areas.all().has(r) and Areas.root_of(r) == r, "island: %s is a root map" % r)
+	# 腳印：在戶外雪地走路會留下腳印，敵人走過去會起疑
+	Areas.use_layout()
+	WorldState.cutscenes = false
+	await _enter("south_shore", "start")
+	var tracks: SnowTracks = _main.level.tracks
+	var snow := Vector2i(-1, -1)
+	for y in _main.level._map.size():
+		for x in String(_main.level._map[y]).length():
+			var c := Vector2i(x, y)
+			if snow.x < 0 and _main.level.char_at(c) == "." and not _main.level._is_indoor_cell(c) and _main.level.floor_kind_at(c) == "snow" \
+					and _main.level.char_at(c + Vector2i.RIGHT) == "." and _main.level.char_at(c + Vector2i(2, 0)) == ".":
+				snow = c
+	_check(snow.x >= 0, "tracks: found open snow next to the dock (fuel depot)")
+	tracks.prints.clear()
+	for i in 6:
+		_player.global_position = (Vector2(snow) + Vector2(0.1 + i * 0.5, 0.5)) * Level.TILE
+		tracks.step(_player)
+	_check(tracks.prints.size() >= 3, "tracks: walking on snow leaves footprints (%d)" % tracks.prints.size())
+	# 野戰無線電：排進來電、接起來會播、只響一次
+	_main.radio_queue.clear()
+	WorldState.data.flags.erase("fcall:test")
+	_main.queue_radio("fcall:test", FieldRadio.steps([[FieldRadio.K, "test"]]))
+	_main.queue_radio("fcall:test", FieldRadio.steps([[FieldRadio.K, "test"]]))
+	_check(_main.radio_queue.size() == 1 and _main.radio_ringing(), "field radio: a call rings once")
+	_main.answer_radio()
+	await _frames(10)
+	_main.cutscene.skipping = true
+	for i in 240:
+		if not _main.cutscene.active:
+			break
+		await _frames(1)
+	_check(not _main.radio_ringing() and WorldState.has_flag("fcall:test") and not get_tree().paused, "field radio: answering plays the call")
+	_check(_main._radio_call_steps(["KOVAC: \"x\""])[1].text == "x", "field radio: radio call text loses the speaker prefix")
+	# 地圖：全島那一頁、箭頭不顯示
+	var island: Dictionary = _main.map_data("island")
+	_check(island.get("island", false) and island.places.station.here, "island map: you are at the station")
+	_main._update_arrows(1.0)
+	_check(not _main.objective_arrows.visible, "mission arrows are not drawn on screen")
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)

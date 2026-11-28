@@ -122,7 +122,7 @@ func _draw() -> void:
 			_text(at + Vector2(14, 10), tr(m.title), Color(0.92, 0.95, 0.96))
 			for j in l.desc.size():
 				_text(at + Vector2(14, 10 + LINE * (j + 1)), l.desc[j], Color(0.6, 0.68, 0.7))
-	var hint := tr("[%s] arrow on/off") % (main._key_name("interact") if main else "E")
+	var hint := tr("[%s] mark on map") % (main._key_name("interact") if main else "E")
 	_text(Vector2(AREA.position.x, AREA.end.y - 3), hint, Color(0.55, 0.64, 0.67))
 
 

@@ -1269,6 +1269,31 @@ def gen_stash():
     # 物品圖示：消音器（物品欄、手機物品 App 用）
     _save("props", "suppressor", 16, 12, render([Cap((-5, 3, 3), (4.5, 3, 3), 2.2, "steel_dk"), Cap((4.5, 3, 3), (6.5, 3, 3), 1.4, "gunmetal"),
                                                  Cap((-5.6, 3, 3), (-5.2, 3, 3), 1.2, "black")], 16, 12, anchor=(8, 10)))
+    # ── v0.10：放道具的桌子（ItemPickup.stand）、補給盒、新圖示 ──
+    S("stand_wood", table(6.6, 9, 8.5, "benchtop", "wood"), 20, folder="stash")
+    S("stand_steel", table(6.6, 9, 8.5, "steel", "chrome", 0.8) + [box(0, 0, 3.2, 6.2, 8, 0.5, "steel_dk")], 20, folder="stash")
+    S("stand_crate", [box(0, 0.5, 0, 6.6, 9, 8.6, "wood"), box(0, 0.2, 3.6, 6.8, 0.3, 1.0, "steel_dk"),
+                      box(-4.4, 0.2, 0, 0.6, 0.3, 8.6, "steel_dk"), box(4.4, 0.2, 0, 0.6, 0.3, 8.6, "steel_dk")], 20, folder="stash")
+    pair("supply_box", [box(0, 1.5, 0, 5.4, 6, 4.4, "orange"), box(0, 1.3, 4.4, 5.6, 6.4, 1.2, "orange"), box(-2.6, 1, 3, 0.8, 0.3, 1.6, "black"),
+                        box(2.6, 1, 3, 0.8, 0.3, 1.6, "black"), Cap((-2, 4.6, 6.4), (2, 4.6, 6.4), 0.4, "black")],
+         [box(0, 1.5, 0, 5.4, 6, 4.4, "orange"), box(0, 2.1, 4, 4.8, 4.8, 0.5, "rubber"),
+          Box((0, 8.6, 7), (5.6, 0.6, 3.0), "orange", basis_along((1, 0, 0), (0, 0.35, 1)))], 16, 16)
+    _save("props", "ext_mag", 12, 14, render([box(0, 3, 0, 1.6, 2.2, 9, "black"), box(0, 3, 9, 1.8, 2.4, 1, "steel_dk"),
+                                              box(0, 2.8, 10, 1.0, 1.4, 0.8, "brass")], 12, 14, anchor=(6, 12)))
+    _save("props", "red_dot", 14, 12, render([box(0, 3, 0, 4.4, 2.4, 1.6, "steel_dk"), box(2.6, 3, 1.6, 0.5, 2.4, 4, "steel_dk"),
+                                              box(2.6, 2.9, 2.4, 0.3, 1.8, 2.6, "screen"), box(-2, 3, 1.6, 1.6, 2, 1.2, "black")], 14, 12, anchor=(7, 10)))
+    _save("props", "foregrip", 12, 14, render([box(0, 3, 6.5, 4, 2.2, 1.4, "steel_dk"), Cap((0, 3, 0.8), (0, 3, 6.5), 1.5, "black"),
+                                               box(0, 3, 0, 1.8, 2.4, 0.8, "rubber")], 12, 14, anchor=(6, 12)))
+    _save("props", "carbine", 30, 12, render([Cap((1, 3, 4), (13, 3, 4), 1.5, "steel_dk"), box(-3, 3, 3, 5, 1.6, 2.2, "gunmetal"),
+                                              box(-10.5, 3, 1.6, 3.5, 1.6, 3, "wood"), box(-2, 3, 0, 1.1, 1.4, 3.2, "black"),
+                                              box(-5.5, 3, 0.6, 0.9, 1.4, 2.4, "wood"), box(-2, 3, 5.2, 2.4, 1, 0.6, "black")], 30, 12, anchor=(15, 10)))
+    _save("props", "harpoon", 32, 12, render([Cap((-2, 3, 4), (14.5, 3, 4), 0.6, "steel"), Cap((12.4, 3, 4), (14.6, 3, 5.6), 0.5, "steel"),
+                                              Cap((12.4, 3, 4), (14.6, 3, 2.6), 0.5, "steel"), Cap((-6, 3, 4), (2, 3, 4), 1.7, "gunmetal"),
+                                              box(-11, 3, 1.4, 4, 1.8, 3.4, "wood"), box(-5, 3, 0.4, 1, 1.4, 2.8, "wood"),
+                                              box(-2, 3, 1.8, 1.6, 1.6, 1, "brass")], 32, 12, anchor=(16, 10)))
+    _save("props", "chart", 16, 12, render([box(0, 3, 0, 6.4, 5, 0.4, "paper"), box(-2.5, 1.5, 0.4, 2.2, 0.4, 0.2, "black"),
+                                            box(1.5, 3.4, 0.4, 2.8, 0.4, 0.2, "black"), box(3.4, 5.2, 0.4, 0.9, 0.9, 0.3, "red_metal"),
+                                            box(-3.8, 5, 0.4, 1.6, 0.4, 0.2, "black")], 16, 12, anchor=(8, 10)))
     print("stash: ok")
 
 

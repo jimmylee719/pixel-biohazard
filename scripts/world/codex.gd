@@ -76,6 +76,12 @@ const ENTRIES := {
 	"crossbow": {"group": "weapon", "name": "Crossbow", "sprite": "props/crossbow",
 		"desc": "A hunter's crossbow. No report at all, and it hits like a rifle at close range.",
 		"tip": "Pull your bolts back out of what you drop. One bolt at a time - do not miss twice."},
+	"carbine": {"group": "weapon", "name": "LANTERN carbine", "sprite": "props/carbine",
+		"desc": "Sealed in the recording room since 1962. Factory suppressor, rifle rounds. Somebody expected to need it quietly.",
+		"tip": "As quiet as the nail gun, and it hits like a rifle."},
+	"harpoon": {"group": "weapon", "name": "Harpoon gun", "sprite": "props/harpoon",
+		"desc": "A whaler's shoulder gun from the old harbour. It throws a bolt hard enough to pin a bear to the ice.",
+		"tip": "One shot, a long reload. Pull the bolt back out afterwards."},
 }
 
 const GROUP_TITLES := {"infected": "INFECTED", "human": "HUMAN", "weapon": "WEAPONS"}

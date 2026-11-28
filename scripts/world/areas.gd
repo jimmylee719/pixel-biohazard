@@ -1504,13 +1504,23 @@ const ROOMS := {
 }
 
 static var _composed := {}
-static var _layout_data: Dictionary = DATA
+static var _layout_data: Dictionary = {}
 static var _layout_rooms: Dictionary = ROOMS
+static var _real := {}
 
 
 ## 目前用的地圖資料（測試可以換成舊版的固定地圖，見 use_layout）
 static func all() -> Dictionary:
-	return _layout_data
+	if not _layout_data.is_empty():
+		return _layout_data
+	if _real.is_empty():
+		_real = Extras.apply(DATA)  # 正式地圖 ＋ 追加的調查點（scripts/world/extras.gd）
+	return _real
+
+
+## 現在用的是不是正式地圖（不是測試用的固定地圖）
+static func is_real() -> bool:
+	return _layout_data.is_empty()
 
 
 static func rooms() -> Dictionary:
@@ -1518,8 +1528,8 @@ static func rooms() -> Dictionary:
 
 
 ## 換一份地圖資料（行為測試用：tools/tests/legacy_areas.gd）。不給參數 = 換回正式的地圖。
-static func use_layout(data: Dictionary = DATA, room_table: Dictionary = ROOMS) -> void:
-	_layout_data = data
+static func use_layout(data: Dictionary = {}, room_table: Dictionary = ROOMS) -> void:
+	_layout_data = {} if data == DATA else data
 	_layout_rooms = room_table
 	_composed.clear()
 
@@ -1678,7 +1688,7 @@ static func _compose(root: String) -> Dictionary:
 		for sid in shared_ids:
 			entries["%s:%s" % [room_id, sid]] = room.doors[sid].cell + room.doors[sid].spawn_dir
 		data["entries"] = entries
-		for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "reels", "item_keys", "breaker_cells", "offsets", "props"]:
+		for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "reels", "item_keys", "breaker_cells", "offsets", "props", "extras"]:
 			var dst: Dictionary = data.get(field, {})
 			dst.merge(room.get(field, {}), true)
 			data[field] = dst
@@ -1789,7 +1799,7 @@ static func _tag_breakers(data: Dictionary, _area_id: String) -> void:
 ## 整個區域資料的格子座標都加上 off（地圖本身不動）
 static func _shifted(d: Dictionary, off: Vector2i) -> Dictionary:
 	var out: Dictionary = d.duplicate(true)
-	for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "reels", "item_keys", "breaker_cells", "inner_doors", "props"]:
+	for field in ["names", "hidden", "loot", "stairs", "safes", "gear", "reels", "item_keys", "breaker_cells", "inner_doors", "props", "extras"]:
 		var dst := {}
 		for key in d.get(field, {}):
 			dst[_shift_key(key, off)] = d[field][key]

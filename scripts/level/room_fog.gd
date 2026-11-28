@@ -1,5 +1,5 @@
-## 房間的黑幕：主角不在的房間整個蓋黑（進去之前看不到裡面，進去之後看不到外面）。
-## 牆壁留著（看得出建築的形狀），只蓋地板、家具和裡面的東西。
+## 房間的霧：主角不在的房間蒙一層霧（看得到裡面的地板和家具；敵人本來就只有主角視線看得到才顯示（Enemy._update_visibility），隔著牆靠聲波）。
+## v0.10 以前是整個蓋黑；使用者覺得視野太窄，改成整張地圖都看得到。
 class_name RoomFog
 extends Node2D
 
@@ -46,33 +46,25 @@ func update(pos: Vector2) -> void:
 		queue_redraw()
 
 
-## 沒看到的房間：裡面的家具整個藏起來（高的地標才不會從黑幕上面露出來）。黑幕關掉（地圖預覽）= 全部顯示。
+## 家具一律顯示（v0.10：別的房間也看得到，只是蒙一層霧）
 func _sync_props() -> void:
-	level.show_prop_rooms(visible_rooms if is_visible_in_tree() else [])
+	level.show_prop_rooms([])
 
 
 func is_hidden_cell(cell: Vector2i) -> bool:
 	return level.room_of.has(cell) and not visible_rooms.has(level.room_of[cell])
 
 
+## 霧的顏色：主角不在的房間蒙上去（看得到裡面的家具和地板，只是比較暗、偏藍）
+const HAZE := Color(0.09, 0.12, 0.17, 0.36)
+
+
 func _draw() -> void:
 	if visible_rooms.is_empty():
 		return
 	var t := float(Level.TILE)
-	# 主角在戶外：沒進去的建築畫成屋頂（從外面看到的是屋頂，不是一塊黑）
-	var outside := not level._is_indoor_cell(level.cell_of(_last_pos))
-	var roof := Art.tex("tiles/roof_metal")
-	var snowy := Art.tex("tiles/roof_snow")
 	for r in _cells_by_room:
 		if visible_rooms.has(r):
 			continue
 		for cell in _cells_by_room[r]:
-			# 牆頂比地板高、蓋住牆後面一點點地板：那一段不要蓋黑，牆才看得到
-			var h := t - Level.WALL_RAISE if level.char_at(cell + Vector2i.DOWN) == "#" else t
-			var rect := Rect2(Vector2(cell) * t, Vector2(t, h))
-			if outside and roof and level._is_indoor_cell(cell):
-				var src := Rect2(Vector2(posmod(cell.x, 4), posmod(cell.y, 4)) * t, Vector2(t, h))
-				var snow_patch := level.set_at(level.cell_of(_last_pos)) == "yard" and absi(hash(cell / 3)) % 3 != 0
-				draw_texture_rect_region(snowy if snow_patch and snowy else roof, rect, src, Color(0.75, 0.78, 0.85) if snow_patch else Color(0.9, 0.9, 0.95))
-			else:
-				draw_rect(rect, Color(0.0, 0.0, 0.01))
+			draw_rect(Rect2(Vector2(cell) * t, Vector2(t, t)), HAZE)

@@ -64,6 +64,8 @@ var room_count := 0
 var _inner_doors: Array[InteriorDoor] = []
 ## 有兩間以上的房間時才有（看不到別的房間）
 var fog: RoomFog
+## 雪地上的腳印（v0.11）
+var tracks: SnowTracks
 ## 這個區域的警戒狀態（ALERT／EVASION／CAUTION、呼叫同伴）
 var alert: AlertNetwork
 ## 家具（地圖上的 C）合併後的長方形：畫腳下的影子、機具周圍的警示框用
@@ -104,6 +106,10 @@ func _ready() -> void:
 		fog = RoomFog.new()
 		fog.setup(self)
 		fog_layer.add_child(fog)
+	tracks = SnowTracks.new()
+	tracks.name = "SnowTracks"
+	tracks.level = self
+	add_child(tracks)
 	_bake_navigation()
 	queue_redraw()
 
@@ -1318,6 +1324,17 @@ func _spawn_interactables() -> void:
 					safe_box.reveal = info.get("reveal", "")
 					safe_box.text = info.get("text", "")
 					item = safe_box
+				Extras.SYMBOL:
+					var ex: Dictionary = _data.get("extras", {}).get("%d,%d" % [x, y], {})
+					if ex.get("kind", "") == "item":
+						var extra_item := ItemPickup.new()
+						extra_item.pickup_item = ex.item
+						extra_item.pickup_count = ex.get("count", 1)
+						item = extra_item
+					elif not ex.is_empty():
+						var extra := ExtraPickup.new()
+						extra.info = ex
+						item = extra
 				_:
 					# 一般物品（彈藥、藥品、武器……見 Items.MAP_PICKUPS）
 					if Items.MAP_PICKUPS.has(row[x]):
@@ -1334,9 +1351,51 @@ func _spawn_interactables() -> void:
 			item.hidden_flag = _data.get("hidden", {}).get(key, "")
 			item.level = self
 			item.position = _cell_center(Vector2i(x, y))
+			if item is ItemPickup and item.hidden_flag == "":
+				item.stand = _stand_for(Vector2i(x, y))
+				if item.stand != "":
+					_stand_cells[Vector2i(x, y)] = true
+					add_nav_obstacle(item.position + Vector2(0, 2), Vector2(13, 10))
 			add_child(item)
 			item.sync_from_state()
 			_interactables.append(item)
+
+
+## 放道具的桌子（v0.10：道具不放地上）。回傳桌子種類；"" = 這一格不能放桌子（放地上）。
+## 桌子會擋路，所以只放在「擋住也不會把路切斷」的格子：四周能走的格子彼此還連得起來、旁邊不是門。
+const STAND_WOOD := ["office", "dorm", "lounge", "mess", "cabin", "saloon", "theater", "hut"]
+const STAND_STEEL := ["lab", "medical", "comms", "utility"]
+var _stand_cells := {}
+
+
+func _stand_for(cell: Vector2i) -> String:
+	if not Areas.is_real():
+		return ""
+	var set_id := set_at(cell)
+	if set_id == "wild" or set_id == "cave":
+		return ""
+	var ring: Array[Vector2i] = [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(1, 0),
+		Vector2i(1, 1), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0)]
+	var open: Array[bool] = []
+	for d in ring:
+		var ch := char_at(cell + d)
+		if (d.x == 0 or d.y == 0) and (ch == "D" or ch == "+" or ch == "G" or ch == "="):
+			return ""
+		open.append(ch != "" and not "#CH=~ ".contains(ch) and not _stand_cells.has(cell + d))
+	# 轉角那一格要兩邊都能走才算連著（不能從兩個家具中間斜著穿過去）
+	var walk: Array[bool] = []
+	for i in 8:
+		walk.append(open[i] and (i % 2 == 1 or (open[(i + 7) % 8] or open[(i + 1) % 8])))
+	var groups := 0
+	for i in 8:
+		if walk[i] and not walk[(i + 7) % 8]:
+			groups += 1
+	var any := walk.has(true)
+	if not any or groups > 1 or not (open[1] or open[3] or open[5] or open[7]):
+		return ""
+	if STAND_WOOD.has(set_id):
+		return "wood"
+	return "steel" if STAND_STEEL.has(set_id) else "crate"
 
 
 func _bake_navigation() -> void:

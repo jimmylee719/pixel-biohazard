@@ -213,3 +213,32 @@
   守門二號（典獄長）被方舟派買走；典藏者的名字和性別在資料片揭露前不能出現在任何對白裡。
 - 主線的無線電通話 `scripts/world/radio_calls.gd`（`RadioCalls.receive()`，旗標 `call:<任務 id>`）：完成主線任務後，在安全屋的無線電聽到柯瓦奇把劇情講清楚。
   新過場：`director_office`（站長室）、`power_on`（發電機啟動後，`main._on_power_restored`）。
+
+## v0.10：整張地圖看得到、道具放桌上、改裝件、藏寶圖（使用者試玩後的要求）
+- **視野**：`RoomFog` 不再把主角不在的房間蓋黑，改成蒙一層霧（`HAZE`），家具一律顯示、戶外也不再畫屋頂；`INDOOR_DARKNESS` 調亮。
+  敵人本來就只有主角視線看得到才顯示（`Enemy._update_visibility`），隔著牆靠聲波。**不要再做「房間外全黑」**。
+- **道具放桌上**：`ItemPickup.stand`（wood／steel／crate，圖 `stash/stand_*`）。`Level._stand_for()` 在正式地圖替每個撿取物決定要不要放桌子：
+  桌子會擋路（`add_nav_obstacle`），所以只放在「擋住也不會把路切斷、旁邊不是門」的格子；荒野、冰洞、有 hidden 旗標的藏匿點維持放地上。
+  測試用的固定地圖（`Areas.is_real()` 為 false）不放桌子。拿走之後桌子和打開的容器留著。
+- **追加的調查點 `scripts/world/extras.gd`**：不改地圖文字就能在某一格放東西（區域自己的座標，那格要是地板）。
+  `Areas.all()` 在正式地圖 = `DATA` ＋ `Extras.apply()`（地圖符號 `%`、區域資料 `extras`，names／hidden 一起寫進去）。
+  kind：`mod` 改裝件（`Items.MODS`，旗標 `mod:<id>`，效果在 `PlayerCombat.weapon_stats()`；讀武器數值一律用它，不要直接讀 `WEAPONS[w]`）、
+  `chart` 藏寶圖（設 reveal 旗標 → 藏起來的武器出現、藍色星號、任務 `flag` 欄位讓「武器藏匿點」出現並自動開箭頭）、`item` 一般物品。
+- 特殊武器：carbine（燈籠站卡賓槍，消音）、harpoon（捕鯨魚叉槍）；`WEAPONS` 的 `pose` = 沿用哪把槍的動畫（`PlayerCombat.pose_weapon()`）。
+  新桌子、補給盒、圖示都在 `tools/gen_scene_art.py stash`。
+
+## v0.11：往經典潛行遊戲的節奏靠＋開放世界的動態系統（使用者要求參考 MGS1，但一律原創）
+- **底線**：可以參考類型和玩法機制（潛行、警戒、隨時可用的無線電、雷達、Boss 戰節奏），**不能重製**任何現有遊戲的關卡、角色、劇情、
+  名稱、美術、音樂或外觀（改名也不行）。劇情、角色、地點照 `docs/SERIES_BIBLE.md`。
+- **任務箭頭不畫在畫面上**：只在地圖（M）上標；`ObjectiveArrows` 留著但 `_update_arrows` 直接隱藏。任務清單的確認鍵＝在地圖上標記／取消。
+- **野戰無線電**（按鍵 `call`：V／十字左／觸控 RADIO）：`scripts/world/field_radio.gd`（第一次進入區域、看到某種敵人、被發現、暴風雪、
+  晴天、被跟腳印）＋主線完成時的 `RadioCalls`。`main.queue_radio(key, steps)` 排來電（旗標只響一次），`answer_radio()` 接；
+  沒有來電時自己打 = 柯瓦奇說明現在追蹤的任務。對白用過場系統播（`main._run_steps`，過場也走這裡）。1962 年打不通。
+- **聲納雷達** `scripts/ui/sonar_radar.gd`（右上；觸控版在武器框下面）：牆、自己、看得到的敵人＋視野扇形、聽得到腳步的敵人＝聲波圈。
+  ALERT 時被干擾、EVASION 顯示倒數（小數點兩位）、CAUTION 下方小倒數；1962、Boss 戰沒有訊號。雷達顯示時，畫面中央的警戒字不畫。
+- **天氣** `scripts/world/weather.gd`（11 月的灰鴉島是永夜，所以沒有日夜，只有天氣）：clear／snow／blizzard 每 100～200 秒換一次，
+  只影響戶外：敵人視野（`Enemy.get_effective_range`）、腳步聲（`Player._update_noise`）、寒冷、戶外暗度、腳印消失速度；畫面下雪 `scripts/fx/snow_fall.gd`。
+- **雪地腳印** `scripts/fx/snow_tracks.gd`（`Level.tracks`）：戶外雪地走路留下腳印；看得見的敵人（獵犬距離更遠）踩到新鮮腳印會起疑、
+  往最新的腳印找（`Enemy.notice_tracks`）。
+- **全島地圖** `scripts/world/island.gd`：地圖畫面往前翻（◀）就是全島：地點、路、自己在哪、勾選的任務、安全屋、天氣。
+- 濾鏡：現在時代的冷調（青灰）加深一點（不是霓虹）。

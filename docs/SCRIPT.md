@@ -461,6 +461,16 @@
 - The cruise ship is frozen in the ice past the North Harbor pier. Find the Ark manifest in the cargo hold - and deal with whoever holds the sun deck.
   郵輪卡在北港棧橋外的浮冰裡。到貨艙找到方舟的貨物清單——還有，解決佔據頂層甲板的人。
 
+### 【支線】Weapon cache: harpoon gun／武器藏匿點：捕鯨魚叉槍
+
+- Ivo's sketch: his grandfather's harpoon gun hangs in the west shed of the North Harbor, behind the lockers.
+  Ivo 的手繪圖：他爺爺的魚叉槍掛在北港西邊的棚屋裡，置物櫃後面。
+
+### 【支線】Weapon cache: LANTERN carbine／武器藏匿點：燈籠站卡賓槍
+
+- An Accord inventory from 1962: a suppressed carbine was sealed in the old recording room, in the station basement beside the reel recorder.
+  1962 年的協定財產清冊：一把消音卡賓槍被封在舊錄音室裡，就在研究站地下室的盤式錄音機旁邊。
+
 ## 5. 文件、錄音帶、筆記（依區域）
 
 
@@ -757,3 +767,13 @@
 
 - A hunter's crossbow. No report at all, and it hits like a rifle at close range.
   獵人的十字弓。完全沒有槍聲，近距離的威力像步槍。
+
+**LANTERN carbine／燈籠站卡賓槍**
+
+- Sealed in the recording room since 1962. Factory suppressor, rifle rounds. Somebody expected to need it quietly.
+  1962 年起就封在錄音室裡。原廠消音器、步槍彈。當年有人預料到會需要安靜地用它。
+
+**Harpoon gun／捕鯨魚叉槍**
+
+- A whaler's shoulder gun from the old harbour. It throws a bolt hard enough to pin a bear to the ice.
+  舊港口捕鯨人的肩射槍。射出去的箭足以把一頭熊釘在冰上。

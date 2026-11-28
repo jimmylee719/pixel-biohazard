@@ -1,5 +1,5 @@
 ## 全螢幕地圖（按地圖鍵 M 直接打開）：看得到自己在哪（紅色閃爍的箭頭＝位置和面向）、可以放大縮小、拖著看。
-## 去過的地方亮、只有地圖還沒去過的地方暗藍、完全不知道的地方不畫。勾了指引的任務用各自的顏色標出來
+## 第一頁（◀ 翻過去）是全島地圖（Island）。去過的地方亮、只有地圖還沒去過的地方暗藍、完全不知道的地方不畫。勾了指引的任務用各自的顏色標出來
 ## （目標在這張地圖 = 菱形；不在 = 往那邊的門畫圈）。藍色星號 = 解鎖情報的隱藏要素。
 ## 操作：方向 = 移動地圖；武器鍵／互動鍵（或滾輪、右上的 − ＋）= 縮小／放大；道具鍵／裝填鍵（或 ◀ ▶）= 換一張地圖；
 ##       閃躲鍵 = 回到自己的位置；地圖鍵／取消 = 關閉。打開時遊戲暫停（main 控制）。
@@ -54,6 +54,8 @@ func scale_px() -> float:
 
 
 func map_size() -> Vector2:
+	if map.get("island", false):
+		return Vector2(30, 20)
 	var rows: Array = map.get("rows", [])
 	var w := 0
 	for row in rows:
@@ -153,6 +155,9 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, view), BG)
 	if map.is_empty():
 		return
+	if map.get("island", false):
+		_draw_island(view)
+		return
 	var s := scale_px()
 	var rows: Array = map.rows
 	var ms := map_size()
@@ -243,6 +248,65 @@ func _draw() -> void:
 	for pin in map.get("pins", []):
 		draw_rect(Rect2(8, ly - 7, 6, 6), pin.color)
 		draw_string(_font, Vector2(18, ly), pin.title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0, 0, 0, 0.8))
+		draw_string(_font, Vector2(17, ly - 1), pin.title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
+		ly += 13.0
+
+
+## 全島地圖（v0.11）：海岸線、地點、路、自己在哪、勾選的任務
+func _draw_island(view: Vector2) -> void:
+	var box := Rect2(30, 22, view.x - 60, view.y - 44)
+	var blink := int(Time.get_ticks_msec() / 300) % 2 == 0
+	var coast := PackedVector2Array()
+	for p: Vector2 in Island.COAST:
+		coast.append(box.position + p * box.size)
+	draw_colored_polygon(coast, Color(0.1, 0.15, 0.17))
+	coast.append(coast[0])
+	draw_polyline(coast, Color(0.4, 0.55, 0.6), 1.0)
+	# 等高線（裝飾）
+	for k in [0.8, 0.6]:
+		var inner := PackedVector2Array()
+		for p: Vector2 in Island.COAST:
+			inner.append(box.position + (Vector2(0.52, 0.52) + (p - Vector2(0.52, 0.52)) * k) * box.size)
+		inner.append(inner[0])
+		draw_polyline(inner, Color(0.2, 0.28, 0.3), 1.0)
+	var places: Dictionary = map.places
+	for r in Island.ROUTES:
+		var a: Dictionary = places[r[0]]
+		var b: Dictionary = places[r[1]]
+		var pa: Vector2 = box.position + a.pos * box.size
+		var pb: Vector2 = box.position + b.pos * box.size
+		var col := Color(0.55, 0.62, 0.62, 0.8) if a.seen and b.seen else Color(0.3, 0.36, 0.38, 0.6)
+		var n := int(pa.distance_to(pb) / 4.0)
+		for i in n:
+			if i % 2 == 0:
+				draw_line(pa.lerp(pb, float(i) / n), pa.lerp(pb, float(i + 1) / n), col, 1.0)
+	for id in places:
+		var p: Dictionary = places[id]
+		var at: Vector2 = (box.position + p.pos * box.size).floor()
+		var col := Color(0.3, 0.75, 0.5) if p.safe else (Color(0.85, 0.9, 0.9) if p.seen else Color(0.4, 0.46, 0.48))
+		draw_rect(Rect2(at - Vector2(3, 3), Vector2(7, 7)), col)
+		draw_rect(Rect2(at - Vector2(3, 3), Vector2(7, 7)), Color(0, 0, 0, 0.6), false, 1.0)
+		var label: String = p.name if p.seen else "?"
+		draw_string(_font, at + Vector2(7, 4), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0, 0, 0, 0.8))
+		draw_string(_font, at + Vector2(6, 3), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT if p.seen else DIM)
+		if p.here:
+			draw_arc(at + Vector2(0.5, 0.5), 7.0 if blink else 9.0, 0.0, TAU, 16, Color(1, 0.35, 0.3), 1.0)
+	var offset := {}
+	for pin in map.get("pins", []):
+		if not places.has(pin.place):
+			continue
+		var k: int = offset.get(pin.place, 0)
+		offset[pin.place] = k + 1
+		var at: Vector2 = box.position + places[pin.place].pos * box.size + Vector2(-8 - k * 7, -9)
+		var col: Color = pin.color if blink else pin.color.darkened(0.25)
+		draw_colored_polygon(PackedVector2Array([at + Vector2(0, -3), at + Vector2(3, 0), at + Vector2(0, 3), at + Vector2(-3, 0)]), col)
+	draw_rect(Rect2(0, 0, view.x, 16), Color(0, 0.01, 0.02, 0.9))
+	draw_rect(Rect2(0, view.y - 14, view.x, 14), Color(0, 0.01, 0.02, 0.9))
+	_text(Vector2(6, 12), map.title, GOLD)
+	_text(Vector2(6, view.y - 3), map.info, DIM)
+	var ly := 30.0
+	for pin in map.get("pins", []):
+		draw_rect(Rect2(8, ly - 7, 6, 6), pin.color)
 		draw_string(_font, Vector2(17, ly - 1), pin.title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
 		ly += 13.0
 

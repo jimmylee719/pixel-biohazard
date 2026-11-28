@@ -413,6 +413,8 @@ func _update_body_temp(delta: float) -> void:
 		if gait == Gait.RUN:
 			rate *= 0.8
 		rate *= Gear.stat("warmth")
+		if not level.is_indoor_at(global_position):
+			rate *= float(Weather.value("cold"))
 	WorldState.body_temp -= rate * delta
 	if WorldState.body_temp <= 0.0 and rate > 0.0:
 		WorldState.health -= freeze_drain * delta
@@ -857,15 +859,15 @@ func _update_sprite() -> void:
 		return
 	var shot: Dictionary = combat.last_shot
 	if combat.aiming and combat.has_weapon() and not shot.is_empty() and shot.t < 0.18:
-		_sprite.show_pose("shoot_" + combat.current_weapon(), facing, true)
+		_sprite.show_pose("shoot_" + combat.pose_weapon(), facing, true)
 		return
 	if combat.aiming and combat.has_weapon():
 		# 舉著槍走：上半身瞄準、腳照樣走（沒有這組圖就退回站著瞄準）
-		var walk_anim := "aimwalk_" + combat.current_weapon()
+		var walk_anim := "aimwalk_" + combat.pose_weapon()
 		if velocity.length() > 8.0 and _sprite.has_anim(walk_anim):
 			_sprite.show_pose(walk_anim, facing, true, clampf(velocity.length() / aim_move_speed, 0.6, 1.2))
 		else:
-			_sprite.show_pose("aim_" + combat.current_weapon(), facing, true)
+			_sprite.show_pose("aim_" + combat.pose_weapon(), facing, true)
 		return
 	match gait:
 		Gait.RUN:
@@ -1021,4 +1023,6 @@ func _update_noise(delta: float) -> void:
 	_noise_timer -= delta
 	if _noise_timer <= 0.0:
 		_noise_timer = interval
+		if level and not level.is_indoor_at(global_position):
+			radius *= float(Weather.value("noise"))  # 天氣：暴風雪的風聲蓋過腳步
 		NoiseBus.emit_noise(global_position, radius * Gear.stat("noise"), self)

@@ -5,8 +5,8 @@ extends Node2D
 const RESET_DELAY := 1.5
 const FADE_TIME := 0.2
 const MESSAGE_TIME := 6.0
-## 室內一片漆黑；戶外有雪地反光，稍微亮一點
-const INDOOR_DARKNESS := Color(0.05, 0.05, 0.08)
+## 室內很暗但看得出房間的樣子（v0.10：整張地圖都看得到）；戶外有雪地反光，稍微亮一點
+const INDOOR_DARKNESS := Color(0.18, 0.19, 0.25)
 const OUTDOOR_DARKNESS := Color(0.2, 0.22, 0.3)
 ## 安全屋：溫暖、比較亮，讓玩家感到安心（出門那一刻的落差也是恐怖的一部分）
 const SAFE_DARKNESS := Color(0.34, 0.28, 0.22)
@@ -64,6 +64,12 @@ var backpack: BackpackPanel
 var map_panel: MapPanel
 var mission_list: MissionList
 var objective_arrows: ObjectiveArrows
+var sonar_radar: SonarRadar
+var snow_fall: SnowFall
+## 野戰無線電：等著接的來電 [{key, steps}]（FieldRadio）
+var radio_queue: Array[Dictionary] = []
+var _radio_check := 0.0
+var _weather_dark_timer := 0.0
 var _arrow_timer := 0.0
 var _qm_key := ""
 var _qm_pressed_ms := 0
@@ -160,6 +166,9 @@ func _ready() -> void:
 			return
 		Sfx.play("mission_complete")
 		show_message(tr("MISSION COMPLETE: %s") % tr(Missions.get_mission(id).title))
+		for call in RadioCalls.DATA:
+			if call.after == id and not WorldState.has_flag("call:" + id):
+				queue_radio("call:" + id, _radio_call_steps(call.lines))
 		if level:
 			level.sync_from_state()  # 獎勵可能讓隱藏的東西出現
 		if id == FINAL_MISSION:
@@ -236,6 +245,18 @@ func _ready() -> void:
 	tactical_hud.touch = TouchControls.should_show()
 	$HUD.add_child(tactical_hud)
 	$HUD.move_child(tactical_hud, 1)
+	# 聲納雷達（右上）、下雪的畫面（v0.11）
+	sonar_radar = SonarRadar.new()
+	sonar_radar.name = "SonarRadar"
+	sonar_radar.main = self
+	sonar_radar.touch = tactical_hud.touch
+	$HUD.add_child(sonar_radar)
+	$HUD.move_child(sonar_radar, 2)
+	snow_fall = SnowFall.new()
+	snow_fall.name = "SnowFall"
+	snow_fall.main = self
+	$HUD.add_child(snow_fall)
+	$HUD.move_child(snow_fall, 0)
 	_hint.visible = false  # 操作說明在手機「操作」App
 	_build_phone()
 	quick_menu = QuickMenu.new()
@@ -322,6 +343,13 @@ func _process(delta: float) -> void:
 			_toggle_inventory_panel()
 		elif Input.is_action_just_pressed("phone"):
 			_toggle_mission_panel()
+		elif Input.is_action_just_pressed("call"):
+			answer_radio()
+	if not busy and WorldState.mode == "story" and level and not get_tree().paused:
+		_update_field_radio(delta)
+		_update_weather(delta)
+		if level.tracks:
+			level.tracks.step(_player)
 
 	_hurt_flash.color.a = move_toward(_hurt_flash.color.a, 0.0, delta * 1.5)
 	# 感染值越高，畫面四周越白（症狀）
@@ -440,7 +468,7 @@ func spawn_enemy(type: String, pos: Vector2) -> Enemy:
 
 func _update_alert_hud() -> void:
 	var net := level.alert if level else null
-	if net == null or net.phase == AlertNetwork.Phase.NONE:
+	if net == null or net.phase == AlertNetwork.Phase.NONE or (sonar_radar and sonar_radar.visible):
 		_alert_label.text = ""
 		return
 	var text := tr(net.phase_name())
@@ -614,7 +642,7 @@ func load_area(area_id: String, entry: String, fade := true) -> void:
 			item.powered.connect(_on_power_restored)
 		elif item is TapePickup:
 			item.message_shown.connect(show_message)
-		elif item is GearPickup or item is AreaMapPickup or item is SafeBox:
+		elif item is GearPickup or item is AreaMapPickup or item is SafeBox or item is ExtraPickup:
 			item.message_shown.connect(func(text: String): show_message(text, true))
 		elif item is ReadableNote:
 			item.message_shown.connect(show_message)
@@ -807,7 +835,9 @@ func map_pins(view: String) -> Array[Dictionary]:
 
 ## 每 0.25 秒更新任務箭頭：目標（或往那邊的門）在哪、沿著走得到的路該往哪個方向
 func _update_arrows(delta: float) -> void:
-	objective_arrows.visible = tactical_hud.visible and WorldState.mode == "story" and not _transitioning and not _resetting
+	# v0.11：任務只標在地圖上（M），畫面上不畫箭頭（使用者覺得一直顯示影響體驗）
+	objective_arrows.visible = false
+	return
 	_arrow_timer -= delta
 	if _arrow_timer > 0.0 or level == null:
 		return
@@ -860,6 +890,8 @@ func open_map() -> void:
 
 func _flip_map(step: int) -> void:
 	var areas := known_map_areas()
+	if WorldState.mode == "story":
+		areas.push_front("island")
 	if areas.size() < 2:
 		return
 	map_view = areas[(areas.find(map_view) + step + areas.size()) % areas.size()]
@@ -879,6 +911,8 @@ func _refresh_map() -> void:
 
 ## 地圖畫面要的資料（手機的小地圖和全螢幕地圖共用）
 func map_data(view: String) -> Dictionary:
+	if view == "island":
+		return island_data()
 	var areas := known_map_areas()
 	var d := Areas.get_area(view)
 	var here := view == level.area_id
@@ -1037,7 +1071,7 @@ func quick_weapons() -> Array[Dictionary]:
 	for w in PlayerCombat.WEAPONS:
 		if WorldState.inv_count(w) > 0:
 			out.append({"id": w, "name": "%s  %d/%d" % [Items.display_name(w), WorldState.get_loaded(w),
-				PlayerCombat.WEAPONS[w].mag], "icon": Art.tex("props/" + w), "count": 0})
+				PlayerCombat.weapon_stats(w).mag], "icon": Art.tex("props/" + w), "count": 0})
 	# 近戰：小刀／空手（把刀收起來用拳腳），加上身上有的重兵器。目前用的那個前面打勾
 	for m in WorldState.melee_options():
 		var label := tr("Bare hands") if m == "fists" else Items.display_name(m)
@@ -1133,6 +1167,11 @@ func play_cutscene(id: String, enemy_base := 0) -> void:
 			or cutscene.active or _player.is_dead:
 		return
 	WorldState.set_flag("scene:" + id)
+	await _run_steps(Cutscenes.DATA[id], enemy_base)
+
+
+## 播一串過場步驟（過場、野戰無線電共用）
+func _run_steps(steps: Array, enemy_base := 0) -> void:
 	if phone.visible:
 		close_phone()
 	var was_paused := get_tree().paused
@@ -1140,7 +1179,7 @@ func play_cutscene(id: String, enemy_base := 0) -> void:
 	_player.velocity = Vector2.ZERO
 	await cutscene.open()
 	var lights: Array[Node] = []
-	for step: Dictionary in Cutscenes.DATA[id]:
+	for step: Dictionary in steps:
 		if cutscene.skipping:
 			break
 		if step.has("caption"):
@@ -1395,7 +1434,7 @@ func _apply_darkness() -> void:
 	if level.is_safe_at(_player.global_position):
 		_darkness.color = SAFE_DARKNESS
 	elif not level.is_indoor_at(_player.global_position):
-		_darkness.color = OUTDOOR_DARKNESS
+		_darkness.color = OUTDOOR_DARKNESS if level.climate_id() == "temperate" else Weather.value("dark")
 	elif level.is_lit_at(_player.global_position):
 		_darkness.color = POWERED_DARKNESS
 	else:
@@ -2246,8 +2285,111 @@ func _build_hint() -> String:
 		"%s %s" % [_key_name("inventory"), tr("Backpack")],
 		"%s %s" % [_key_name("map"), tr("Map")],
 		"%s %s" % [_key_name("phone"), tr("Phone")],
+		"%s %s" % [_key_name("call"), tr("Radio")],
 	]
 	return " ".join(parts)
+
+
+# ── v0.11：野戰無線電、天氣、全島地圖 ─────────────────────
+
+## 排一通來電（同一個 key 只響一次）
+func queue_radio(key: String, steps: Array) -> void:
+	if WorldState.has_flag(key) or radio_queue.any(func(c): return c.key == key):
+		return
+	radio_queue.append({"key": key, "steps": steps})
+	Sfx.play("radio_static")
+
+
+func radio_ringing() -> bool:
+	return not radio_queue.is_empty()
+
+
+## 接來電；沒有來電 = 自己打過去問柯瓦奇（依現在追蹤的任務）
+func answer_radio() -> void:
+	if cutscene.active or WorldState.mode != "story":
+		return
+	if current_era() > 0.5:
+		show_message(tr("Only static. There is nobody to call in 1962."))
+		return
+	if not radio_queue.is_empty():
+		var call: Dictionary = radio_queue.pop_front()
+		WorldState.set_flag(call.key)
+		await _run_steps(call.steps)
+		return
+	var m := Missions.tracked_mission()
+	var steps := [{"sfx": "radio_static"}]
+	if m.is_empty():
+		steps.append({"say": FieldRadio.K, "text": "Nothing urgent from my end. Stay warm, stay quiet."})
+	else:
+		steps.append({"say": FieldRadio.K, "text": tr("What you're doing now: %s") % tr(m.title)})
+		steps.append({"say": FieldRadio.K, "text": tr(m.desc)})
+		steps.append({"say": FieldRadio.K, "text": "It's marked on your map. Press the map key to see it."})
+	await _run_steps(steps)
+
+
+## RadioCalls 的「KOVAC: "…"」→ 過場步驟（先翻譯，再拿掉說話的人，對白框另外標）
+func _radio_call_steps(lines: Array) -> Array:
+	var out: Array = [{"sfx": "radio_static"}]
+	for t in lines:
+		var text := tr(t)
+		for sep in ["：「", ": \""]:
+			var i := text.find(sep)
+			if i >= 0 and i < 12:
+				text = text.substr(i + sep.length()).trim_suffix("」").trim_suffix("\"")
+				break
+		out.append({"say": FieldRadio.K, "text": text})
+	return out
+
+
+## 每 0.5 秒看一次：第一次進入區域、第一次看到某種敵人、第一次被發現 → 來電
+func _update_field_radio(delta: float) -> void:
+	_radio_check -= delta
+	if _radio_check > 0.0:
+		return
+	_radio_check = 0.5
+	var region := current_area_id()
+	if FieldRadio.AREA.has(region):
+		queue_radio("fcall:area:" + region, FieldRadio.steps(FieldRadio.AREA[region]))
+	for id in FieldRadio.ENEMY:
+		if WorldState.codex_has(id):
+			queue_radio("fcall:enemy:" + id, FieldRadio.steps(FieldRadio.ENEMY[id]))
+	if level.alert and level.alert.phase == AlertNetwork.Phase.ALERT:
+		queue_radio("fcall:event:alert", FieldRadio.steps(FieldRadio.EVENT.alert))
+	if level.tracks and level.tracks.followed:
+		queue_radio("fcall:event:tracks", FieldRadio.steps(FieldRadio.EVENT.tracks))
+
+
+## 天氣：換天氣時通知；戶外的暗度跟著慢慢變
+func _update_weather(delta: float) -> void:
+	if Weather.update(delta):
+		show_message(tr("Weather: %s") % tr(Weather.display_name()))
+		if Weather.kind() == "blizzard" or Weather.kind() == "clear":
+			queue_radio("fcall:event:" + Weather.kind(), FieldRadio.steps(FieldRadio.EVENT[Weather.kind()]))
+	_weather_dark_timer -= delta
+	if _weather_dark_timer <= 0.0:
+		_weather_dark_timer = 0.5
+		_apply_darkness()
+
+
+## 全島地圖的資料（MapPanel 的第一頁）
+func island_data() -> Dictionary:
+	var known := known_map_areas()
+	var places := {}
+	for id in Island.PLACES:
+		var p: Dictionary = Island.PLACES[id]
+		var seen := false
+		for r in p.roots:
+			if known.has(r):
+				seen = true
+		places[id] = {"name": tr(p.name), "pos": p.pos, "seen": seen, "here": p.roots.has(level.area_id),
+			"safe": p.get("safe", false) and seen}
+	var pins: Array[Dictionary] = []
+	for pin in Missions.pinned():
+		var t := mission_target(pin.mission)
+		if not t.is_empty():
+			pins.append({"color": pin.color, "title": tr(pin.mission.title), "place": Island.place_of(t.area)})
+	return {"island": true, "places": places, "pins": pins, "title": tr("GREYCROW ISLAND"),
+		"info": tr("Polar night  |  %s  |  < > change map") % tr(Weather.display_name())}
 
 
 func _key_name(action: String) -> String:

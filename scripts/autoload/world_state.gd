@@ -159,7 +159,7 @@ func start_survival(map: String, weapon: String) -> void:
 	if weapon != "pistol":
 		var l: Dictionary = SurvivalData.LOADOUTS[weapon]
 		inv_add(weapon, 1)
-		set_loaded(weapon, PlayerCombat.WEAPONS[weapon].mag)
+		set_loaded(weapon, PlayerCombat.weapon_stats(weapon).mag)
 		inv_add(l.ammo[0], l.ammo[1])
 		equipped = weapon
 	inv_add("med", 2 if is_unlocked("perk_med") else 1)

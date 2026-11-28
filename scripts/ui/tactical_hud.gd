@@ -29,6 +29,8 @@ func _process(delta: float) -> void:
 			and not main._radio_panel.visible and not main._storage_panel.visible and not main._inventory_panel.visible \
 			and not main._signal_panel.visible and not main._pause_panel.visible \
 			and not (main.options_panel and main.options_panel.visible)
+		if main.sonar_radar:
+			main.sonar_radar.visible = visible and WorldState.mode == "story"
 	var hp: float = WorldState.health
 	if hp < _last_hp - 0.5:
 		_hurt_flash = 0.6
@@ -73,6 +75,12 @@ func _draw() -> void:
 	var weap_at := Vector2(w - BOX.x - 6, h - BOX.y - 6) if not touch else Vector2(w - BOX.x - 6, 6)
 	_draw_item_box(item_at)
 	_draw_weapon_box(weap_at)
+	# 野戰無線電來電：道具框上面閃（按呼叫鍵接）
+	if main.radio_ringing() and int(Time.get_ticks_msec() / 400) % 2 == 0:
+		var at := item_at + (Vector2(0, -16) if not touch else Vector2(0, BOX.y + 4))
+		draw_rect(Rect2(at, Vector2(BOX.x * 2, 13)), Color(0.02, 0.05, 0.04, 0.85))
+		draw_rect(Rect2(at, Vector2(BOX.x * 2, 13)), Color(0.5, 0.95, 0.7), false, 1.0)
+		_text(at + Vector2(4, 11), tr("INCOMING  [%s]") % main._key_name("call"), Color(0.6, 1.0, 0.75))
 
 
 func _draw_item_box(at: Vector2) -> void:
