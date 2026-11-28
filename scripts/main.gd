@@ -367,11 +367,16 @@ func _process(delta: float) -> void:
 
 	var focus := _player.focus
 	var prey := _player.combat.takedown_target() if _player.input_enabled else null
-	if prey:
-		# 潛行到敵人背後：一擊解決（刀）或抓住（互動）
-		_prompt.text = tr("[%s] Silent takedown   [%s] Grab") % [_key_name("fire"), _key_name("interact")]
+	if _player.combat.choking:
+		_prompt.text = tr("Choking out... %.1f   [%s] Let go") % [maxf(_player.combat.choke_left, 0.0), _key_name("interact")]
+	elif prey:
+		# 潛行到敵人背後：人類 = 裸絞（昏迷）、怪物 = 空手撂倒／拿刀刺殺；互動 = 抓住
+		var how := "Choke out" if prey.is_human() else ("Knock down" if WorldState.melee() == "fists" else "Silent kill")
+		_prompt.text = tr("[%s] %s   [%s] Grab") % [_key_name("fire"), tr(how), _key_name("interact")]
 	elif focus and _player.input_enabled:
 		_prompt.text = "[%s] %s" % [_key_name("interact"), tr(focus.get_prompt(_player))]
+	elif _player.input_enabled and _player.vault_target() != Vector2.INF:
+		_prompt.text = tr("[%s] Vault over") % _key_name("dodge")
 	elif _player.input_enabled and _player.peeking != null:
 		_prompt.text = tr("[%s] Let the door close") % _key_name("interact")
 	elif _player.input_enabled and _player.peek_candidate() != null:
@@ -1184,9 +1189,13 @@ func _run_steps(steps: Array, enemy_base := 0) -> void:
 	_player.velocity = Vector2.ZERO
 	await cutscene.open()
 	var lights: Array[Node] = []
-	for step: Dictionary in steps:
+	for si in steps.size():
+		var step: Dictionary = steps[si]
 		if cutscene.skipping:
 			break
+		# 對白講完、接下來是鏡頭演出（不是下一句對白）：先把對白框收掉（v0.14）
+		if si > 0 and steps[si - 1].has("say") and not step.has("say"):
+			cutscene.clear_dialogue()
 		if step.has("caption"):
 			await cutscene.caption(tr(step.caption), step.get("time", 2.0))
 		elif step.has("say"):

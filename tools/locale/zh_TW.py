@@ -509,7 +509,7 @@ T = [
 ("Speed", "速度"),
 ("Noise", "腳步聲"),
 ("Visibility", "被發現"),
-("Kick", "踢擊"),
+("Punch power", "重拳力道"),
 ("Got %s. Wear it from the phone (GEAR).", "取得%s。在手機的「裝備」換穿。"),
 ("Take the floor map", "拿走樓層地圖"),
 ("Map of %s added to your phone.", "%s的地圖已加入手機。"),
@@ -539,7 +539,7 @@ T = [
 ("Hazmat boots", "防護靴"),
 ("Sealed rubber overboots.", "密封的橡膠套靴。"),
 ("EOD boots", "防爆靴"),
-("Steel-shanked. Your kicks land like a hammer.", "鋼製鞋墊。踢起來像鐵鎚。"),
+("Steel-shanked. Planted feet put your whole weight behind every cross and hook.", "鋼製鞋墊。腳站得穩，直拳和勾拳都壓上全身的重量。"),
 ("Soft soles", "軟底鞋"),
 ("Felt-soled slippers over your socks. Silent - and cold.", "套在襪子外的毛氈軟鞋。無聲——也很冷。"),
 ("Crampon boots", "冰爪靴"),
@@ -899,4 +899,11 @@ T = [
 ("Halvorsen told the board the drill was a geological survey for an Arctic data centre. Nobody builds a data centre on Greycrow. Somebody wanted what was under the ice.", "哈爾沃森跟董事會說，鑽井是替北極資料中心做的地質調查。沒有人會把資料中心蓋在灰鴉島。有人想要的是冰底下的東西。"),
 # ── v0.13：隨機事件 ──
 ("Supply drop: a red flare is burning on the snow. It's marked on your map.", "補給空投：雪地上有一支紅色信號彈在燒。位置已經標在地圖上。"),
+# ── v0.14：拳擊、背後偷襲、翻越 ──
+("Choking out... %.1f   [%s] Let go", "勒昏中……%.1f   [%s] 放手"),
+("[%s] %s   [%s] Grab", "[%s] %s   [%s] 擒拿"),
+("Choke out", "裸絞"),
+("Knock down", "撂倒"),
+("Silent kill", "背後刺殺"),
+("[%s] Vault over", "[%s] 翻過去"),
 ]

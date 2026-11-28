@@ -259,3 +259,17 @@
 - 隨機事件：戶外偶爾補給空投（`main.spawn_supply_drop`，紅色信號彈、地圖藍色星號，換地圖就消失）。
 - 開槍按鍵緩衝 `PlayerCombat.FIRE_BUFFER`：冷卻中按的扳機會在冷卻好時開（不吃按鍵）。自動鎖定不鎖睡著的人。
 - 拖著屍體時互動鍵固定是「放下／塞進櫃子」（`Player._find_focus`）。測試 `_test_stealth_by_input` 用真的按鍵走一次逼降 → 麻醉 → 拖 → 藏。
+
+## v0.14：高低關係、拳擊、裸絞、翻越（使用者試玩後的要求）
+- **牆比人高**：`Level.WALL_RAISE` 24、`WallFaces.FACE` 32（牆總高 40px，角色約 36px）。牆頂改由 `WallFaces` 一格一格畫（Level 的牆多邊形隱藏）。
+  **剖面切低**：主角所在房間的南牆、或主角就站在牆後面 3 格內時，那一柱牆畫回舊高度（`WallFaces.cut`，牆面 16、牆頂 8），房間靠南的東西才看得到。
+  窗戶維持矮的（`Level.WINDOW_RAISE` 8）。牆／窗北邊兩格內的家具由 `WallCaps`（含 `window_caps`）補畫牆頂蓋住。`OverWall` 遮罩看上面三排。
+- **家具高低**：置物櫃 H 南邊緊貼牆／窗時自動往北移一格（`Areas._lift_lockers`，names 等資料跟著搬）；單格家具南邊是牆／窗時改挑矮的（`SetDresser.LOW_PROP_H`，用圖實際高度 `visible_height()`）。
+- **空白鍵**：面前是矮家具（實際高度 ≤ `Level.VAULT_MAX_H` 20px：桌子、木箱、床、腳櫃）而且另一邊是空地 = 翻過去（`Player.vault()`，敵人不會翻）；不然 = 閃躲。閃躲 3 秒一次（`dodge_cooldown`）。
+  `Level.prop_heights`（SetDresser 放圖時記）、`is_vaultable()`、`is_open_floor()`。
+- **空手 = 拳擊**：刺拳 → 直拳 → 勾拳（勾拳打倒），每套隨機左手或右手開始（`FIST_COMBO`／`FIST_COMBO_R`，動作 jab_l/r、cross_l/r、hook_l/r，產生器 `FIST_ANIMS`）。不再踢腿。
+- **背後偷襲（攻擊鍵）** `PlayerCombat.stealth_target()`／`back_attack()`：人類 = 裸絞 `CHOKE_TIME` 5 秒（不能動、互動 = 放手）→ 昏迷 `KO_TIME` 300 秒後原地醒來；
+  怪物空手 = 撂倒 5 秒（`Enemy.knock_out`，起來後去被打的地方找）；拿刀／重兵器 = 刺殺。互動鍵從背後仍是擒拿（抓住後攻擊：人類 = 裸絞）。
+- **發現你的敵人一直看得到**：`Enemy.has_spotted_player()`（在看你、或警戒中而且中間沒牆）→ 在暗處也畫出來。
+- **雷達**（參考類型、原創外觀）：範圍內所有敵人＋被牆截斷的視野扇形（淡藍／起疑警戒紅色），沒視覺的畫聽覺圈；牆是青色線框。警戒／搜索中不再整個干擾，只有一點雜訊＋下方倒數。
+- 舉槍雷射一路延伸到牆或鎖定的敵人（`debug_overlay._laser_end`，最遠 220px）。過場：對白講完、接著是鏡頭演出時先收掉對白框（`CutscenePlayer.clear_dialogue()`）。

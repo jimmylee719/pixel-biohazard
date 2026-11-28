@@ -97,6 +97,7 @@ func _run() -> void:
 	await _test_open_world()
 	await _test_stealth_v12()
 	await _test_stealth_by_input()
+	await _test_v14()
 	await _test_survival()
 
 	print("")
@@ -2132,20 +2133,39 @@ func _test_combo_and_cqc() -> void:
 	_check(not _watcher.knocked_down, "刀不會把人打倒")
 	# 把刀收起來：刺拳 → 鉤拳 → 踢
 	_main.set_melee("fists")
-	_check(WorldState.melee() == "fists" and combat.melee_moves() == PlayerCombat.FIST_COMBO, "收刀 = 空手")
+	_check(WorldState.melee() == "fists" and (combat.melee_moves() == PlayerCombat.FIST_COMBO or combat.melee_moves() == PlayerCombat.FIST_COMBO_R), "收刀 = 空手")
 	await _seconds(0.8)
-	moves = []
-	for i in 3:
-		_watcher.global_position = _tile(12, 6)
-		await _press("fire")
-		moves.append(combat.last_melee.get("move", ""))
-		await _seconds(0.3)
-	_check(moves == ["punch", "hook", "kick"], "空手連按 = 刺拳 → 鉤拳 → 踢（%s）" % [moves])
-	_check(_watcher.knocked_down, "最後一腳把敵人踢倒")
+	var sides := {}
+	for round in 6:
+		moves = []
+		for i in 3:
+			_watcher.global_position = _tile(12, 6)
+			_watcher.knocked_down = false
+			_watcher._stagger = 0.0
+			_watcher.health = 500.0
+			await _press("fire")
+			moves.append(combat.last_melee.get("move", ""))
+			await _seconds(0.3)
+		var ok: bool = moves == ["jab_l", "cross_r", "hook_l"] or moves == ["jab_r", "cross_l", "hook_r"]
+		if not ok:
+			_check(false, "空手連按 = 刺拳 → 直拳 → 勾拳，左右交替（%s）" % [moves])
+			break
+		sides[moves[0]] = true
+		await _seconds(0.7)
+	_check(sides.size() == 2, "拳擊連段有時左手開始、有時右手開始（%s）" % [sides.keys()])
+	_check(not PlayerCombat.FIST_MOVES.has("kick"), "空手不再踢腿")
+	_watcher.health = 500.0
+	_watcher.global_position = _tile(12, 6)
+	await _press("fire")
+	await _seconds(0.3)
+	await _press("fire")
+	await _seconds(0.3)
+	await _press("fire")
+	_check(_watcher.knocked_down, "最後的勾拳把敵人打倒")
 	_check(_watcher.can_be_taken_down_by(_player), "倒地的敵人可以補刀")
 	await _seconds(0.8)
 	await _press("fire")
-	_check(combat.last_melee.get("move", "") == "punch", "停頓太久，連段從頭開始")
+	_check(String(combat.last_melee.get("move", "")).begins_with("jab"), "停頓太久，連段從頭開始")
 	# 踢飛撞牆：額外受傷
 	_freeze(_watcher, _tile(12, 2), Vector2.DOWN)
 	_watcher.max_health = 500.0
@@ -2158,8 +2178,19 @@ func _test_combo_and_cqc() -> void:
 	Sfx.history.clear()
 	await _press("fire")
 	await _seconds(0.3)
-	_check(Sfx.history.has("body_slam"), "踢到牆邊 = 撞牆")
+	_check(Sfx.history.has("body_slam"), "勾拳打到牆邊 = 撞牆")
 	_check(hp - _watcher.health > 30.0, "撞牆額外受傷（%.0f）" % (hp - _watcher.health))
+	# 空手從背後偷襲怪物 = 撂倒在地（趴 5 秒，不會死）
+	_revive_watcher()
+	_freeze(_watcher, _tile(12, 6), Vector2.UP)
+	_place_player(_tile(12, 7), false, Vector2.UP)
+	_player.sneaking = true
+	await _seconds(0.7)
+	_check(combat.stealth_target() == _watcher, "空手在怪物背後：可以偷襲")
+	await _press("fire")
+	_check(not _watcher.is_dead and _watcher.knocked_down and _watcher._stagger > 4.0,
+		"空手背後偷襲怪物 = 撂倒在地約 5 秒（%.1f）" % _watcher._stagger)
+	_player.sneaking = false
 	_main.set_melee("knife")
 	_check(WorldState.melee() == "knife" and combat.melee_moves() == PlayerCombat.KNIFE_COMBO, "把刀拔出來")
 	# 擒拿：從背後抓住 → 摔倒；再抓 → 勒昏解決
@@ -2456,7 +2487,7 @@ func _test_pixel_art() -> void:
 		if up == "#" and front.x < 0:
 			front = cell
 		var clear := true
-		for dy in [1, 2]:
+		for dy in [1, 2, 3]:
 			for dx in [-1, 0, 1]:
 				if Level.OCCLUDER_CHARS.contains(level.char_at(cell + Vector2i(dx, -dy))):
 					clear = false
@@ -3282,6 +3313,111 @@ func _test_stealth_v12() -> void:
 	g.stash()
 	_check(g.stashed and not g.visible, "a body stashed in a locker disappears")
 	_check(PlayerCombat.WEAPONS.has("dart_pistol") and Art.tex("props/dart_pistol") != null and Codex.ENTRIES.has("dart_pistol"), "tranquilliser has data, icon and codex")
+
+
+## v0.14：裸絞、閃躲冷卻、翻越、牆切低、置物櫃離開南牆、發現你的敵人一直看得到
+func _test_v14() -> void:
+	print("[v0.14 / choke, dodge cooldown, vault, walls]")
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
+	WorldState.cutscenes = false
+	await _enter("north_harbor", "harbor")
+	var guards: Array = _main.enemies.filter(func(e): return is_instance_valid(e) and e.is_human() and not e.is_dead)
+	if guards.is_empty():
+		_check(false, "v14: no guards")
+		return
+	var g: Enemy = guards[0]
+	for e in _main.enemies:
+		if is_instance_valid(e) and e != g:
+			e.global_position += Vector2(2000, 2000)
+	WorldState.equipped = ""
+	g.state = Enemy.State.UNAWARE
+	g.awareness = 0.0
+	g.held_up = false
+	var back := Vector2.RIGHT
+	for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+		var spot: Vector2 = g.global_position - d * 20.0
+		if _main.level.char_at(_main.level.cell_of(spot)) == "." and Sight.is_clear(g, g.global_position, spot):
+			back = d
+			break
+	g.facing = back
+	g.velocity = Vector2.ZERO
+	_player.global_position = g.global_position - back * 20.0
+	_player.facing = back
+	_player.sneaking = true
+	await _frames(2)
+	g.facing = back
+	_player.combat._cooldown = 0.0
+	await _press("fire")
+	_check(_player.combat.choking and _player.combat.grabbed == g, "choke: attack behind an unaware guard = rear naked choke")
+	var p0 := _player.global_position
+	Input.action_press("move_down")
+	await _frames(10)
+	Input.action_release("move_down")
+	_check(_player.global_position.distance_to(p0) < 1.0, "choke: you can't walk away while choking")
+	_check(not g.is_asleep(), "choke: he isn't out yet")
+	_player.combat.choke_left = 0.05
+	await _frames(6)
+	_check(g.is_asleep() and not g.is_dead and g._sleep_timer > 250.0, "choke: after 5 s he is out cold for 5 minutes (%.0f s)" % g._sleep_timer)
+	_check(not _player.combat.choking, "choke: you let go when he's out")
+	_check(_player.combat.stealth_target() != g, "choke: an unconscious guard isn't a target again")
+	g._sleep_timer = 0.05
+	await _frames(6)
+	_check(not g.is_asleep() and g.state == Enemy.State.SUSPICIOUS, "choke: he wakes up after the timer and looks around")
+	_player.sneaking = false
+	# 發現你的敵人：在暗處也畫出來（雷達也有）
+	g.state = Enemy.State.ALERT
+	g.sees_player = true
+	_check(g.has_spotted_player(), "an enemy that spotted you stays visible")
+	g.sees_player = false
+	g.state = Enemy.State.UNAWARE
+	# 閃躲 3 秒一次
+	_player.reset_to(_player.global_position)
+	_check(_player.dodge(Vector2.RIGHT), "dodge works")
+	await _seconds(0.4)
+	_check(not _player.dodge(Vector2.LEFT), "dodge: can't dodge again right away")
+	await _seconds(2.7)
+	_check(_player.dodge(Vector2.LEFT), "dodge: ready again after 3 s")
+	await _seconds(0.4)
+	# 正式地圖：置物櫃不貼南牆、牆切低、翻越桌子
+	Areas.use_layout()
+	var stuck := 0
+	for id in Areas.all():
+		var m: Array = Areas.all()[id].map
+		for y in range(1, m.size() - 1):
+			for x in String(m[y]).length():
+				if String(m[y])[x] == "H" and x < String(m[y + 1]).length() and "#=".contains(String(m[y + 1])[x]) \
+						and x < String(m[y - 1]).length() and String(m[y - 1])[x] == ".":
+					stuck += 1
+	_check(stuck == 0, "lockers: none left standing against a south wall (%d)" % stuck)
+	await _enter("south_shore", "start")
+	var lv: Level = _main.level
+	var vault_cell := Vector2i(-1, -1)
+	var dir := Vector2i.ZERO
+	for c in lv.prop_heights:
+		if vault_cell.x >= 0:
+			break
+		if not lv.is_vaultable(c):
+			continue
+		for d in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			if lv.is_open_floor(c - d) and lv.is_open_floor(c + d):
+				vault_cell = c
+				dir = d
+				break
+	_check(vault_cell.x >= 0, "vault: the station has a low desk/crate with floor on both sides")
+	if vault_cell.x >= 0:
+		_player.reset_to((Vector2(vault_cell - dir) + Vector2(0.5, 0.5)) * Level.TILE)
+		_player.facing = Vector2(dir)
+		await _frames(2)
+		_check(_player.vault_target() != Vector2.INF, "vault: standing next to it, Space would vault")
+		await _press("dodge")
+		await _seconds(0.6)
+		_check(lv.cell_of(_player.global_position) == vault_cell + dir, "vault: Space hops over to the other side")
+		_check(_player.collision_mask == Player.MOVE_MASK, "vault: collisions restored after landing")
+	var faces := lv.get_node("Structure/WallFaces") as WallFaces
+	_check(faces != null and Level.WALL_RAISE + 16.0 > 36.0, "walls are taller than a person (%.0f px)" % (Level.WALL_RAISE + 16.0))
+	await _frames(3)
+	_check(faces != null and not faces.cut.is_empty(), "walls: the south wall of the room you're in is cut low (%d cells)" % (faces.cut.size() if faces else 0))
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
 
 
 ## v0.13：用真的按鍵操作一次：舉槍逼降 → 麻醉 → 拖走 → 塞進櫃子

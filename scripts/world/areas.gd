@@ -1516,8 +1516,37 @@ static func all() -> Dictionary:
 	if not _layout_data.is_empty():
 		return _layout_data
 	if _real.is_empty():
-		_real = Extras.apply(DATA)  # 正式地圖 ＋ 追加的調查點（scripts/world/extras.gd）
+		_real = _lift_lockers(Extras.apply(DATA))  # 正式地圖 ＋ 追加的調查點（scripts/world/extras.gd）
 	return _real
+
+
+## v0.14：置物櫃（H）南邊緊貼著牆／窗時往北移一格（牆比人高了，貼著南牆的櫃子會被牆擋住、看起來像長在牆上）。
+## 那一格的 names／hidden 等資料跟著搬。
+static func _lift_lockers(areas: Dictionary) -> Dictionary:
+	for id in areas:
+		var a: Dictionary = areas[id]
+		var rows: Array = a.map
+		for y in range(1, rows.size() - 1):
+			var row := String(rows[y])
+			for x in row.length():
+				if row[x] != "H":
+					continue
+				var below := String(rows[y + 1])
+				var above := String(rows[y - 1])
+				if x >= below.length() or x >= above.length() or not "#=".contains(below[x]) or above[x] != ".":
+					continue
+				rows[y - 1] = above.substr(0, x) + "H" + above.substr(x + 1)
+				row = row.substr(0, x) + "." + row.substr(x + 1)
+				rows[y] = row
+				var old_key := "%d,%d" % [x, y]
+				var new_key := "%d,%d" % [x, y - 1]
+				for k in a:
+					var v = a[k]
+					if v is Dictionary and v.has(old_key) and not v.has(new_key):
+						v[new_key] = v[old_key]
+						v.erase(old_key)
+		a.map = rows
+	return areas
 
 
 ## 現在用的是不是正式地圖（不是測試用的固定地圖）

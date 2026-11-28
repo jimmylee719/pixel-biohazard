@@ -428,6 +428,9 @@ func _physics_process(delta: float) -> void:
 		if _stagger <= 0.0:
 			knocked_down = false
 			_slam_armed = false
+			if _ko:
+				_ko = false
+				_body.scale = Vector2.ONE
 		_update_visibility(delta)
 		return
 	in_cold = _level != null and _level.is_cold(global_position)
@@ -812,6 +815,28 @@ func apply_knockback(dir: Vector2, speed: float, knockdown: bool) -> void:
 	if knockdown:
 		knocked_down = true
 		_stagger = maxf(_stagger, 1.2)
+
+
+## 從背後被空手撂倒（v0.14，怪物）：趴在地上 seconds 秒，起來後往被打的地方找
+var _ko := false
+
+
+func knock_out(seconds: float, from_pos: Vector2) -> void:
+	if is_dead or is_boss():
+		return
+	grabbed = false
+	held_up = false
+	knocked_down = true
+	_ko = true
+	_stagger = seconds
+	_windup = 0.0
+	winding_up = false
+	_ranged_windup = 0.0
+	radio_timer = 0.0
+	velocity = (global_position - from_pos).normalized() * 50.0
+	_body.scale = Vector2(1.2, 0.6)
+	awareness = suspicious_threshold + 0.05
+	_investigate(from_pos)
 
 
 ## 被踢飛撞到牆：額外受傷、暈更久
@@ -1223,9 +1248,20 @@ func _look_around(amplitude: float) -> void:
 
 # ── 顯示 ──────────────────────────────────────────────
 
+## 發現主角的敵人（看著你、或正在追你而且中間沒有牆）：就算在暗處也畫出來、雷達上也有（v0.14）
+func has_spotted_player() -> bool:
+	if is_dead or is_dormant or is_asleep() or _player == null or _player.is_dead:
+		return false
+	if sees_player and state != State.UNAWARE:
+		return true
+	return state == State.ALERT and _no_contact_time < 4.0 \
+		and global_position.distance_to(_player.global_position) < 12.0 * TILE \
+		and Sight.is_clear(self, global_position, _player.global_position)
+
+
 ## 主角看不到的敵人就不畫出來（淡入淡出）。
 func _update_visibility(delta: float) -> void:
-	visible_to_player = _player.can_see_point(global_position)
+	visible_to_player = _player.can_see_point(global_position) or has_spotted_player()
 	if visible_to_player and not is_dead and not is_dormant and not WorldState.codex_has(get_species()):
 		WorldState.codex_see(get_species())
 	var target_alpha := 1.0 if visible_to_player else 0.0

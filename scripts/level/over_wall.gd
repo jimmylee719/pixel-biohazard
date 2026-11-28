@@ -63,17 +63,18 @@ func _process(_delta: float) -> void:
 			_slots.erase(id)
 
 
-## 腳在 feet 的角色：上面兩排、左右各一格裡，會擋住它的東西（牆、櫃子、窗戶）的畫面範圍
+## 腳在 feet 的角色：上面三排（牆比人高，v0.14）、左右各一格裡，會擋住它的東西（牆、櫃子、窗戶）的畫面範圍
 func mask_rects(feet: Vector2) -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	var t := float(Level.TILE)
 	var f := Vector2i(floori(feet.x / t), floori(feet.y / t))
-	for dy in [1, 2]:
+	for dy in [1, 2, 3]:
 		for dx in [-1, 0, 1]:
 			var c := f + Vector2i(dx, -dy)
 			var ch := level.char_at(c)
 			if ch == "#" or ch == "=":
-				out.append(Rect2(Vector2(c) * t - Vector2(0, Level.WALL_RAISE), Vector2(t, t + Level.WALL_RAISE)))
+				var r := Level.WALL_RAISE if ch == "#" else Level.WINDOW_RAISE
+				out.append(Rect2(Vector2(c) * t - Vector2(0, r), Vector2(t, t + r)))
 			elif ch == "C" or ch == "H":
 				out.append(Rect2(Vector2(c) * t - Vector2(0, PROP_RISE), Vector2(t, t + PROP_RISE)))
 	return out

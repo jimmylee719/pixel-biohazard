@@ -945,7 +945,29 @@ def gear_prims(J, slot, gear_id):
 
 ## 近戰每一招的節奏（時間 0～1）：預備 → 出手 → 收招。出手那一段（STRIKE）武器會放大、身體轉最多
 STRIKE = {"slash": (0.2, 0.56), "slash_axe": (0.3, 0.62), "punch": (0.22, 0.55), "kick": (0.3, 0.62),
-          "slash_back": (0.2, 0.56), "stab": (0.26, 0.64), "hook": (0.26, 0.64), "slash_crowbar": (0.3, 0.66)}
+          "slash_back": (0.2, 0.56), "stab": (0.26, 0.64), "hook": (0.26, 0.64), "slash_crowbar": (0.3, 0.66),
+          "jab_l": (0.18, 0.5), "jab_r": (0.18, 0.5), "cross_l": (0.22, 0.55), "cross_r": (0.22, 0.55),
+          "hook_l": (0.26, 0.64), "hook_r": (0.26, 0.64)}
+
+## 空手拳擊（v0.14）：刺拳 → 直拳 → 勾拳，左右兩套（右手開頭 = 整套鏡像）
+## 名稱 → (底稿動作, 要不要左右鏡像, 轉腰幅度, 出拳的手 1 = 左、-1 = 右)
+## 底稿：punch = 左直拳（手 1）、hook = 右勾拳（手 -1）
+FIST_ANIMS = {"jab_l": ("punch", False, 0.55, 1), "cross_r": ("punch", True, 1.2, -1), "hook_l": ("hook", True, 1.0, 1),
+              "jab_r": ("punch", True, 0.55, -1), "cross_l": ("punch", False, 1.2, 1), "hook_r": ("hook", False, 1.0, -1)}
+
+
+def fist_variant(pose, mirror, twist_k):
+    """把底稿的拳改成另一種：鏡像 = 左右手腳交換、轉腰方向相反；twist_k = 轉腰幅度（刺拳小、直拳大）"""
+    pose = dict(pose)
+    if mirror:
+        pose["arms"] = {1: pose["arms"][-1], -1: pose["arms"][1]}
+        pose["legs"] = {1: pose["legs"][-1], -1: pose["legs"][1]}
+    tw = pose.get("twist", 0.0) * twist_k
+    pose["twist"] = -tw if mirror else tw
+    if twist_k < 1.0:  # 刺拳：重心幾乎不動
+        pose["hip_x"] = pose.get("hip_x", 0.0) * 0.6
+        pose["lean"] = pose.get("lean", 0.0) * 0.6
+    return pose
 
 ## 槍：手槍類（雙手握）、長槍類（抵肩）
 HANDGUNS = ("pistol", "revolver", "nailgun", "flare_gun")
@@ -1059,6 +1081,9 @@ def player_model(anim, f, n, pose_only=False):
         pose["head_pitch"] = -0.4 * r
         pose["legs"] = {1: (-0.2 * r, 0.2), -1: (0.15 * r, 0.3)}
         pose["twist"] = 0.3 * r
+    elif anim in FIST_ANIMS:
+        base, mirror, twist_k, _hand = FIST_ANIMS[anim]
+        pose = fist_variant(player_model(base, f, n, pose_only=True), mirror, twist_k)
     elif anim == "slash":
         # 橫砍（右手反手往左前方掃）：右肩往後收 → 轉腰、踏步、手臂掃過身體前方 → 掃到左邊收住 → 回正
         pose = default_pose()
@@ -1170,7 +1195,10 @@ def player_model(anim, f, n, pose_only=False):
     if anim in STRIKE:
         s0, s1 = STRIKE[anim]
         blade_k = 1.0 + 0.55 * max(0.0, 1.0 - abs((t - (s0 + s1) * 0.5) / ((s1 - s0) * 0.75)))
-        if anim == "hook":
+        if anim in FIST_ANIMS:
+            hand = FIST_ANIMS[anim][3]
+            spec["hand_k"] = {hand: 1.2 + 0.5 * (blade_k - 1.0) / 0.55, -hand: 1.2}
+        elif anim == "hook":
             spec["hand_k"] = {-1: 1.2 + 0.5 * (blade_k - 1.0) / 0.55, 1: 1.2}
         elif anim == "punch":
             spec["hand_k"] = {1: 1.2 + 0.5 * (blade_k - 1.0) / 0.55, -1: 1.2}
@@ -1880,10 +1908,11 @@ def brute_model(anim, f, n):
     return prims
 
 CHARACTERS = {
-    # 近戰：刀 slash → slash_back → stab；空手 punch → hook → kick；重武器 slash_axe、slash_crowbar
+    # 近戰：刀 slash → slash_back → stab；空手 jab → cross → hook（_l／_r 兩套）；重武器 slash_axe、slash_crowbar
     # 每把槍：aim_（1 格）、shoot_（3 格，後座力）、aimwalk_（6 格，舉槍移動：上半身瞄準、腳走路）
     "player": (player_model, dict({"idle": 4, "walk": 8, "sneak": 8, "slash": 8, "slash_back": 8, "stab": 7,
                                    "slash_axe": 8, "slash_crowbar": 9, "punch": 7, "hook": 8, "kick": 9,
+                                   "jab_l": 6, "jab_r": 6, "cross_l": 7, "cross_r": 7, "hook_l": 8, "hook_r": 8,
                                    "hurt": 3, "dodge": 5, "dodge_back": 5},
                                   **{"aim_" + w: 1 for w in GUNS},
                                   **{"shoot_" + w: 3 for w in GUNS},

@@ -89,9 +89,18 @@ func _draw_combat() -> void:
 				var corner := c + Vector2(sx, sy) * size
 				draw_line(corner, corner - Vector2(sx * 3, 0), color, 1.0)
 				draw_line(corner, corner - Vector2(0, sy * 3), color, 1.0)
-	elif combat.aiming:
-		var tip := _player.global_position + _player.facing * 24.0
-		draw_line(_player.global_position + _player.facing * 8.0, tip, Color(1, 0.9, 0.3, 0.5), 1.0)
+	# 雷射瞄準線（v0.14）：從槍口一路延伸到牆、或鎖定的敵人（最遠 LASER_RANGE）
+	if combat.aiming and combat.has_weapon():
+		var from := _player.global_position + _player.facing * 8.0 + Vector2(0, -3)
+		var dir := _player.facing
+		var reach := LASER_RANGE
+		if combat.target and not combat.target.is_dead:
+			dir = (combat.target.global_position - from).normalized()
+			reach = minf(reach, from.distance_to(combat.target.global_position))
+		var tip := _laser_end(from, dir, reach)
+		var a := lerpf(0.35, 0.7, combat.aim_focus)
+		draw_line(from, tip, Color(1.0, 0.18, 0.12, a), 1.0)
+		draw_rect(Rect2(tip - Vector2(1, 1), Vector2(2, 2)), Color(1.0, 0.35, 0.25, minf(a + 0.2, 1.0)))
 	# 彈道
 	var shot := combat.last_shot
 	if not shot.is_empty():
@@ -105,6 +114,22 @@ func _draw_combat() -> void:
 		var p := _player.global_position + Vector2(-6, 9)
 		draw_rect(Rect2(p, Vector2(12, 2)), Color(0, 0, 0, 0.6))
 		draw_rect(Rect2(p, Vector2(12 * combat.reload_progress(), 2)), Color(0.9, 0.85, 0.5))
+
+
+const LASER_RANGE := 220.0
+
+
+## 雷射打到哪：沿著方向走，碰到牆、家具、關著的門就停
+func _laser_end(from: Vector2, dir: Vector2, reach: float) -> Vector2:
+	var step := 2.0
+	var d := 0.0
+	while d < reach:
+		var p := from + dir * d
+		var ch := _level.char_at(_level.cell_of(p))
+		if ch == "#" or ch == "" or ch == "H" or (ch == "C" and d > 10.0):
+			return p
+		d += step
+	return from + dir * reach
 
 
 ## 開槍：槍口火光（散彈槍、獵槍是大火光）、白煙、彈道（彈頭＋拖尾，散彈呈扇形）、命中的碎片、彈殼
@@ -199,6 +224,11 @@ func _draw_melee(swing: Dictionary) -> void:
 			move = "slash_axe"
 		elif held == "crowbar":
 			move = "slash_crowbar"
+	# 拳擊（v0.14）：刺拳、直拳 = 直拳的特效；勾拳 = 勾拳的特效
+	if move.begins_with("jab") or move.begins_with("cross"):
+		move = "punch"
+	elif move.begins_with("hook_"):
+		move = "hook"
 	var blunt := move in ["punch", "hook", "kick"]
 	if SLASH_FX.has(move) and st >= 0.0 and st < SLASH_FRAME_TIME * 6.0:
 		var cfg: Array = SLASH_FX[move]

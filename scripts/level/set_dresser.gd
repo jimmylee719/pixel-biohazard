@@ -131,6 +131,8 @@ const LANDMARKS := {"set/reactor": Vector2i(3, 3), "set/turbine": Vector2i(4, 2)
 	"set/sled": Vector2i(2, 1), "set/ice_drill": Vector2i(2, 2)}
 ## 指定一次就整排都是它的東西（橫排用原圖接起來、直排用 <名稱>_v）
 const RUNS := ["set/railing"]
+## 圖實際高度不超過這個（像素）的算矮家具（桌子、木箱、腳櫃），可以靠南牆擺
+const LOW_PROP_H := 20
 ## 不管在哪種房間，周圍都畫警示框的機具
 const MACHINES := ["set/reactor", "set/turbine", "set/drill_rig", "set/crane", "set/engine_block", "set/pump_station", "set/winch",
 	"set/genset", "set/boiler", "set/specimen_tank", "set/cryo_tank", "set/scanner"]
@@ -179,6 +181,22 @@ static func draw_text(ci: CanvasItem, pos: Vector2, text: String, col: Color) ->
 		for k in 15:
 			if bits & (1 << (14 - k)):
 				ci.draw_rect(Rect2(pos + Vector2(i * 4 + k % 3, k / 3), Vector2.ONE), col)
+
+
+static var _vis_h := {}
+
+
+## 圖實際畫到的高度（去掉上面透明的部分）
+static func visible_height(tex: Texture2D) -> int:
+	var key := tex.resource_path if tex.resource_path != "" else str(tex.get_rid())
+	if _vis_h.has(key):
+		return _vis_h[key]
+	var h := tex.get_height()
+	var img := tex.get_image()
+	if img:
+		h = img.get_used_rect().size.y
+	_vis_h[key] = h
+	return h
 
 
 ## 這一塊家具畫成什麼。回傳加進 parent 的節點數（0 = 沒有圖，呼叫端畫色塊）。
@@ -258,6 +276,16 @@ static func dress(level: Level, rect: Rect2i, parent: Node) -> int:
 			var pool: Array = d.get("back" if against else "island", d.get("island", d.get("back", [])))
 			name = _pick(pool, cell, salt)
 		var tex := Art.tex(name)
+		# 南邊緊貼著牆／窗（家具在牆後面）：高的東西會被牆擋住、看起來像長在牆上 → 換成矮的
+		if level.prop_override(cell) == "" and tex and visible_height(tex) > LOW_PROP_H and "#=".contains(level.char_at(cell + Vector2i.DOWN)):
+			var lows: Array = []
+			for n in d.get("island", []) + d.get("back", []):
+				var lt := Art.tex(n)
+				if lt and visible_height(lt) <= LOW_PROP_H:
+					lows.append(n)
+			if not lows.is_empty():
+				name = _pick(lows, cell, salt)
+				tex = Art.tex(name)
 		if RUNS.has(name) and rect.size.y > 1 and Art.tex(name + "_v"):
 			tex = Art.tex(name + "_v")
 		if tex:
@@ -273,6 +301,8 @@ static func _place(level: Level, parent: Node, tex: Texture2D, x: float, bottom:
 	s.offset = Vector2(0, -tex.get_height())
 	s.position = Vector2(x, bottom)
 	parent.add_child(s)
+	if tex.get_width() <= Level.TILE:
+		level.prop_heights[cell] = visible_height(tex)
 	# 房間黑幕：沒看到的房間，裡面的東西整個藏起來（高的東西才不會從黑幕上面露出來）
 	level.register_prop(s, cell)
 	if GLOW.has(name):

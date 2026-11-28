@@ -12,8 +12,11 @@ const WALL_LAYER := 1
 const WINDOW_LAYER := 8
 ## 看不穿的格子（第一人稱視角的射線、房間判定用）
 const SOLID_CHARS := "#CH"
-## 牆比地板高：牆頂往上畫 WALL_RAISE 像素（蓋住牆後面一點點地板＝3/4 俯視的高度感），牆面見 WallFaces
-const WALL_RAISE := 8.0
+## 牆比地板高：牆頂往上畫 WALL_RAISE 像素（蓋住牆後面的地板＝3/4 俯視的高度感），牆面見 WallFaces
+## v0.14：牆要比人高（角色約 36px）：牆面 WallFaces.FACE = 32px、牆頂再 8px，總高 40px
+const WALL_RAISE := 24.0
+## 窗戶（玻璃隔間）維持矮的：窗台以上看得到另一邊
+const WINDOW_RAISE := 8.0
 ## 擋住角色的東西（牆、櫃子、置物櫃、窗戶）：地上的陰影、角色在牆前面時的遮擋判定用
 const OCCLUDER_CHARS := "#CH="
 
@@ -412,6 +415,7 @@ func add_interactable(item: Interactable) -> void:
 
 ## 會擋路的物件（木箱、木板）：碰撞體放在導航區域底下，烘焙時才會被當成障礙物。
 func add_nav_obstacle(pos: Vector2, size: Vector2) -> StaticBody2D:
+	_obstacle_cells[cell_of(pos)] = true
 	var body := StaticBody2D.new()
 	body.collision_layer = WALL_LAYER
 	body.collision_mask = 0
@@ -532,6 +536,22 @@ func floor_tex_at(cell: Vector2i) -> Texture2D:
 ## SetDresser 放家具時登記：這張圖屬於哪一格（房間黑幕用）
 func register_prop(node: CanvasItem, cell: Vector2i) -> void:
 	_prop_nodes.append([node, cell])
+
+
+## v0.14 翻越：每格家具的圖實際有多高（像素，只記單格寬的圖）；擋路的小東西（放道具的桌子）在哪幾格
+var prop_heights := {}
+var _obstacle_cells := {}
+## 不超過這個高度的家具可以翻過去（桌子、木箱、床、腳櫃）
+const VAULT_MAX_H := 20
+
+
+func is_vaultable(cell: Vector2i) -> bool:
+	return char_at(cell) == "C" and prop_heights.has(cell) and int(prop_heights[cell]) <= VAULT_MAX_H
+
+
+## 可以落腳的空地（不是牆、家具、水、門、擋路的小東西）
+func is_open_floor(cell: Vector2i) -> bool:
+	return _is_floor_cell(cell) and not "+D".contains(char_at(cell)) and not _obstacle_cells.has(cell)
 
 
 ## 只顯示這些房間裡的家具（rooms 是空的 = 全部顯示）。RoomFog 在看得到的房間變了的時候呼叫。
@@ -923,15 +943,16 @@ func _build_solids() -> void:
 	for rect in _merge_rects("#"):
 		var wall := _add_solid(rect, WALL_COLOR, WALL_EDGE_COLOR, WALL_RAISE)
 		(_structure_layer.get_child(_structure_layer.get_child_count() - 1) as CanvasItem).visible = false
+		wall.visible = false  # v0.14：牆頂由 WallFaces 一格一格畫（才能切低）
 		var style := wall_style_at(rect.position + Vector2i(0, rect.size.y - 1))
 		var wall_tex := Art.tex(SetDresser.WALL_TEX.get(style, "tiles/wall_slab"))
 		if wall_tex:
 			wall.texture = wall_tex
 			wall.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 			wall.color = Color.WHITE
-		# 牆的北邊（後面）是家具、置物櫃：牆頂凸出來的那一段要補畫在家具上面
+		# 牆的北邊（後面兩格內）是家具、置物櫃：牆頂和牆面凸出來的那一段要補畫在家具上面
 		for x in range(rect.position.x, rect.end.x):
-			if "CH".contains(char_at(Vector2i(x, rect.position.y - 1))):
+			if "CH".contains(char_at(Vector2i(x, rect.position.y - 1))) or "CH".contains(char_at(Vector2i(x, rect.position.y - 2))):
 				caps[Vector2i(x, rect.position.y)] = wall_tex
 	# 家具、設備：依房間種類擺（SetDresser）。y 排序：前面的蓋住後面的。
 	var props := Node2D.new()
@@ -959,8 +980,12 @@ func _build_solids() -> void:
 		else:
 			dressed.append(rect)
 	_prop_rects = dressed
+	var window_caps := {}
 	for rect in _merge_rects("="):
 		_add_window(rect)
+		for x in range(rect.position.x, rect.end.x):
+			if "CH".contains(char_at(Vector2i(x, rect.position.y - 1))):
+				window_caps[Vector2i(x, rect.position.y)] = true
 	for rect in _merge_rects("~"):
 		_add_water(rect)
 	# 牆面畫在家具下面：靠牆的高櫃子、地標會蓋住後面的牆面（櫃子在牆前面）
@@ -976,6 +1001,8 @@ func _build_solids() -> void:
 	wall_caps.name = "WallCaps"
 	wall_caps.mode = WallFaces.Mode.CAPS
 	wall_caps.caps = caps
+	wall_caps.faces_ref = faces
+	wall_caps.window_caps = window_caps
 	_structure_layer.add_child(wall_caps)
 	wall_caps.setup(self)
 	# 裝飾用的光暈（壁燈、螢幕、警示燈）：加色疊在最上面
@@ -1225,14 +1252,14 @@ func _add_window(cell_rect: Rect2i) -> void:
 	body.add_child(shape)
 	_nav_region.add_child(body)
 	var frame := ColorRect.new()
-	frame.position = rect.position - Vector2(0, WALL_RAISE)
-	frame.size = rect.size + Vector2(0, WALL_RAISE)
+	frame.position = rect.position - Vector2(0, WINDOW_RAISE)
+	frame.size = rect.size + Vector2(0, WINDOW_RAISE)
 	frame.color = Color(0.2, 0.22, 0.26)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_structure_layer.add_child(frame)
 	var glass := ColorRect.new()
-	glass.position = rect.position + Vector2(2, 2 - WALL_RAISE)
-	glass.size = rect.size - Vector2(4, 4 - WALL_RAISE)
+	glass.position = rect.position + Vector2(2, 2 - WINDOW_RAISE)
+	glass.size = rect.size - Vector2(4, 4 - WINDOW_RAISE)
 	glass.color = Color(0.55, 0.75, 0.9, 0.35)
 	glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_structure_layer.add_child(glass)

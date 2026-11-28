@@ -42,7 +42,7 @@ const DATA := {
 	"hazmat_boots": {"slot": "feet", "name": "Hazmat boots", "sprite": "player_feet_hazmat_boots", "set": "hazmat",
 		"desc": "Sealed rubber overboots.", "stats": {"hazard": 0.85, "speed": 0.97}},
 	"eod_boots": {"slot": "feet", "name": "EOD boots", "sprite": "player_feet_eod_boots", "set": "eod",
-		"desc": "Steel-shanked. Your kicks land like a hammer.", "stats": {"armor": 0.9, "speed": 0.95, "noise": 1.2, "kick": 1.6}},
+		"desc": "Steel-shanked. Planted feet put your whole weight behind every cross and hook.", "stats": {"armor": 0.9, "speed": 0.95, "noise": 1.2, "kick": 1.6}},
 	"soft_soles": {"slot": "feet", "name": "Soft soles", "sprite": "player_feet_soft_soles", "set": "sneak",
 		"desc": "Felt-soled slippers over your socks. Silent - and cold.", "stats": {"noise": 0.6, "warmth": 1.15}},
 	"crampons": {"slot": "feet", "name": "Crampon boots", "sprite": "player_feet_crampons", "set": "arctic",
@@ -62,7 +62,7 @@ const START_EQUIPPED := {"head": "", "body": "parka", "feet": "snow_boots"}
 const START_OWNED := ["parka", "snow_boots"]
 ## 能力在畫面上的名稱
 const STAT_NAMES := {"warmth": "Cold", "hazard": "Spores", "armor": "Damage", "speed": "Speed", "noise": "Noise",
-	"detect": "Visibility", "kick": "Kick"}
+	"detect": "Visibility", "kick": "Punch power"}
 
 
 static func equipped() -> Dictionary:

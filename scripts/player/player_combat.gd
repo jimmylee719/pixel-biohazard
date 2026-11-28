@@ -37,12 +37,32 @@ const KNIFE_COMBO := [
 	{"name": "slash_back", "damage": 20.0, "range": 22.0, "stagger": 0.5, "knock": 50.0, "cooldown": 0.32, "noise": 2.0},
 	{"name": "stab", "damage": 32.0, "range": 25.0, "stagger": 0.9, "knock": 90.0, "cooldown": 0.5, "noise": 2.0},
 ]
+## 空手 = 拳擊（v0.14）：刺拳 → 直拳 → 勾拳收尾（勾拳打倒在地）。每一套開頭隨機決定左手或右手開始
 const FIST_COMBO := [
-	{"name": "punch", "damage": 12.0, "range": 18.0, "stagger": 0.6, "knock": 110.0, "cooldown": 0.3, "noise": 2.0},
-	{"name": "hook", "damage": 15.0, "range": 18.0, "stagger": 0.7, "knock": 140.0, "cooldown": 0.34, "noise": 2.0},
-	{"name": "kick", "damage": 18.0, "range": 21.0, "stagger": 1.1, "knock": 240.0, "cooldown": 0.55, "noise": 3.0,
-		"knockdown": true, "smash": true},
+	{"name": "jab_l", "damage": 10.0, "range": 18.0, "stagger": 0.45, "knock": 80.0, "cooldown": 0.24, "noise": 2.0},
+	{"name": "cross_r", "damage": 14.0, "range": 19.0, "stagger": 0.65, "knock": 130.0, "cooldown": 0.3, "noise": 2.0},
+	{"name": "hook_l", "damage": 18.0, "range": 18.0, "stagger": 1.1, "knock": 220.0, "cooldown": 0.5, "noise": 2.5,
+		"knockdown": true},
 ]
+const FIST_COMBO_R := [
+	{"name": "jab_r", "damage": 10.0, "range": 18.0, "stagger": 0.45, "knock": 80.0, "cooldown": 0.24, "noise": 2.0},
+	{"name": "cross_l", "damage": 14.0, "range": 19.0, "stagger": 0.65, "knock": 130.0, "cooldown": 0.3, "noise": 2.0},
+	{"name": "hook_r", "damage": 18.0, "range": 18.0, "stagger": 1.1, "knock": 220.0, "cooldown": 0.5, "noise": 2.5,
+		"knockdown": true},
+]
+const FIST_MOVES := ["jab_l", "cross_r", "hook_l", "jab_r", "cross_l", "hook_r"]
+## 這一套拳是不是右手開頭
+var _fist_right := false
+
+## 背後偷襲（v0.14，按攻擊鍵）：人類 = 裸絞 CHOKE_TIME 秒 → 昏迷 KO_TIME 秒（之後在原地醒來）；
+## 怪物 = 空手打倒在地 MONSTER_DOWN 秒（趁機躲起來或跑掉），拿著刀／重兵器 = 刺殺
+const CHOKE_TIME := 5.0
+const KO_TIME := 300.0
+const MONSTER_DOWN := 5.0
+## 正在裸絞（grabbed 是被勒住的人）；剩幾秒
+var choking := false
+var choke_left := 0.0
+
 ## 重兵器（物品 kind = melee）：只有一招，連按就一直揮
 const MELEE_WEAPONS := {
 	"fire_axe": {"name": "slash_axe", "damage": 38.0, "range": 24.0, "stagger": 0.9, "knock": 120.0, "cooldown": 0.6,
@@ -159,7 +179,9 @@ func melee_moves() -> Array:
 	var m := WorldState.melee()
 	if MELEE_WEAPONS.has(m):
 		return [MELEE_WEAPONS[m]]
-	return FIST_COMBO if m == "fists" else KNIFE_COMBO
+	if m == "fists":
+		return FIST_COMBO_R if _fist_right else FIST_COMBO
+	return KNIFE_COMBO
 
 
 func has_weapon() -> bool:
@@ -489,8 +511,14 @@ func _finish_reload() -> void:
 func melee() -> bool:
 	if _cooldown > 0.0:
 		return false
+	var sneak_target := stealth_target()
+	if sneak_target:
+		return back_attack(sneak_target)
+	var chain := _since_melee <= combo_window and combo_step < melee_moves().size() - 1
+	if not chain:
+		_fist_right = randf() < 0.5
 	var moves := melee_moves()
-	combo_step = combo_step + 1 if _since_melee <= combo_window and combo_step < moves.size() - 1 else 0
+	combo_step = combo_step + 1 if chain else 0
 	combo_step = mini(combo_step, moves.size() - 1)
 	_since_melee = 0.0
 	var move: Dictionary = moves[combo_step]
@@ -510,8 +538,8 @@ func melee() -> bool:
 		if not Sight.in_cone(origin, player.facing, enemy.global_position, half, reach):
 			continue
 		var damage: float = move.damage
-		if move.name == "kick":
-			damage *= Gear.stat("kick")
+		if move.name.begins_with("cross") or move.name.begins_with("hook"):
+			damage *= Gear.stat("kick")  # 鋼頭靴：站得穩，重拳更重
 		if enemy.can_be_taken_down_by(player):
 			damage *= takedown_mult
 			takedown = true
@@ -521,15 +549,15 @@ func melee() -> bool:
 	match move.name:
 		"slash", "slash_back", "stab":
 			Sfx.play("knife_hit" if hit_any else "knife_swing", origin)
-		"punch", "hook":
+		"jab_l", "jab_r", "cross_l", "cross_r":
 			Sfx.play("punch_hit" if hit_any else "knife_swing", origin, 0.1, -4.0)
-		"kick":
-			Sfx.play("kick_hit" if hit_any else "knife_swing", origin, 0.1, -2.0)
+		"hook_l", "hook_r":
+			Sfx.play("kick_hit" if hit_any else "knife_swing", origin, 0.1, -3.0)
 		_:
 			Sfx.play("kick_hit" if hit_any else "knife_swing", origin, 0.06, 0.0)
 	if hit_any:
 		Sfx.rumble(40 if not move.get("knockdown", false) else 90, 0.5)
-	# 小刀割得開木箱、木板（安靜，但要割好幾下）；踢、斧頭、鐵撬一下就破（比較大聲）；拳頭打不開
+	# 小刀割得開木箱、木板（安靜，但要割好幾下）；斧頭、鐵撬一下就破（比較大聲）；拳頭打不開
 	if player.level:
 		for item in player.level.get_interactables():
 			if item is Breakable and item.enabled \
@@ -542,6 +570,90 @@ func melee() -> bool:
 	NoiseBus.emit_noise(origin, float(move.noise) * Player.TILE, player)
 	last_melee = {"pos": origin, "dir": player.facing, "t": 0.0, "takedown": takedown, "move": move.name, "hit": hit_any}
 	return true
+
+
+# ── 背後偷襲（v0.14）──────────────────────────────────
+
+## 按攻擊鍵就能偷襲的敵人：在面前、沒發現你、你在牠背後（或倒地、睡著的凍眠體）。
+## 空手時已經倒在地上的怪物不算（照一般拳打），睡著／昏迷的人不算。
+func stealth_target() -> Enemy:
+	if player.is_hiding or grabbed != null or player.dragging:
+		return null
+	var best: Enemy = null
+	var best_d := grab_reach + 6.0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.is_dead or enemy.is_boss() or enemy.is_asleep() or enemy.held_up:
+			continue
+		if not enemy.can_be_taken_down_by(player):
+			continue
+		if not enemy.is_human() and enemy.knocked_down and not enemy.is_dormant and WorldState.melee() == "fists":
+			continue
+		var d := player.global_position.distance_to(enemy.global_position)
+		if d < best_d and Sight.in_cone(player.global_position, player.facing, enemy.global_position, deg_to_rad(60.0), best_d):
+			best = enemy
+			best_d = d
+	return best
+
+
+func back_attack(enemy: Enemy) -> bool:
+	var origin := player.global_position
+	_cooldown = 0.4
+	combo_step = 0
+	if enemy.is_human():
+		return start_choke(enemy)
+	if WorldState.melee() == "fists":
+		# 空手打不死怪物：把牠撂倒在地，趴個幾秒
+		if enemy.is_dormant:
+			enemy.wake(origin)
+		enemy.knock_out(MONSTER_DOWN, origin)
+		Sfx.play("body_slam", enemy.global_position)
+		Sfx.rumble(90, 0.6)
+		NoiseBus.emit_noise(origin, 2.0 * Player.TILE, player)
+		last_melee = {"pos": origin, "dir": player.facing, "t": 0.0, "takedown": true, "move": "hook_r" if _fist_right else "hook_l", "hit": true}
+		return true
+	# 刀、重兵器：從背後刺殺
+	var move := "stab" if not MELEE_WEAPONS.has(WorldState.melee()) else str(MELEE_WEAPONS[WorldState.melee()].name)
+	enemy.take_damage(enemy.max_health * 3.0, origin, 0.0)
+	Sfx.play("knife_hit", enemy.global_position, 0.1, -3.0)
+	Sfx.rumble(70, 0.5)
+	NoiseBus.emit_noise(origin, 1.0 * Player.TILE, player)
+	last_melee = {"pos": origin, "dir": player.facing, "t": 0.0, "takedown": true, "move": move, "hit": true}
+	return true
+
+
+## 裸絞：抓住後勒 CHOKE_TIME 秒（不能動；互動 = 放手，他會掙脫）。勒完 = 昏迷，可以拖走藏起來。
+func start_choke(enemy: Enemy) -> bool:
+	if grabbed and grabbed != enemy:
+		_release_grab()
+	grabbed = enemy
+	_grab_frame = Engine.get_physics_frames()
+	choking = true
+	choke_left = CHOKE_TIME
+	enemy.set_grabbed(true)
+	Sfx.play("grab", enemy.global_position)
+	Sfx.rumble(60, 0.6)
+	last_melee = {"pos": player.global_position, "dir": player.facing, "t": 0.0, "takedown": true, "move": "choke"}
+	return true
+
+
+func _process_choke(delta: float) -> void:
+	grabbed.global_position = player.global_position + player.facing * 9.0
+	player.velocity = Vector2.ZERO
+	if Engine.get_physics_frames() != _grab_frame and Input.is_action_just_pressed("interact"):
+		var e := grabbed
+		_release_grab()
+		e.break_free(player.global_position)
+		return
+	choke_left -= delta
+	if fmod(choke_left, 1.0) < delta:
+		Sfx.rumble(25, 0.3)
+	if choke_left <= 0.0:
+		var e := grabbed
+		_release_grab()
+		e.put_to_sleep(KO_TIME)
+		NoiseBus.emit_noise(player.global_position, 0.5 * Player.TILE, player)
+		Sfx.play("body_slam", e.global_position, 0.1, -10.0)
 
 
 # ── 擒拿（CQC）────────────────────────────────────────
@@ -579,11 +691,17 @@ func _process_grab(delta: float) -> void:
 	if grabbed == null or not is_instance_valid(grabbed) or grabbed.is_dead:
 		_release_grab()
 		return
+	if choking:
+		_process_choke(delta)
+		return
 	grabbed.global_position = player.global_position + player.facing * 10.0
 	if Engine.get_physics_frames() == _grab_frame:
 		return  # 抓住的這一幀按下的互動鍵不算「放開」
 	_grab_timer -= delta
-	if Input.is_action_just_pressed("fire"):
+	if Input.is_action_just_pressed("fire") and grabbed.is_human():
+		var e := grabbed
+		start_choke(e)
+	elif Input.is_action_just_pressed("fire"):
 		var e := grabbed
 		_release_grab()
 		e.take_damage(e.max_health * 2.0, player.global_position, 0.0)  # 從背後勒住解決，幾乎沒有聲音
@@ -619,6 +737,8 @@ func slam() -> void:
 
 
 func _release_grab() -> void:
+	choking = false
+	choke_left = 0.0
 	if grabbed and is_instance_valid(grabbed):
 		grabbed.set_grabbed(false)
 	grabbed = null
@@ -626,6 +746,10 @@ func _release_grab() -> void:
 
 ## 可以從背後一擊解決的敵人（在近戰範圍內、沒發現主角、主角在他背後）；沒有 = null。給畫面提示用。
 func takedown_target() -> Enemy:
+	return stealth_target()
+
+
+func _old_takedown_target() -> Enemy:
 	if player.is_hiding or grabbed != null:
 		return null
 	var best: Enemy = null

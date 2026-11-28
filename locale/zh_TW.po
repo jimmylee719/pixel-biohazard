@@ -1461,8 +1461,8 @@ msgstr "腳步聲"
 msgid "Visibility"
 msgstr "被發現"
 
-msgid "Kick"
-msgstr "踢擊"
+msgid "Punch power"
+msgstr "重拳力道"
 
 msgid "Got %s. Wear it from the phone (GEAR)."
 msgstr "取得%s。在手機的「裝備」換穿。"
@@ -1551,8 +1551,8 @@ msgstr "密封的橡膠套靴。"
 msgid "EOD boots"
 msgstr "防爆靴"
 
-msgid "Steel-shanked. Your kicks land like a hammer."
-msgstr "鋼製鞋墊。踢起來像鐵鎚。"
+msgid "Steel-shanked. Planted feet put your whole weight behind every cross and hook."
+msgstr "鋼製鞋墊。腳站得穩，直拳和勾拳都壓上全身的重量。"
 
 msgid "Soft soles"
 msgstr "軟底鞋"
@@ -2591,3 +2591,21 @@ msgstr "哈爾沃森跟董事會說，鑽井是替北極資料中心做的地質
 
 msgid "Supply drop: a red flare is burning on the snow. It's marked on your map."
 msgstr "補給空投：雪地上有一支紅色信號彈在燒。位置已經標在地圖上。"
+
+msgid "Choking out... %.1f   [%s] Let go"
+msgstr "勒昏中……%.1f   [%s] 放手"
+
+msgid "[%s] %s   [%s] Grab"
+msgstr "[%s] %s   [%s] 擒拿"
+
+msgid "Choke out"
+msgstr "裸絞"
+
+msgid "Knock down"
+msgstr "撂倒"
+
+msgid "Silent kill"
+msgstr "背後刺殺"
+
+msgid "[%s] Vault over"
+msgstr "[%s] 翻過去"

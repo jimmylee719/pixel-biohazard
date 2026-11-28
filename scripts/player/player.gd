@@ -34,7 +34,8 @@ const MOVE_MASK := 41
 ## 一次跳多遠、多久；跳的過程中不會被打到
 @export var dodge_distance := 50.0
 @export var dodge_time := 0.24
-@export var dodge_cooldown := 0.5
+## v0.14：閃躲每 3 秒只能用一次（從開始跳算起）
+@export var dodge_cooldown := 3.0
 ## 落地的聲音（格）
 @export var dodge_noise_tiles := 3.0
 
@@ -212,14 +213,20 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_dodge_cd = maxf(_dodge_cd - delta, 0.0)
-	if input_enabled and Input.is_action_just_pressed("dodge"):
-		dodge(Input.get_vector("move_left", "move_right", "move_up", "move_down"))
+	if vaulting > 0.0:
+		_process_vault(delta)
+		return
+	if input_enabled and Input.is_action_just_pressed("dodge") and not combat.choking:
+		# 空白鍵：面前是矮的家具（桌子、木箱）＝翻過去；不然＝閃躲
+		var push := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		if not vault(push):
+			dodge(push)
 	if dodging > 0.0:
 		_process_dodge(delta)
 		return
 
 	var move_input := Vector2.ZERO
-	if input_enabled:
+	if input_enabled and not combat.choking:
 		move_input = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 		if Input.is_action_just_pressed("sneak"):
 			sneaking = not sneaking
@@ -323,12 +330,86 @@ func dodge(input_dir: Vector2) -> bool:
 	dodging = dodge_time
 	_dodge_dir = dir
 	dodge_back = dir.dot(facing) < -0.3
-	_dodge_cd = dodge_cooldown + dodge_time
+	_dodge_cd = dodge_cooldown
 	sneaking = false
 	if not combat.aiming:
 		facing = dir
 	Sfx.play("knife_swing", global_position, 0.15, -8.0)
 	return true
+
+
+# ── 翻越（v0.14）：空白鍵跟環境互動 ─────────────────────────
+## 翻過矮的家具（桌子、木箱、床、腳櫃）：要貼著它、另一邊是空地。敵人不會翻，可以拿來甩掉追兵。
+const VAULT_TIME := 0.42
+const VAULT_REACH := 13.0
+var vaulting := 0.0
+var _vault_from := Vector2.ZERO
+var _vault_to := Vector2.ZERO
+var _vault_dir := Vector2.ZERO
+
+
+## 現在按空白鍵會翻到哪裡（Vector2.INF = 不能翻）
+func vault_target(push := Vector2.ZERO) -> Vector2:
+	if level == null or is_hiding or is_dead or is_carrying() or combat.grabbed != null or dragging:
+		return Vector2.INF
+	var d := push if push.length() > 0.2 else facing
+	var dir := Vector2i(signi(roundi(d.x)) if absf(d.x) >= absf(d.y) else 0, signi(roundi(d.y)) if absf(d.y) > absf(d.x) else 0)
+	if dir == Vector2i.ZERO:
+		return Vector2.INF
+	var pc := level.cell_of(global_position)
+	var obstacle := pc + dir
+	if not level.is_vaultable(obstacle):
+		return Vector2.INF
+	var center := (Vector2(obstacle) + Vector2(0.5, 0.5)) * TILE
+	var dirf := Vector2(dir)
+	# 要貼著：主角到障礙物那格邊緣的距離
+	if (center - global_position).dot(dirf) > TILE * 0.5 + VAULT_REACH:
+		return Vector2.INF
+	var land := obstacle + dir
+	if not level.is_open_floor(land):
+		return Vector2.INF
+	var to := (Vector2(land) + Vector2(0.5, 0.5)) * TILE
+	# 垂直方向維持原本的位置（沿著桌子邊翻過去）
+	if dir.x != 0:
+		to.y = clampf(global_position.y, float(land.y) * TILE + 5.0, float(land.y + 1) * TILE - 5.0)
+	else:
+		to.x = clampf(global_position.x, float(land.x) * TILE + 5.0, float(land.x + 1) * TILE - 5.0)
+	return to
+
+
+func vault(push := Vector2.ZERO) -> bool:
+	var to := vault_target(push)
+	if to == Vector2.INF:
+		return false
+	vaulting = VAULT_TIME
+	_vault_from = global_position
+	_vault_to = to
+	_vault_dir = (to - global_position).normalized()
+	facing = _vault_dir
+	sneaking = false
+	collision_mask = 0  # 翻的過程不撞家具
+	Sfx.play("knife_swing", global_position, 0.2, -10.0)
+	NoiseBus.emit_noise(global_position, 1.5 * TILE, self)
+	return true
+
+
+func _process_vault(delta: float) -> void:
+	vaulting = maxf(vaulting - delta, 0.0)
+	var k := 1.0 - vaulting / VAULT_TIME
+	var e := k * k * (3.0 - 2.0 * k)
+	global_position = _vault_from.lerp(_vault_to, e)
+	velocity = Vector2.ZERO
+	gait = Gait.RUN
+	if _sprite:
+		_sprite.show_pose("dodge", facing, true)
+		_sprite.position.y -= sin(k * PI) * 7.0  # 跳起來
+	_flashlight.rotation = facing.angle()
+	_facing_marker.rotation = facing.angle()
+	if vaulting <= 0.0:
+		collision_mask = MOVE_MASK
+		global_position = _vault_to
+		NoiseBus.emit_noise(global_position, 2.0 * TILE, self)
+		Sfx.play(("step_" + level.step_surface(global_position)) if level else "step_concrete", global_position, 0.1, 2.0)
 
 
 func _process_dodge(delta: float) -> void:
@@ -355,6 +436,9 @@ func reset_to(spawn: Vector2) -> void:
 	refresh_outfit()
 	dodging = 0.0
 	_dodge_cd = 0.0
+	if vaulting > 0.0:
+		vaulting = 0.0
+		collision_mask = MOVE_MASK
 	combat.interrupt()
 	global_position = spawn
 	velocity = Vector2.ZERO
@@ -850,6 +934,7 @@ func _find_focus() -> Interactable:
 
 ## 每一招的動作畫面播多久（秒；只影響畫面，比該招的冷卻短一點，連段才接得上）
 const MELEE_POSE_TIME := {"slash": 0.31, "slash_back": 0.31, "stab": 0.34, "punch": 0.29, "hook": 0.32, "kick": 0.42,
+	"jab_l": 0.22, "jab_r": 0.22, "cross_l": 0.29, "cross_r": 0.29, "hook_l": 0.32, "hook_r": 0.32,
 	"slash_axe": 0.34, "slash_crowbar": 0.36}
 
 

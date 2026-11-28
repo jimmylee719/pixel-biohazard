@@ -187,6 +187,15 @@ func close() -> void:
 	active = false
 
 
+## 對白框清空（頭像、名字、字），黑邊留著
+func clear_dialogue() -> void:
+	_portrait_frame.visible = false
+	_speaker.text = ""
+	_full = ""
+	_text.text = ""
+	_waiting = false
+
+
 ## 一句對白：打字機效果打完後等玩家按鍵（或 auto 秒後自動下一句）
 func say(speaker: String, text: String, auto := 0.0, portrait: Texture2D = null) -> void:
 	_portrait.texture = portrait

@@ -33,15 +33,21 @@ const ANIMS := {
 	"slash": [27.0, false], "slash_back": [27.0, false], "stab": [21.0, false],
 	"slash_axe": [26.0, false], "slash_crowbar": [24.0, false],
 	"punch": [25.0, false], "hook": [25.0, false], "kick": [22.0, false],
+	# 拳擊（v0.14）：jab（6 格）→ cross（7）→ hook（8），_l／_r 左右兩套
+	"jab_l": [28.0, false], "jab_r": [28.0, false], "cross_l": [25.0, false], "cross_r": [25.0, false],
+	"hook_l": [25.0, false], "hook_r": [25.0, false],
 	"attack": [12.0, false], "hurt": [14.0, false], "dodge": [21.0, false], "dodge_back": [21.0, false],
 }
 ## 每個近戰動作整段播完要幾秒（格數 ÷ 速度）。Player.MELEE_POSE_TIME 用這個表就不會對不上
 const MELEE_TIME := {
 	"slash": 8.0 / 27.0, "slash_back": 8.0 / 27.0, "stab": 7.0 / 21.0, "slash_axe": 8.0 / 26.0,
 	"slash_crowbar": 9.0 / 24.0, "punch": 7.0 / 25.0, "hook": 8.0 / 25.0, "kick": 9.0 / 22.0,
+	"jab_l": 6.0 / 28.0, "jab_r": 6.0 / 28.0, "cross_l": 7.0 / 25.0, "cross_r": 7.0 / 25.0,
+	"hook_l": 8.0 / 25.0, "hook_r": 8.0 / 25.0,
 }
 ## 沒有這個動作的圖時依序改用誰（紙娃娃的某一套圖少了新動作也不會壞）
-const FALLBACK := {"slash_back": "slash", "stab": "slash", "slash_axe": "slash", "slash_crowbar": "slash_axe", "hook": "punch"}
+const FALLBACK := {"slash_back": "slash", "stab": "slash", "slash_axe": "slash", "slash_crowbar": "slash_axe", "hook": "punch",
+	"jab_l": "punch", "jab_r": "punch", "cross_l": "punch", "cross_r": "punch", "hook_l": "hook", "hook_r": "hook"}
 
 var char_id := ""
 var _anims: Array[String] = []
