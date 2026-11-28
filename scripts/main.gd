@@ -348,6 +348,7 @@ func _process(delta: float) -> void:
 	if not busy and WorldState.mode == "story" and level and not get_tree().paused:
 		_update_field_radio(delta)
 		_update_weather(delta)
+		_update_world_events(delta)
 		if level.tracks:
 			level.tracks.step(_player)
 
@@ -600,6 +601,7 @@ func _physics_process(delta: float) -> void:
 
 ## 載入一個區域，主角站在 entry（門的 id 或 "start"）的位置。
 func load_area(area_id: String, entry: String, fade := true) -> void:
+	supply_drops.clear()  # 空投是這張地圖臨時的東西
 	_transitioning = true
 	_player.input_enabled = false
 	if fade:
@@ -941,7 +943,7 @@ func map_data(view: String) -> Dictionary:
 		"player": _player.global_position if here else null, "facing": _player.facing,
 		"objective": t.get("cell") if main_pin and t.get("area", "") == view else null,
 		"objective_doors": objective_doors(view, t.area) if main_pin and not t.is_empty() and t.area != view else ([] as Array[Vector2i]),
-		"stars": stars, "safe_cells": safe_cells, "pins": map_pins(view),
+		"stars": stars + (_drop_cells() if here else ([] as Array[Vector2i])), "safe_cells": safe_cells, "pins": map_pins(view),
 		"title": tr(d.title) + (tr("  (you are here)") if here else ""),
 		"info": "%d/%d  %s" % [idx + 1, areas.size(), tr("Floor map") if known else tr("No map - explored only")],
 	}
@@ -2296,11 +2298,26 @@ func _build_hint() -> String:
 # ── v0.11：野戰無線電、天氣、全島地圖 ─────────────────────
 
 ## 排一通來電（同一個 key 只響一次）
+## 來電不要太吵（v0.13）：主線的來電（call:）一定排進去；提示類的（fcall:）同時最多等 2 通，
+## 警戒中、剛接完電話 25 秒內不響（之後再響），沒接的提示 90 秒後自己掛掉。
+const RADIO_TIP_LIMIT := 2
+const RADIO_QUIET_AFTER := 25.0
+const RADIO_TIP_EXPIRE := 90.0
+var _radio_quiet := 0.0
+
+
 func queue_radio(key: String, steps: Array) -> void:
 	if WorldState.has_flag(key) or radio_queue.any(func(c): return c.key == key):
 		return
-	radio_queue.append({"key": key, "steps": steps})
-	Sfx.play("radio_static")
+	var tip := key.begins_with("fcall:")
+	if tip:
+		if _radio_quiet > 0.0 or radio_queue.filter(func(c): return c.tip).size() >= RADIO_TIP_LIMIT:
+			return  # 這次不響；條件還在的話之後會再排
+		if level and level.alert and level.alert.phase == AlertNetwork.Phase.ALERT and key != "fcall:event:alert":
+			return
+	radio_queue.append({"key": key, "steps": steps, "tip": tip, "age": 0.0})
+	if radio_queue.size() == 1:
+		Sfx.play("radio_static")
 
 
 func radio_ringing() -> bool:
@@ -2317,6 +2334,7 @@ func answer_radio() -> void:
 	if not radio_queue.is_empty():
 		var call: Dictionary = radio_queue.pop_front()
 		WorldState.set_flag(call.key)
+		_radio_quiet = RADIO_QUIET_AFTER
 		await _run_steps(call.steps)
 		return
 	var m := Missions.tracked_mission()
@@ -2346,6 +2364,11 @@ func _radio_call_steps(lines: Array) -> Array:
 
 ## 每 0.5 秒看一次：第一次進入區域、第一次看到某種敵人、第一次被發現 → 來電
 func _update_field_radio(delta: float) -> void:
+	_radio_quiet = maxf(_radio_quiet - delta, 0.0)
+	for c in radio_queue:
+		c.age += delta
+	# 沒接的提示自己掛掉（不設旗標：之後還有機會再響）
+	radio_queue = radio_queue.filter(func(c): return not c.tip or c.age < RADIO_TIP_EXPIRE)
 	_radio_check -= delta
 	if _radio_check > 0.0:
 		return
@@ -2405,6 +2428,60 @@ func _update_weather(delta: float) -> void:
 	if _weather_dark_timer <= 0.0:
 		_weather_dark_timer = 0.5
 		_apply_darkness()
+
+
+## ── 隨機事件（v0.13，開放世界）：戶外偶爾有補給空投（紅色信號彈標出位置，地圖上是藍色星號）──
+const DROP_MIN := 200.0
+const DROP_MAX := 360.0
+const DROP_LOOT := [["med", 1], ["ammo", 10], ["heat_pack", 2], ["shells", 3], ["darts", 3], ["antibiotic", 1], ["rifle_rounds", 3]]
+var supply_drops: Array[ItemPickup] = []
+var _drop_timer := 240.0
+
+
+func _update_world_events(delta: float) -> void:
+	if level.is_indoor_at(_player.global_position) or level.climate_id() == "temperate":
+		return
+	_drop_timer -= delta
+	if _drop_timer > 0.0:
+		return
+	_drop_timer = randf_range(DROP_MIN, DROP_MAX)
+	spawn_supply_drop()
+
+
+## 在主角附近（10～22 格外）走得到的戶外雪地丟一個補給。回傳 null = 找不到地方。
+func spawn_supply_drop() -> ItemPickup:
+	var from := level.cell_of(_player.global_position)
+	var nav := level.get_navigation_map()
+	for attempt in 80:
+		var c := from + Vector2i(randi_range(-22, 22), randi_range(-16, 16))
+		var d := Vector2(c - from).length()
+		if d < 10.0 or level.char_at(c) != "." or level._is_indoor_cell(c):
+			continue
+		var pos := (Vector2(c) + Vector2(0.5, 0.5)) * Level.TILE
+		var path := NavigationServer2D.map_get_path(nav, _player.global_position, pos, true)
+		if path.is_empty() or path[-1].distance_to(pos) > 6.0:
+			continue
+		var loot: Array = DROP_LOOT[randi() % DROP_LOOT.size()]
+		var item := level.add_dynamic_item(loot[0], loot[1], pos, "drop:%d" % Time.get_ticks_msec())
+		var flare := PointLight2D.new()
+		flare.texture = LightTextures.make_radial()
+		flare.texture_scale = 50.0 / (LightTextures.SIZE * 0.5)
+		flare.color = Color(1.0, 0.35, 0.25)
+		flare.energy = 0.9
+		item.add_child(flare)
+		supply_drops.append(item)
+		show_message(tr("Supply drop: a red flare is burning on the snow. It's marked on your map."), true)
+		Sfx.play("pistol_shot", pos, 0.1, -12.0)
+		return item
+	return null
+
+
+func _drop_cells() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for d in supply_drops:
+		if is_instance_valid(d) and d.enabled:
+			out.append(level.cell_of(d.global_position))
+	return out
 
 
 ## 全島地圖的資料（MapPanel 的第一頁）

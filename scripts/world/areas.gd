@@ -1274,7 +1274,7 @@ const DATA := {
 			"#.....##############################################.......#",
 			"#.....##############################################.......#",
 			"#.CC..##############################################....C..#",
-			"#.CC..##############################################.5.....#",
+			"#.CC..D#############################################.5.....#",
 			"#....o##############################################.......#",
 			"#.....##############################################.......#",
 			"#.CCC.##############################################.......#",
@@ -1312,6 +1312,7 @@ const DATA := {
 		"doors": {
 			"gangway": {"cell": Vector2i(6, 29), "to": "north_harbor", "spawn_dir": Vector2i(0, -1)},
 			"atrium": {"cell": Vector2i(29, 23), "to": "cruise_interior", "spawn_dir": Vector2i(0, 1)},
+			"galley": {"cell": Vector2i(6, 7), "to": "cruise_interior", "spawn_dir": Vector2i(-1, 0)},
 		},
 		"stairs": {"55,12": "cruise_sundeck", "57,12": "cruise_hold"},
 		"entries": {"stairs": Vector2i(56, 13)},
@@ -1339,7 +1340,7 @@ const DATA := {
 			"##############################################",
 			"#CCCC.CCCC#CC.H#C.CC#CC.C#C.CC.#CCC.N..CCC.CC#",
 			"#.........#....#....#.x..#.....#.............#",
-			"#.CCC..4..#..x.#y...#....#.....#...CCC.....M.#",
+			"D.CCC..4..#..x.#y...#....#.....#...CCC.....M.#",
 			"#.........##+####+####+####+####.............#",
 			"#C........+.1..................+......:......#",
 			"#C..x...M.#..........C......b..#.H...........#",
@@ -1371,6 +1372,7 @@ const DATA := {
 		# 潛龍諜影式的鏡頭：中庭和劇院是固定機位＋斜角，客艙走廊推近
 		"doors": {
 			"atrium": {"cell": Vector2i(23, 19), "to": "cruise_deck", "spawn_dir": Vector2i(0, -1)},
+			"galley": {"cell": Vector2i(0, 3), "to": "cruise_deck", "spawn_dir": Vector2i(1, 0)},
 		},
 		"safes": {"15,8": {"reveal": "reveal:cache_ship", "text": "SAFE (purser's office): a purser's note. \"Passengers' valuables moved to the hold, crate row 3, with the Ark cargo. God forgive me, I signed for it.\""}},
 		"names": {"36,1": "captain_log", "26,14": "atrium_note"},
@@ -1500,7 +1502,7 @@ const ROOMS := {
 	"gate_one_yard": {"into": "ice_caves", "door": "gate_tunnel"},
 	"gate_one_base": {"into": "gate_one_yard", "door": "base_gate"},
 	"gate_one_safe": {"into": "gate_one_base", "door": "g1safe"},
-	"cruise_interior": {"into": "cruise_deck", "door": "atrium"},
+	"cruise_interior": {"into": "cruise_deck", "door": "atrium", "also": ["galley"]},
 }
 
 static var _composed := {}

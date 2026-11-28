@@ -18,7 +18,9 @@ func _process(_delta: float) -> void:
 
 
 func can_interact(player: Player) -> bool:
-	return enabled and not player.is_hiding and (player.dragging == null or player.dragging == body)
+	if player.dragging == body:
+		return true
+	return enabled and not player.is_hiding and player.dragging == null
 
 
 func get_prompt(player: Player) -> String:

@@ -831,6 +831,11 @@ func _find_focus() -> Interactable:
 		return null
 	if is_hiding:
 		return hiding_in
+	# 拖著屍體時：互動鍵一定是「放下／塞進櫃子」（不會不小心躲進櫃子）
+	if dragging:
+		for item in level.get_interactables():
+			if item is BodyHandle and item.body == dragging:
+				return item
 	var best: Interactable = null
 	var best_dist := INF
 	for item in level.get_interactables():

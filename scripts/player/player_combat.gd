@@ -201,8 +201,14 @@ func interrupt() -> void:
 	reloading = false
 
 
+## 開槍的按鍵緩衝（v0.13）：冷卻還沒好的時候按下扳機，冷卻一好就開（不會吃掉按鍵）
+const FIRE_BUFFER := 0.25
+var _fire_buffer := 0.0
+
+
 func _physics_process(delta: float) -> void:
 	_cooldown = maxf(_cooldown - delta, 0.0)
+	_fire_buffer = maxf(_fire_buffer - delta, 0.0)
 	_since_melee += delta
 	for fx in [last_shot, last_melee]:
 		if not fx.is_empty():
@@ -223,8 +229,11 @@ func _physics_process(delta: float) -> void:
 	aiming = Input.is_action_pressed("aim") and has_weapon() and not reloading
 	if aiming:
 		_update_aim(delta)
-		if Input.is_action_just_pressed("fire") or (stats().get("auto", false) and Input.is_action_pressed("fire")):
-			shoot()
+		if Input.is_action_just_pressed("fire"):
+			_fire_buffer = FIRE_BUFFER
+		if _fire_buffer > 0.0 or (stats().get("auto", false) and Input.is_action_pressed("fire")):
+			if _cooldown <= 0.0 and shoot():
+				_fire_buffer = 0.0
 	else:
 		target = null
 		aim_focus = 0.0
@@ -270,8 +279,8 @@ func find_targets() -> Array[Enemy]:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
 		# 睡著的凍眠體不會被鎖定：玩家要自己分辨牠和真正的屍體
-		if enemy == null or enemy.is_dead or enemy.is_dormant:
-			continue
+		if enemy == null or enemy.is_dead or enemy.is_dormant or enemy.is_asleep():
+			continue  # 睡著的人也不鎖定（不浪費子彈）
 		if player.global_position.distance_to(enemy.global_position) > reach:
 			continue
 		if not Sight.is_clear(player, player.global_position, enemy.global_position):

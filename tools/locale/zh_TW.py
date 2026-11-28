@@ -897,4 +897,6 @@ T = [
 ('Enemy radio: \\"Post, report... Post, respond.\\" Somebody is coming to check.', '敵方無線電：「哨點，回報……哨點，請回答。」有人要過來查看了。'),
 ("If a calm voice tells you to 'please remain indoors', that's the station's home assistant. It started saying it the night the drill came up. Nobody programmed that.", "如果有個平靜的聲音叫妳「請留在室內」，那是研究站的家用助理。鑽頭出井那天晚上它就開始這樣說了。沒有人設定過那句話。"),
 ("Halvorsen told the board the drill was a geological survey for an Arctic data centre. Nobody builds a data centre on Greycrow. Somebody wanted what was under the ice.", "哈爾沃森跟董事會說，鑽井是替北極資料中心做的地質調查。沒有人會把資料中心蓋在灰鴉島。有人想要的是冰底下的東西。"),
+# ── v0.13：隨機事件 ──
+("Supply drop: a red flare is burning on the snow. It's marked on your map.", "補給空投：雪地上有一支紅色信號彈在燒。位置已經標在地圖上。"),
 ]

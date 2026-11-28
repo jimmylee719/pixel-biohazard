@@ -96,6 +96,7 @@ func _run() -> void:
 	await _test_extras()
 	await _test_open_world()
 	await _test_stealth_v12()
+	await _test_stealth_by_input()
 	await _test_survival()
 
 	print("")
@@ -3211,7 +3212,21 @@ func _test_open_world() -> void:
 			break
 		await _frames(1)
 	_check(not _main.radio_ringing() and WorldState.has_flag("fcall:test") and not get_tree().paused, "field radio: answering plays the call")
+	# 剛接完電話：提示類的來電先不響；主線的照響
+	_main.queue_radio("fcall:test2", FieldRadio.steps([[FieldRadio.K, "test"]]))
+	_check(not _main.radio_ringing(), "field radio: tips stay quiet right after a call")
+	WorldState.data.flags.erase("call:__test")
+	_main.queue_radio("call:__test", FieldRadio.steps([[FieldRadio.K, "test"]]))
+	_check(_main.radio_ringing(), "field radio: story calls still ring")
+	_main.radio_queue.clear()
+	_main._radio_quiet = 0.0
 	_check(_main._radio_call_steps(["KOVAC: \"x\""])[1].text == "x", "field radio: radio call text loses the speaker prefix")
+	# 隨機事件：戶外的補給空投（走得到、標在地圖上）
+	_player.global_position = (Vector2(snow) + Vector2(0.5, 0.5)) * Level.TILE
+	await _frames(5)
+	var drop: ItemPickup = _main.spawn_supply_drop()
+	_check(drop != null and _main.map_data(_main.level.area_id).stars.has(_main.level.cell_of(drop.global_position)),
+		"world event: a supply drop lands outdoors and is starred on the map")
 	# 地圖：全島那一頁、箭頭不顯示
 	var island: Dictionary = _main.map_data("island")
 	_check(island.get("island", false) and island.places.station.here, "island map: you are at the station")
@@ -3267,3 +3282,57 @@ func _test_stealth_v12() -> void:
 	g.stash()
 	_check(g.stashed and not g.visible, "a body stashed in a locker disappears")
 	_check(PlayerCombat.WEAPONS.has("dart_pistol") and Art.tex("props/dart_pistol") != null and Codex.ENTRIES.has("dart_pistol"), "tranquilliser has data, icon and codex")
+
+
+## v0.13：用真的按鍵操作一次：舉槍逼降 → 麻醉 → 拖走 → 塞進櫃子
+func _test_stealth_by_input() -> void:
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
+	WorldState.cutscenes = false
+	await _enter("north_harbor", "harbor")
+	var guards: Array = _main.enemies.filter(func(e): return is_instance_valid(e) and e.is_human() and not e.is_dead)
+	if guards.is_empty():
+		_check(false, "input stealth: no guards")
+		return
+	var g: Enemy = guards[0]
+	for e in _main.enemies:
+		if is_instance_valid(e) and e != g:
+			e.global_position += Vector2(2000, 2000)  # 其他敵人先搬遠，自動鎖定才會鎖到他
+	var locker: Locker = null
+	for i in _main.level.get_interactables():
+		if i is Locker and (locker == null or i.global_position.distance_to(g.global_position) < locker.global_position.distance_to(g.global_position)):
+			locker = i
+	WorldState.inv_add("dart_pistol", 1)
+	WorldState.inv_add("darts", 4)
+	WorldState.set_loaded("dart_pistol", 4)
+	WorldState.equipped = "dart_pistol"
+	g.state = Enemy.State.UNAWARE
+	g.awareness = 0.0
+	# 找一個「他背後、沒被牆擋住」的位置站
+	var back := Vector2.RIGHT
+	for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+		var spot: Vector2 = g.global_position - d * 28.0
+		if _main.level.char_at(_main.level.cell_of(spot)) == "." and Sight.is_clear(g, g.global_position, spot):
+			back = d
+			break
+	g.facing = back
+	g.velocity = Vector2.ZERO
+	_player.global_position = g.global_position - back * 28.0
+	_player.facing = back
+	Input.action_press("aim")
+	await _frames(4)
+	_check(g.held_up, "input: holding aim behind a guard makes him raise his hands")
+	await _press("fire")
+	await _frames(12)
+	Input.action_release("aim")
+	await _frames(2)
+	_check(g.is_asleep(), "input: a dart puts him to sleep")
+	_player.global_position = g.global_position - Vector2(10, 0)
+	await _frames(2)
+	await _press("interact")
+	_check(_player.dragging == g, "input: interact next to the sleeper starts dragging")
+	if locker and _player.dragging == g:
+		_player.global_position = locker.global_position + Vector2(0, 14)
+		await _frames(4)
+		await _press("interact")
+		_check(g.stashed and not _player.is_hiding, "input: interact by a locker stashes the body (and you don't hide)")
+	WorldState.equipped = "pistol"

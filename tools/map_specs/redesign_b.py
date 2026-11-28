@@ -159,6 +159,10 @@ def area(area_id, art, marks, sets=(), sets_first=(), indoor=(), hazards=(), fie
     AREAS[area_id] = {"map": rows, "allow_diff": True, "fields": f}
 
 
+## 改版後新加的門（舊地圖沒有，比對時不算）
+NEW_DOORS = {"cruise_deck": ["galley"], "cruise_interior": ["galley"]}
+
+
 def _check(area_id, rows, out):
     h, w = len(rows), len(rows[0])
     # 巡邏點
@@ -171,7 +175,9 @@ def _check(area_id, rows, out):
         old = sorted(re.findall(r'"\d+,\d+": ("[^"]*")', _legacy_field(area_id, k)))
         assert old == sorted(out[k].values()), "%s.%s 和舊資料不一樣：%s / %s" % (area_id, k, sorted(out[k].values()), old)
     old_doors = sorted(re.findall(r'"(\w+)": \{[^{}\n]*"cell"', _legacy_field(area_id, "doors")))
-    assert old_doors == sorted(out["doors"]), "%s 的門：%s / %s" % (area_id, sorted(out["doors"]), old_doors)
+    # 舊的門都要在；新加的門（NEW_DOORS）可以多
+    new = sorted(set(out["doors"]) - set(NEW_DOORS.get(area_id, [])))
+    assert old_doors == new, "%s 的門：%s / %s" % (area_id, sorted(out["doors"]), old_doors)
     for k in ("names", "hidden", "loot", "gear", "safes", "stairs"):
         for key in out[k]:
             x, y = map(int, key.split(","))
@@ -528,6 +534,8 @@ _BOW = [".......", ".......", "....C..", ".5.....", ".......", ".......", ".....
         "..+μ..#", "..#...#", "..#####", ".......", "....|C.", ".......", "...C...", ".......", "..ωC...", "..CC..."]
 _DECK_ROWS = [_STERN[i] + _MID + _BOW[i] for i in range(20)]
 _DECK_ROWS[19] = _STERN[19] + "#" * 23 + "Θ" + "#" * 22 + _BOW[19]
+# 第二個入口（v0.13）：西側（船尾）甲板進廚房的側門，船艙不再只有一個出入口
+_DECK_ROWS[3] = _STERN[3] + "Ι" + "#" * 45 + _BOW[3]
 area("cruise_deck", """
 ############################################################
 #.......λCCC....λCCC....λCCC......λCCC....λCCC............C#
@@ -543,6 +551,7 @@ area("cruise_deck", """
 """, {
     "Δ": ("D", [("door", ("gangway", "north_harbor", "N"))]),
     "Θ": ("D", [("door", ("atrium", "cruise_interior", "S"))]),
+    "Ι": ("D", [("door", ("galley", "cruise_interior", "W"))]),
     "α": ("G", [("stairs", "cruise_sundeck")]),
     "β": ("G", [("stairs", "cruise_hold")]),
     "ε": (".", [("entry", "stairs")]),
@@ -556,7 +565,7 @@ area("cruise_deck", """
 
 # ════════════════════════════════════════════════════════════════════════════
 # 北極星號 船艙：七個空間。中間是大中庭（主空間 17x11：鋼琴、接待櫃台、柱子、沙發；西北角玻璃窗後面是事務長室和保險箱），
-#   西邊是大酒吧（吧台島、撞球桌、吃角子老虎；南牆的大窗對著甲板），酒吧北邊是廚房（膨脹者），
+#   西邊是大酒吧（吧台島、撞球桌、吃角子老虎；南牆的大窗對著甲板），酒吧北邊是廚房（膨脹者；西牆有側門通船尾甲板），
 #   東邊是劇院（舞台上的詠者、三排座位），劇院北邊的後台門通船長室。
 #   中庭北邊的樓梯口上去是唯一的一排客艙（四間）走廊：西端通廚房、東端通船長室。
 #   兩個圈：中庭 → 酒吧 → 廚房 → 客艙走廊 → 中庭；中庭 → 劇院 → 船長室 → 客艙走廊 → 中庭。
@@ -565,7 +574,7 @@ area("cruise_interior", """
 ##############################################
 #CCCC.CCCC#CC.H#C.CC#CC.C#C.CC.#CCC.γ..CCC.CC#
 #а........#....#....#.x..#.....#.............#
-#.CCC..4..#..x.#y...#....#.....#...φCC.....M.#
+Κ.CCC..4..#..x.#y...#....#.....#...φCC.....M.#
 #.........##+####+####+####+####.............#
 #C........+.1..................+......:......#
 #C..x...M.#..........C......b..#.H...........#
@@ -584,6 +593,7 @@ area("cruise_interior", """
 ###===###===###########Δ############==##==####
 """, {
     "Δ": ("D", [("door", ("atrium", "cruise_deck", "N"))]),
+    "Κ": ("D", [("door", ("galley", "cruise_deck", "E"))]),
     "γ": ("N", [("name", "captain_log")]),
     "η": ("N", [("name", "atrium_note")]),
     "ς": ("s", [("safe", None)]),

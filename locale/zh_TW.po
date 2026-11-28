@@ -2588,3 +2588,6 @@ msgstr "如果有個平靜的聲音叫妳「請留在室內」，那是研究站
 
 msgid "Halvorsen told the board the drill was a geological survey for an Arctic data centre. Nobody builds a data centre on Greycrow. Somebody wanted what was under the ice."
 msgstr "哈爾沃森跟董事會說，鑽井是替北極資料中心做的地質調查。沒有人會把資料中心蓋在灰鴉島。有人想要的是冰底下的東西。"
+
+msgid "Supply drop: a red flare is burning on the snow. It's marked on your map."
+msgstr "補給空投：雪地上有一支紅色信號彈在燒。位置已經標在地圖上。"

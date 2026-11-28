@@ -252,3 +252,10 @@
 - **麻醉槍** dart_pistol（darts，`sleep` 欄位 → `Enemy.put_to_sleep`）：不殺人。碼頭辦公室（Extras）。
 - **屍體**：倒下的人類（死了或睡著）身上有 `BodyHandle`（互動＝拖著走、拖到置物櫃旁＝塞進去 `Enemy.stash`）；
   被其他守衛看到＝通報＋整區 CAUTION（`main._check_bodies`、`AlertNetwork.raise_caution`）；倒下 40 秒沒人發現＝無線電點名不到、派人去看。
+
+## v0.13：補完
+- 郵輪船艙第二個入口：船尾甲板 ↔ 廚房的側門 `galley`（ROOMS `also`；規格檔 `redesign_b.py` 的 `NEW_DOORS` 允許比舊地圖多的門）。
+- 無線電來電不要太吵：提示類（`fcall:`）同時最多 2 通、剛接完 25 秒內不響、警戒中不響、沒接的 90 秒後自己掛掉；主線（`call:`）照響。
+- 隨機事件：戶外偶爾補給空投（`main.spawn_supply_drop`，紅色信號彈、地圖藍色星號，換地圖就消失）。
+- 開槍按鍵緩衝 `PlayerCombat.FIRE_BUFFER`：冷卻中按的扳機會在冷卻好時開（不吃按鍵）。自動鎖定不鎖睡著的人。
+- 拖著屍體時互動鍵固定是「放下／塞進櫃子」（`Player._find_focus`）。測試 `_test_stealth_by_input` 用真的按鍵走一次逼降 → 麻醉 → 拖 → 藏。
