@@ -914,4 +914,13 @@ T = [
 ("Did you hear that ring when it went down? The crystal in their bones shatters and sings. Every one of them nearby heard it too - and anything asleep is awake now.", "牠倒下的時候，妳有聽到那一聲鳴響嗎？牠們骨頭裡的結晶碎掉時會唱。附近每一隻都聽到了——睡著的也全醒了。"),
 ("Kill them only when you have to. Knock them down and walk away, or go around.", "非殺不可才殺。把牠們撂倒就走，或者繞過去。"),
 ("You threw the song at them. They'll stand there and listen like it's a sermon. Don't throw it near the sleepers unless you want them up.", "妳把那首歌丟給牠們了。牠們會站在那裡聽，像在聽佈道。除非妳想叫醒凍眠體，不然別丟在它們旁邊。"),
+# ── v0.17：唱潮 ──
+("The radio static is rising. The song is coming - find somewhere to hide.", "無線電的雜訊越來越大。歌要來了——找地方躲起來。"),
+("SONG TIDE: the old LANTERN horn is sounding. The infected are up and listening.", "唱潮：燈籠站的老喇叭響了。感染者全都起來了，正在聽。"),
+("The tide is going out. The sleepers are lying back down.", "退潮了。凍眠體在原地躺回去。"),
+("Hear that static climbing? The song under the ice comes in tides. Every few minutes it swells - and the old LANTERN horn goes off with it.", "聽到雜訊一直往上爬了嗎？冰層下的歌是一陣一陣的，像潮水。每隔幾分鐘就漲一次——燈籠站那支老喇叭會跟著響。"),
+("You've got about thirty seconds. Get indoors, get in a locker, get somewhere they won't stumble into you.", "妳大概有三十秒。進室內、躲進櫃子，找一個牠們不會撞上妳的地方。"),
+("That's the horn. They wired it to the receiver in 1962 so the night shift could put their earmuffs on. Nobody ever unplugged it.", "就是那支喇叭。1962 年他們把它接在接收機上，好讓值夜班的人來得及戴上耳罩。之後從來沒有人拔掉它。"),
+("While it sings, every infected thing on this island is up and walking - even the ones that look dead. They hear better, too. Stay still. It passes in a minute.", "歌響的時候，島上每一個感染者都會起來走動——連那些看起來已經死了的也是。牠們的耳朵也會更靈。別動。一分鐘就過去了。"),
+("When it fades, the sleepers lie down wherever they are. So the room you crossed before won't be the same room.", "歌退了以後，凍眠體會在走到的地方就地躺下。所以妳剛剛走過的房間，等一下就不是同一個房間了。"),
 ]

@@ -140,6 +140,10 @@ var health := 80.0
 var is_dead := false
 ## 正在休眠（凍眠體）：看起來像屍體，不會動、不會被自動鎖定
 var is_dormant := false
+## 唱潮（SongTide）把睡著的凍眠體叫起來了：退潮後沒在追你就躺回去
+var _tide_roused := false
+var _tide_roam := 0.0
+var _tide_delay := -1.0
 ## 正在出手的預備動作（畫面提示用）
 var winding_up := false
 ## 用來記錄「這隻已經死了」的 id（區域:編號），由 main 設定
@@ -250,11 +254,11 @@ func reset() -> void:
 		return
 	_revive()
 	is_dormant = dormant
+	_tide_roused = false
+	_tide_delay = -1.0
+	_tide_roam = 0.0
 	if is_dormant:
-		facing = Vector2.RIGHT
-		_set_body_color(_body_color.darkened(0.6))
-		_body.scale = Vector2(1.2, 0.6)
-		_set_details_visible(false)  # 睡著時藏起結晶，看起來和普通屍體一樣
+		_lie_dormant()
 	velocity = Vector2.ZERO
 	awareness = 0.0
 	_patrol_index = 1 if patrol_points.size() > 1 else 0
@@ -271,7 +275,7 @@ func reset() -> void:
 func snapshot() -> Dictionary:
 	return {"pos": global_position, "facing": facing, "health": health, "dormant": is_dormant,
 		"patrol_index": _patrol_index, "patrol_step": _patrol_step,
-		"hunting": state == State.ALERT or state == State.SEARCH}
+		"hunting": state == State.ALERT or state == State.SEARCH, "tide": _tide_roused}
 
 
 ## 建立區域、回到檢查點時呼叫（reset() 本身不會，reset 只回到巡邏起點）
@@ -291,6 +295,7 @@ func restore_snapshot() -> void:
 		_set_body_color(_body_color)
 		_body.scale = Vector2.ONE
 		_set_details_visible(true)
+		_tide_roused = snap.get("tide", false)
 	# 你離開時牠正在找你：回來時牠還在附近搜索
 	if snap.hunting:
 		_start_search(global_position)
@@ -406,6 +411,9 @@ func _physics_process(delta: float) -> void:
 	_check_hold_up()
 	if is_dormant:
 		in_cold = _level != null and _level.is_cold(global_position)
+		if _tide_rouse_check(delta):
+			_update_visibility(delta)
+			return
 		_check_wake()
 		_update_visibility(delta)
 		return
@@ -453,9 +461,16 @@ func _physics_process(delta: float) -> void:
 		_update_visibility(delta)
 		return
 
+	if _tide_roused and (state == State.UNAWARE or state == State.SEARCH) and not tide_affects():
+		_tide_settle()
+		_update_visibility(delta)
+		return
 	match state:
 		State.UNAWARE:
-			_process_unaware(delta)
+			if tide_affects():
+				_process_tide_roam(delta)
+			else:
+				_process_unaware(delta)
 		State.SUSPICIOUS:
 			_process_suspicious(delta)
 		State.ALERT:
@@ -535,11 +550,15 @@ func _on_noise(pos: Vector2, radius: float, source: Node) -> void:
 	var effective := radius * hearing_mult
 	if not Sight.is_clear(self, global_position, pos):
 		effective *= 0.5  # 隔著牆聽得比較不清楚
+	if tide_affects():
+		effective *= SongTide.HEARING_MULT  # 唱潮中歌讓牠們很清醒
 	if global_position.distance_to(pos) > effective:
 		return
 	if is_dormant:
-		wake(pos)
-		return
+		if not tide_affects():
+			wake(pos)
+			return
+		_tide_rise()  # 唱潮中聽到聲音：起身過去看，不會直接警戒
 	# 同類的尖鳴、結晶共鳴、頻率誘餌的歌：只會過去看看，不會直接警戒（人類聽到收音機照一般聲音）
 	var is_call := source is Enemy or (source is SongLure and not is_human())
 	match state:
@@ -888,6 +907,74 @@ func _check_wake() -> void:
 	var loud_steps := _player.gait == Player.Gait.WALK or _player.gait == Player.Gait.RUN
 	if (loud_steps and dist <= wake_radius) or dist <= proximity_sense * 0.6:
 		wake(_player.global_position)
+
+
+## ── 唱潮（v0.17）──────────────────────────────────
+## 這隻現在受唱潮影響：感染者（不是人類、不是 Boss）、而且這張地圖有唱潮（1962、Boss 戰沒有）
+func tide_affects() -> bool:
+	return SongTide.active() and not is_human() and not is_boss() and not is_dead and _level != null and _level.tide_allowed()
+
+
+## 睡著時：唱潮來了 → 隔一小段隨機時間（不會全部同時）起身。回傳 true = 這一幀起來了
+func _tide_rouse_check(delta: float) -> bool:
+	if not tide_affects():
+		_tide_delay = -1.0
+		return false
+	if _tide_delay < 0.0:
+		_tide_delay = randf_range(0.5, 5.0)
+	_tide_delay -= delta
+	if _tide_delay > 0.0:
+		return false
+	_tide_rise()
+	return true
+
+
+## 唱潮把牠叫起來（不是被吵醒：不會直接警戒）
+func _tide_rise() -> void:
+	_tide_delay = -1.0
+	is_dormant = false
+	_tide_roused = true
+	Sfx.play("sleeper_wake", global_position)
+	_set_body_color(_body_color)
+	_body.scale = Vector2.ONE
+	_set_details_visible(true)
+	_stagger = rise_time
+	awareness = 0.0
+	_tide_roam = randf_range(0.5, 2.0)
+	_set_state(State.UNAWARE)
+
+
+## 唱潮中沒察覺你：停一下聽、再往附近隨便一個點走（用搜索的走法，會左右看）
+func _process_tide_roam(delta: float) -> void:
+	if sees_player and awareness >= suspicious_threshold:
+		_investigate(_player.global_position)
+		return
+	velocity = Vector2.ZERO
+	_tide_roam -= delta
+	if _tide_roam <= 0.0:
+		_tide_roam = randf_range(2.0, 5.0)
+		var p := global_position + Vector2.RIGHT.rotated(randf() * TAU) * randf_range(2.0, SongTide.ROAM_TILES) * TILE
+		if _nav_map.is_valid():
+			p = NavigationServer2D.map_get_closest_point(_nav_map, p)
+		_start_search(p)
+
+
+## 退潮：被叫起來的凍眠體在原地躺回去（走到有暖氣的地方就不躺了：暖的地方霜鳴菌本來就醒著）
+func _tide_settle() -> void:
+	_tide_roused = false
+	if _level != null and not _level.is_cold(global_position) and _level.zone_at(global_position) != "":
+		return
+	is_dormant = true
+	velocity = Vector2.ZERO
+	awareness = 0.0
+	_lie_dormant()
+
+
+func _lie_dormant() -> void:
+	facing = Vector2.RIGHT
+	_set_body_color(_body_color.darkened(0.6))
+	_body.scale = Vector2(1.2, 0.6)
+	_set_details_visible(false)  # 睡著時藏起結晶，看起來和普通屍體一樣
 
 
 ## 醒來：先花一點時間爬起來，然後直接進入警戒。

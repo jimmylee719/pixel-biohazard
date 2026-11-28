@@ -30,6 +30,7 @@ func _run() -> void:
 	WorldState.start_loadout = false  # 測試從空手開始（撿槍、裝填都要檢查）；起始裝備在 _test_real_maps 測
 	WorldState.new_game()
 	WorldState.cutscenes = false  # 過場另外測（_test_cutscene）
+	SongTide.enabled = false  # 唱潮會讓感染者亂走，只在 _test_v17 打開
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	_player = _main.get_node("Player")
@@ -99,6 +100,7 @@ func _run() -> void:
 	await _test_stealth_by_input()
 	await _test_v14()
 	await _test_v15()
+	await _test_v17()
 	await _test_survival()
 
 	print("")
@@ -3556,3 +3558,106 @@ func _test_stealth_by_input() -> void:
 		await _press("interact")
 		_check(g.stashed and not _player.is_hiding, "input: interact by a locker stashes the body (and you don't hide)")
 	WorldState.equipped = "pistol"
+
+
+func _test_v17() -> void:
+	print("[v0.17 / song tide]")
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
+	WorldState.cutscenes = false
+	SongTide.enabled = true
+	WorldState.data.erase("tide")
+	_check(SongTide.phase() == SongTide.Phase.CALM and SongTide.time_left() == SongTide.FIRST_CALM, "tide: starts calm, first tide comes late")
+	# 週期：平靜 → 預告 → 唱潮 → 平靜
+	SongTide.set_phase(SongTide.Phase.CALM, 0.01)
+	_check(SongTide.update(0.05) == SongTide.Phase.WARNING and SongTide.warning(), "tide: calm runs out -> warning")
+	_check(SongTide.update(SongTide.WARNING_TIME + 0.1) == SongTide.Phase.TIDE and SongTide.active() and WorldState.data.tide.count == 1, "tide: warning runs out -> the tide")
+	_check(SongTide.update(SongTide.TIDE_TIME + 0.1) == SongTide.Phase.CALM and SongTide.time_left() >= SongTide.CALM_MIN, "tide: tide runs out -> calm again")
+	for id in ["tide_warning", "tide_siren", "tide_end"]:
+		_check(SoundList.SFX.has(id), "tide: %s is in the sound list" % id)
+	_check(FieldRadio.EVENT.has("tide_warning") and FieldRadio.EVENT.has("tide"), "tide: Kovac explains it on the radio")
+
+	await _enter("station_1f", "cargo", false)
+	_check(_main.level.tide_allowed(), "tide: the station has the tide")
+	var monsters: Array = _main.enemies.filter(func(e): return is_instance_valid(e) and not e.is_human() and not e.is_dead and not e.is_boss())
+	_check(monsters.size() >= 2, "tide: infected on 1F (%d)" % monsters.size())
+	if monsters.size() < 2:
+		SongTide.enabled = false
+		return
+	var sleeper: Enemy = monsters[0]
+	var walker: Enemy = monsters[1]
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_INHERIT if e == sleeper or e == walker else Node.PROCESS_MODE_DISABLED
+	_place_player(_tile(2, 2), false)
+	sleeper.reset()
+	# 放在沒有溫度區域的格子（暖氣區會直接把凍眠體叫醒，那是另一條規則）
+	var lv: Level = _main.level
+	var cold_spot := sleeper.global_position
+	for c in lv._floor_cells:
+		var p := (Vector2(c) + Vector2(0.5, 0.5)) * Level.TILE
+		if lv.char_at(c) == "." and lv.zone_at(p) == "" and p.distance_to(_player.global_position) > 120.0:
+			cold_spot = p
+			break
+	sleeper.global_position = cold_spot
+	sleeper.is_dormant = true
+	sleeper._lie_dormant()
+	# 主角站到離兩隻都最遠的地方（這段測的是牠們自己起身、遊走，不是發現主角）
+	var far_cell := Vector2.ZERO
+	var far_d := 0.0
+	for c in lv._floor_cells:
+		var p := (Vector2(c) + Vector2(0.5, 0.5)) * Level.TILE
+		var d := minf(p.distance_to(sleeper.global_position), p.distance_to(walker.global_position))
+		if lv.char_at(c) == "." and d > far_d:
+			far_d = d
+			far_cell = p
+	_place_player(far_cell, false)
+	walker.reset()
+	walker.is_dormant = false
+	walker.state = Enemy.State.UNAWARE
+	walker.awareness = 0.0
+	await _frames(3)
+	_check(not sleeper.tide_affects(), "tide: nothing happens while it's calm")
+	# 唱潮：睡著的起身、醒著的開始在附近遊走，不會警戒
+	var walker_from := walker.global_position
+	SongTide.set_phase(SongTide.Phase.TIDE, 30.0)
+	_main._update_song_tide(0.016)
+	await _seconds(5.6)
+	_check(not sleeper.is_dormant and sleeper._tide_roused, "tide: the dormant sleeper gets up")
+	_check(sleeper.state != Enemy.State.ALERT and walker.state != Enemy.State.ALERT, "tide: getting up isn't an alert")
+	await _seconds(2.5)
+	_check(walker.global_position.distance_to(walker_from) > 6.0 or walker.state == Enemy.State.SEARCH,
+		"tide: awake infected wander around (moved %.0f px)" % walker.global_position.distance_to(walker_from))
+	_check(sleeper.snapshot().get("tide", false), "tide: a roused sleeper is remembered when you leave the area")
+	# 聽覺變好：平常聽不到的距離，唱潮中聽得到
+	walker.state = Enemy.State.UNAWARE
+	walker.awareness = 0.0
+	walker._tide_roam = 99.0
+	# 半徑 × 聽覺倍率 = 6.7 px，平常聽不到 8 px 外的聲音；唱潮 ×1.5 = 10 px 聽得到
+	walker._on_noise(walker.global_position + Vector2(8, 0), 8.0 / (walker.hearing_mult * 1.2), _player)
+	_check(walker.state == Enemy.State.SUSPICIOUS, "tide: they hear farther during the tide")
+	# 人類不受影響
+	var guard := Enemy.new()
+	guard.faction = "human"
+	_check(not guard.tide_affects(), "tide: humans ignore the tide")
+	guard.free()
+	# 退潮：被叫起來的躺回去（在現在的位置）
+	SongTide.set_phase(SongTide.Phase.CALM, 300.0)
+	walker.process_mode = Node.PROCESS_MODE_DISABLED
+	sleeper.global_position = cold_spot  # 暖氣區裡不會躺回去（另一條規則），這裡測冷的地方
+	sleeper.velocity = Vector2.ZERO
+	sleeper.state = Enemy.State.UNAWARE
+	sleeper.awareness = 0.0
+	sleeper._stagger = 0.0
+	var where := sleeper.global_position
+	await _frames(4)
+	_check(sleeper.is_dormant and not sleeper._tide_roused and sleeper.global_position.distance_to(where) < 4.0, "tide: when it ends the sleeper lies down where it stands (dormant=%s roused=%s %s moved=%.0f dead=%s)" % [sleeper.is_dormant, sleeper._tide_roused, sleeper.get_state_name(), sleeper.global_position.distance_to(where), sleeper.is_dead])
+	walker.process_mode = Node.PROCESS_MODE_INHERIT
+	walker.state = Enemy.State.UNAWARE
+	walker.awareness = 0.0
+	await _frames(3)
+	_check(not walker.is_dormant, "tide: infected that were awake before stay awake")
+	# 1962 年的記憶、Boss 戰沒有唱潮（計時暫停）
+	_check(Areas.get_area("lantern_1962").get("era", "") == "1962", "tide: the 1962 memory has an era, so Level.tide_allowed skips it")
+	SongTide.set_phase(SongTide.Phase.CALM, 300.0)
+	for e in _main.enemies:
+		e.process_mode = Node.PROCESS_MODE_INHERIT
+	SongTide.enabled = false

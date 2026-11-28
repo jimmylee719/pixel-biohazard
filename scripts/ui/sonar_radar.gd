@@ -4,6 +4,7 @@
 ##     平常淡藍、起疑／警戒時紅色；沒有視覺的（爬行者、鳴骨者）畫聽覺範圍的圈。牆畫成青色的線框。
 ##     走路的敵人另外有腳步聲波。
 ##   - 警戒（ALERT）／搜索（EVASION）：雷達有一點雜訊，但地圖和發現你的敵人（含視野）照樣顯示，下方 ALERT／EVASION 倒數（v0.14）；戒備（CAUTION）：下方小倒數
+##   - 唱潮（v0.17）：預告 TIDE IN 倒數、唱潮中 TIDE 倒數＋一點雜訊（警戒優先）
 ##   - 1962 年的記憶、Boss 戰：沒有訊號
 ## main 控制 visible（跟戰術 HUD 一樣）。
 class_name SonarRadar
@@ -88,6 +89,15 @@ func _draw() -> void:
 		draw_rect(Rect2(r.position + Vector2(0, r.size.y - 11), Vector2(r.size.x, 11)), Color(0, 0, 0, 0.6))
 		draw_string(_font, r.position + Vector2(3, r.size.y - 1), "CAUTION %05.2f" % maxf(net.timer, 0.0),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 0.95, 0.4))
+	elif lv.tide_allowed() and (SongTide.active() or SongTide.warning()):
+		# 唱潮（v0.17）：預告中倒數、唱潮中一點雜訊＋剩下的秒數
+		var tide := SongTide.active()
+		if tide:
+			_draw_static(r, 0.12)
+		draw_rect(Rect2(r.position + Vector2(0, r.size.y - 11), Vector2(r.size.x, 11)), Color(0, 0, 0, 0.6))
+		draw_string(_font, r.position + Vector2(3, r.size.y - 1),
+			("TIDE %05.2f" if tide else "TIDE IN %05.2f") % SongTide.time_left(),
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.72, 0.82, 0.95) if tide else Color(0.6, 0.68, 0.78))
 	draw_rect(r, FRAME, false, 1.0)
 	# 左上角的切角（同戰術 HUD）
 	draw_rect(Rect2(r.position, Vector2(5, 1)), Color(0.85, 0.9, 0.92))

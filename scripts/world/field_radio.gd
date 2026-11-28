@@ -54,6 +54,11 @@ const EVENT := {
 	"resonance": [[K, "Did you hear that ring when it went down? The crystal in their bones shatters and sings. Every one of them nearby heard it too - and anything asleep is awake now."],
 		[K, "Kill them only when you have to. Knock them down and walk away, or go around."]],
 	"lure": [[K, "You threw the song at them. They'll stand there and listen like it's a sermon. Don't throw it near the sleepers unless you want them up."]],
+	"tide_warning": [[K, "Hear that static climbing? The song under the ice comes in tides. Every few minutes it swells - and the old LANTERN horn goes off with it."],
+		[K, "You've got about thirty seconds. Get indoors, get in a locker, get somewhere they won't stumble into you."]],
+	"tide": [[K, "That's the horn. They wired it to the receiver in 1962 so the night shift could put their earmuffs on. Nobody ever unplugged it."],
+		[K, "While it sings, every infected thing on this island is up and walking - even the ones that look dead. They hear better, too. Stay still. It passes in a minute."],
+		[K, "When it fades, the sleepers lie down wherever they are. So the room you crossed before won't be the same room."]],
 }
 
 

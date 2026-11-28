@@ -148,6 +148,15 @@ func _ready() -> void:
 	_overlay.setup(_player)
 	_vignette.texture = _make_vignette()
 	_infection_vignette.texture = _make_vignette(Color(0.75, 0.95, 1.0, 0.85))
+	_tide_vignette = TextureRect.new()
+	_tide_vignette.name = "TideVignette"
+	_tide_vignette.texture = _make_vignette(Color(0.42, 0.48, 0.6, 0.9))
+	_tide_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tide_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tide_vignette.stretch_mode = _infection_vignette.stretch_mode
+	_tide_vignette.expand_mode = _infection_vignette.expand_mode
+	_tide_vignette.modulate.a = 0.0
+	_infection_vignette.add_sibling(_tide_vignette)
 	_player.died.connect(func():
 		if survival:
 			_on_survival_died()
@@ -348,6 +357,7 @@ func _process(delta: float) -> void:
 	if not busy and WorldState.mode == "story" and level and not get_tree().paused:
 		_update_field_radio(delta)
 		_update_weather(delta)
+		_update_song_tide(delta)
 		_update_world_events(delta)
 		if level.tracks:
 			level.tracks.step(_player)
@@ -2440,6 +2450,47 @@ func _update_weather(delta: float) -> void:
 	if _weather_dark_timer <= 0.0:
 		_weather_dark_timer = 0.5
 		_apply_darkness()
+
+
+## ── 唱潮（v0.17，SongTide）：預告 → 燈籠站的老喇叭響 → 退潮。1962 年的記憶、Boss 戰暫停 ──
+var _tide_vignette: TextureRect
+var _tide_horn_t := 0.0
+const TIDE_HORN_EVERY := 24.0
+
+
+func _update_song_tide(delta: float) -> void:
+	var on := level.tide_allowed()
+	if on:
+		match SongTide.update(delta):
+			SongTide.Phase.WARNING:
+				Sfx.play("tide_warning")
+				show_message(tr("The radio static is rising. The song is coming - find somewhere to hide."), true)
+				queue_radio("fcall:event:tide_warning", FieldRadio.steps(FieldRadio.EVENT.tide_warning))
+			SongTide.Phase.TIDE:
+				_sound_tide_horn()
+				show_message(tr("SONG TIDE: the old LANTERN horn is sounding. The infected are up and listening."), true)
+				queue_radio("fcall:event:tide", FieldRadio.steps(FieldRadio.EVENT.tide))
+			SongTide.Phase.CALM:
+				Sfx.play("tide_end")
+				show_message(tr("The tide is going out. The sleepers are lying back down."))
+		if SongTide.active():
+			_tide_horn_t -= delta
+			if _tide_horn_t <= 0.0 and SongTide.time_left() > 8.0:
+				_sound_tide_horn()
+	# 唱潮中畫面四周慢慢一明一暗（跟著歌的節奏，不閃）
+	var target := 0.0
+	if on and SongTide.active():
+		target = 0.32 + 0.12 * sin(Time.get_ticks_msec() * 0.0021)
+	elif on and SongTide.warning():
+		target = 0.1 * (1.0 - SongTide.time_left() / SongTide.WARNING_TIME)
+	_tide_vignette.modulate.a = move_toward(_tide_vignette.modulate.a, target, delta * 0.5)
+
+
+func _sound_tide_horn() -> void:
+	_tide_horn_t = TIDE_HORN_EVERY
+	Sfx.play("tide_siren", null, 0.0)
+	Sfx.rumble(500, 0.25)
+	_shake_camera(1.0, 1.2)
 
 
 ## ── 隨機事件（v0.13，開放世界）：戶外偶爾有補給空投（紅色信號彈標出位置，地圖上是藍色星號）──

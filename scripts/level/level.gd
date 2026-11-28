@@ -496,6 +496,11 @@ func boss_name() -> String:
 	return _data.get("boss", "")
 
 
+## 這張地圖有沒有唱潮（SongTide）：1962 年的記憶、Boss 戰沒有
+func tide_allowed() -> bool:
+	return _data.get("era", "") == "" and camera_mode() != "fixed"
+
+
 func climate_id() -> String:
 	return _data.get("climate", Areas.DEFAULT_CLIMATE)
 

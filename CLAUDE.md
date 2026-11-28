@@ -292,3 +292,13 @@
 - 腳步依地板材質 `Level.STEP_BY_FLOOR`（木頭、地毯另外有聲音；區域資料 `step` 仍然優先）。
 - 新機制的聲音：`choke_struggle`（裸絞時每 1.25 秒）、`crystal_resonance`（結晶共鳴）、`radio_song`（頻率誘餌放的訊號動機）。
 - 新增的 id 都在 `sound_list.gd` 和 `docs/AUDIO_PROMPTS.md`（v0.16 追加）。之後有正式素材時放進 `assets/audio/{sfx,music,ambience}/` 會自動取代合成版。
+
+## v0.17：唱潮（原創機制，綁世界觀；參考「定時警報 → 世界變危險」這個類型，但警報、設定、外觀都是自己的）
+- `scripts/world/song_tide.gd`（`SongTide`，狀態在 `WorldState.data.tide`）：平靜（240～380 秒，第一次 420 秒）→ 預告 `WARNING_TIME` 30 秒 → 唱潮 `TIDE_TIME` 60 秒 → 平靜。
+  劇情說法：冰層下的歌一陣一陣漲潮，燈籠站 1962 年接在接收機上的老防空喇叭跟著響（SERIES_BIBLE 2.2）。
+- 唱潮中感染者（非人類、非 Boss）`Enemy.tide_affects()`：睡著的凍眠體隨機 0.5～5 秒內起身（`_tide_roused`，不警戒）、醒著的在附近遊走（`_process_tide_roam`）、聽覺 ×1.5；
+  退潮後被叫起來的、沒在警戒的就地躺回去（`_tide_settle`；走到暖氣區的不躺），所以地圖每次不一樣。人類不受影響。`snapshot` 的 `tide` 欄位記住被叫起來的。
+- `Level.tide_allowed()`：1962 年的記憶（區域 `era`）、Boss 戰（`camera: fixed`）沒有唱潮、計時暫停。
+- main 的 `_update_song_tide`：預告音 `tide_warning`、喇叭 `tide_siren`（唱潮中每 24 秒一次＋震動）、退潮 `tide_end`、通知、柯瓦奇來電 `FieldRadio.EVENT` 的 tide_warning／tide、畫面四周慢慢一明一暗（`_tide_vignette`）。
+  雷達下方 `TIDE IN` 倒數／`TIDE` 剩餘秒數（警戒優先）。測試預設 `SongTide.enabled = false`，只在 `_test_v17` 打開。
+- 目標年齡：使用者決定不針對 7 歲、不做溫和模式。

@@ -1549,6 +1549,46 @@ def radio_song(rng):
     return radio_voice(root, 0.22, rng.randrange(1 << 20), MOTIF, 0.4)
 
 
+def _siren_curve(t, rise, hold, fall, f0, f1, end):
+    """手搖式警報器的轉速：慢慢轉上去、停在高音晃一晃、再慢慢掉下來"""
+    if t < rise:
+        k = t / rise
+        return f0 + (f1 - f0) * (1 - (1 - k) ** 2)
+    if t < rise + hold:
+        return f1 + 6 * math.sin((t - rise) * 5.3)
+    k = min((t - rise - hold) / fall, 1.0)
+    return f1 + (end - f1) * k * k
+
+
+def _siren(rng, sec, rise, hold, fall, f0, f1, end):
+    """冷戰時代的防空喇叭：兩個轉子（差一個小三度）＋金屬共鳴，從很遠的地方傳來（低通、長殘響）"""
+    a = saw(sec, lambda t: _siren_curve(t, rise, hold, fall, f0, f1, end), rng, 0.002)
+    b = saw(sec, lambda t: 1.19 * _siren_curve(t, rise, hold, fall, f0, f1, end), rng, 0.002)
+    body = lp(mix((a, 0, 0.6), (b, 0, 0.45)), 1500)
+    body = [v * min(1.0, i / n(0.4)) * min(1.0, (n(sec) - i) / n(0.6)) for i, v in enumerate(body)]
+    wind = lp(noise(sec, rng), 400)
+    return mix((body, 0, 0.8), (wind, 0, 0.08))
+
+
+def tide_warning(rng):
+    """唱潮的預告：無線電雜訊慢慢變大，底下有一段很淡的訊號動機和越來越低的嗡聲"""
+    L = 3.4
+    hum = [v * (i / n(L)) for i, v in enumerate(sine(L, lambda t: 58 - 4 * t))]
+    st = [v * (0.15 + 0.6 * i / n(L)) for i, v in enumerate(biquad(noise(L, rng), "bp", 1500, 0.5))]
+    song = radio_voice(62, 0.2, rng.randrange(1 << 20), MOTIF, 0.2)
+    return mix((hum, 0, 0.5), (st, 0, 0.45), (song, 0.4, 0.35), length=n(L))
+
+
+def tide_siren(rng):
+    """燈籠站的老防空喇叭響了（唱潮開始）"""
+    return room(_siren(rng, 9.0, 2.6, 3.4, 3.0, 130, 455, 150), 2.2, 0.55, 1.6)
+
+
+def tide_end(rng):
+    """唱潮退去：喇叭的轉子慢慢停下來"""
+    return room(_siren(rng, 5.0, 0.01, 0.2, 4.79, 440, 440, 55), 2.2, 0.55, 1.6)
+
+
 SFX = {
     "step_concrete": (step_concrete, 4), "step_snow": (step_snow, 4), "step_metal": (step_metal, 4),
     "player_hurt": (player_hurt, 3), "player_death": (player_death, 1), "shiver_breath": (shiver_breath, 2),
@@ -1577,6 +1617,8 @@ SFX = {
     "suppressed_shot": (suppressed_shot, 3), "crossbow_shot": (crossbow_shot, 2), "nailgun_shot": (nailgun_shot, 2),
     "flare_shot": (flare_shot, 1), "step_wood": (step_wood, 4), "step_carpet": (step_carpet, 4),
     "choke_struggle": (choke_struggle, 3), "crystal_resonance": (crystal_resonance, 2), "radio_song": (radio_song, 2),
+    # v0.17 唱潮
+    "tide_warning": (tide_warning, 1), "tide_siren": (tide_siren, 1), "tide_end": (tide_end, 1),
 }
 LOOP_SFX = {"fire_loop"}
 

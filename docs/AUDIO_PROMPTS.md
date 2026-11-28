@@ -141,6 +141,14 @@
 | `crystal_resonance` | 1.6 秒 | ×2 | A brittle crystal shattering inside a body, then a dissonant glassy ringing chord that swells, beats slowly and fades. |
 | `radio_song` | 2.8 秒 | ×2 | A short-wave radio playing a strange five-note tone melody (D, E, B-flat, rest, A) through heavy static and wobbling tape pitch. |
 
+### v0.17 追加（唱潮）
+
+| id | 長度 | 版本 | 提示詞 |
+|---|---|---|---|
+| `tide_warning` | 3.4 秒 | ×1 | Radio static slowly swelling over a deep falling hum, with a faint five-note tone melody (D, E, B-flat, rest, A) buried in the noise. Ominous warning, not a jump scare. |
+| `tide_siren` | 10 秒 | ×1 | A distant Cold War hand-cranked air-raid siren across a frozen island: slow wind-up, long wavering high tone, slow wind-down, huge cold echo off ice cliffs, faint wind. |
+| `tide_end` | 6 秒 | ×1 | The same distant air-raid siren winding down to silence, rotor slowing, echo fading into wind. |
+
 ## 3. 音樂（music）
 
 全部做成**可以無縫循環**（`ending` 除外）。長度是建議值。

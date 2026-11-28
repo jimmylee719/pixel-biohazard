@@ -85,6 +85,10 @@ const SFX := {
 	"choke_struggle": {"vol": -8.0, "dist": 6},
 	"crystal_resonance": {"vol": -6.0, "dist": 20},
 	"radio_song": {"vol": -8.0, "dist": 16},
+	# v0.17 唱潮（整座島都聽得到，不分位置）
+	"tide_warning": {"vol": -10.0, "dist": 0},
+	"tide_siren": {"vol": -6.0, "dist": 0},
+	"tide_end": {"vol": -8.0, "dist": 0},
 	# 介面與提示
 	"alert_sting": {"vol": -3.0, "dist": 0},
 	"suspicious_sting": {"vol": -8.0, "dist": 0},
