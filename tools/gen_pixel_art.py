@@ -1081,6 +1081,15 @@ def player_model(anim, f, n, pose_only=False):
         pose["head_pitch"] = -0.4 * r
         pose["legs"] = {1: (-0.2 * r, 0.2), -1: (0.15 * r, 0.3)}
         pose["twist"] = 0.3 * r
+    elif anim == "choke":
+        # 裸絞（v0.14）：從背後兩手環過對方的脖子（胸口高度、前臂橫在前面）、往後收緊，身體微微後仰；一緊一鬆
+        pose = default_pose()
+        sq = bf(f, n)
+        pose["arms"] = {1: (0.9 + 0.06 * sq, -0.75, 2.0 + 0.1 * sq), -1: (0.85 + 0.06 * sq, -0.6, 2.15 + 0.1 * sq)}
+        pose["lean"] = -0.1 - 0.06 * sq
+        pose["hip_drop"] = 0.6 + 0.2 * sq
+        pose["legs"] = {1: (0.22, 0.35), -1: (-0.2, 0.25)}
+        pose["twist"] = 0.06 * sq
     elif anim in FIST_ANIMS:
         base, mirror, twist_k, _hand = FIST_ANIMS[anim]
         pose = fist_variant(player_model(base, f, n, pose_only=True), mirror, twist_k)
@@ -1912,7 +1921,7 @@ CHARACTERS = {
     # 每把槍：aim_（1 格）、shoot_（3 格，後座力）、aimwalk_（6 格，舉槍移動：上半身瞄準、腳走路）
     "player": (player_model, dict({"idle": 4, "walk": 8, "sneak": 8, "slash": 8, "slash_back": 8, "stab": 7,
                                    "slash_axe": 8, "slash_crowbar": 9, "punch": 7, "hook": 8, "kick": 9,
-                                   "jab_l": 6, "jab_r": 6, "cross_l": 7, "cross_r": 7, "hook_l": 8, "hook_r": 8,
+                                   "jab_l": 6, "jab_r": 6, "cross_l": 7, "cross_r": 7, "hook_l": 8, "hook_r": 8, "choke": 4,
                                    "hurt": 3, "dodge": 5, "dodge_back": 5},
                                   **{"aim_" + w: 1 for w in GUNS},
                                   **{"shoot_" + w: 3 for w in GUNS},

@@ -1018,14 +1018,28 @@ func _revive() -> void:
 ## 身體以外的細節（眼睛、結晶）
 ## 像素圖：睡著／死掉時躺平、變暗；被燒時閃橘色；走路時播放動畫。
 func _update_sprite(tint: Color) -> void:
-	var lying := is_dead or is_dormant
+	# v0.14：昏迷（麻醉、裸絞）、被撂倒也躺在地上
+	var lying := is_dead or is_dormant or is_asleep() or (_ko and knocked_down)
 	_sprite.rotation = PI * 0.5 if lying else 0.0
 	var shade := sprite_tint * tint
 	if is_dead:
 		shade = shade.darkened(0.55)
 	elif is_dormant:
 		shade = shade.darkened(0.35)
+	elif is_asleep():
+		shade = shade.darkened(0.2)
 	_sprite.modulate = Color(shade, _fade)
+	if grabbed:
+		# 被抓住／被勒：掙扎（受傷的那幾格一直循環、身體抖）
+		_sprite.set_shadow_visible(true)
+		var pose := "hurt" if _sprite.has_anim("hurt") else ("idle" if _sprite.has_anim("idle") else "walk")
+		_sprite.show_pose(pose, facing, false)
+		var n := _sprite.sprite_frames.get_frame_count(_sprite.animation)
+		var t := Time.get_ticks_msec()
+		_sprite.frame = int(t / 110) % maxi(n, 1)
+		_sprite.position.x = 1.0 if (t / 70) % 2 == 0 else -1.0
+		return
+	_sprite.position.x = 0.0
 	if lying:
 		_sprite.set_shadow_visible(false)
 		# 和地上的屍體（CorpseDecor）完全一樣的姿勢：玩家要自己分辨

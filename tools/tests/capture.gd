@@ -24,6 +24,11 @@ func _run() -> void:
 	await _frames(30)
 
 	_overlay.debug_enabled = false
+	# 第二個參數 v14 = 裸絞、昏迷、撂倒、翻越、警戒中的雷達（說明手冊用）
+	if OS.get_cmdline_user_args().has("v14"):
+		await _v14_shots()
+		get_tree().quit()
+		return
 	# 第二個參數 tour = 正式地圖的幾個實際遊戲畫面（開場碼頭、研究站、燃料庫、氣象小屋、北港）
 	if OS.get_cmdline_user_args().has("tour"):
 		WorldState.start_loadout = true
@@ -607,6 +612,65 @@ func _title_shots(title: Control) -> void:
 
 ## 座標都是目前區域自己的座標（合併進大地圖的區域要加位移，見 Areas.area_offset）
 var _off := Vector2i.ZERO
+
+
+func _v14_shots() -> void:
+	WorldState.start_loadout = true
+	WorldState.new_game()
+	await _enter("north_harbor", "harbor")
+	await _frames(30)
+	var lv: Level = _main.level
+	var guards: Array = _main.enemies.filter(func(e): return is_instance_valid(e) and e.is_human() and not e.is_dead)
+	if guards.size() >= 2:
+		var g: Enemy = guards[0]
+		var back := Vector2.RIGHT
+		for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:
+			var spot: Vector2 = g.global_position - d * 20.0
+			if lv.char_at(lv.cell_of(spot)) == "." and Sight.is_clear(g, g.global_position, spot):
+				back = d
+				break
+		g.state = Enemy.State.UNAWARE
+		g.awareness = 0.0
+		g.facing = back
+		_player.global_position = g.global_position - back * 20.0
+		_player.facing = back
+		_player.combat.start_choke(g)
+		_player.combat.choke_left = 2.2
+		await _frames(20)
+		await _shot("v14_choke")
+		_player.combat.choke_left = 0.01
+		await _frames(10)
+		_player.global_position += -back * 30.0
+		await _frames(30)
+		await _shot("v14_out_cold")
+		# 另一個守衛發現你：警戒中的雷達
+		var w: Enemy = guards[1]
+		w.global_position = _player.global_position + Vector2(60, 0)
+		w.facing = Vector2.LEFT
+		w.awareness = 1.0
+		w._make_contact(_player.global_position)
+		w._set_state(Enemy.State.ALERT)
+		await _frames(40)
+		await _shot("v14_alert_radar")
+	# 翻越：研究站裡的矮桌
+	WorldState.new_game()
+	await _enter("south_shore", "start")
+	await _frames(20)
+	lv = _main.level
+	for c in lv.prop_heights:
+		if not lv.is_vaultable(c):
+			continue
+		for d in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			if lv.is_open_floor(c - d) and lv.is_open_floor(c + d) and lv._is_indoor_cell(c):
+				_player.reset_to((Vector2(c - d) + Vector2(0.5, 0.5)) * Level.TILE)
+				_player.facing = Vector2(d)
+				await _frames(20)
+				await _shot("v14_vault_prompt")
+				_player.vault()
+				await _frames(12)
+				await _shot("v14_vault_mid")
+				await _frames(30)
+				return
 
 
 func _enter(area_id: String, entry: String, fade := false) -> void:

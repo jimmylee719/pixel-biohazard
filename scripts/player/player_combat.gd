@@ -639,6 +639,7 @@ func start_choke(enemy: Enemy) -> bool:
 
 func _process_choke(delta: float) -> void:
 	grabbed.global_position = player.global_position + player.facing * 9.0
+	grabbed.facing = player.facing  # 背對主角
 	player.velocity = Vector2.ZERO
 	if Engine.get_physics_frames() != _grab_frame and Input.is_action_just_pressed("interact"):
 		var e := grabbed
@@ -695,6 +696,7 @@ func _process_grab(delta: float) -> void:
 		_process_choke(delta)
 		return
 	grabbed.global_position = player.global_position + player.facing * 10.0
+	grabbed.facing = player.facing
 	if Engine.get_physics_frames() == _grab_frame:
 		return  # 抓住的這一幀按下的互動鍵不算「放開」
 	_grab_timer -= delta

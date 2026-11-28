@@ -161,7 +161,13 @@ func _draw_map(r: Rect2) -> void:
 				var dist := _ray(lv, e.global_position, dir, reach)
 				var q: Vector2 = p + dir * dist / Level.TILE * CELL
 				pts.append(Vector2(clampf(q.x, r.position.x, r.end.x), clampf(q.y, r.position.y, r.end.y)))
-			draw_colored_polygon(pts, CONE_HUNT if hunting else CONE)
+			# 去掉重疊的點（被牆截斷或貼到雷達邊時會重疊），退化的扇形不畫
+			var clean := PackedVector2Array()
+			for q in pts:
+				if clean.is_empty() or clean[clean.size() - 1].distance_to(q) > 0.3:
+					clean.append(q)
+			if clean.size() >= 3 and not Geometry2D.triangulate_polygon(clean).is_empty():
+				draw_colored_polygon(clean, CONE_HUNT if hunting else CONE)
 		elif not asleep and e.proximity_sense > 0.0:
 			# 沒有視覺：聽覺範圍的圈
 			draw_arc(p, maxf(e.proximity_sense, 2.0 * Level.TILE) / Level.TILE * CELL, 0.0, TAU, 16,

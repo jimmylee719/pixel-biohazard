@@ -61,6 +61,9 @@ func _draw() -> void:
 			if debug_enabled:
 				draw_arc(enemy.global_position, enemy.wake_radius, 0.0, TAU, 24, Color(0.6, 0.9, 1.0, 0.35), 1.0)
 			continue
+		if enemy.visible_to_player and (enemy.is_asleep() or (enemy._ko and enemy.knocked_down)):
+			_draw_out_cold(enemy)
+			continue
 		if enemy.winding_up and (enemy.visible_to_player or debug_enabled):
 			_draw_windup(enemy)
 		if debug_enabled:
@@ -109,6 +112,11 @@ func _draw_combat() -> void:
 	var swing := combat.last_melee
 	if not swing.is_empty():
 		_draw_melee(swing)
+	# 裸絞進度：被勒的人身上一圈慢慢填滿
+	if combat.choking and combat.grabbed:
+		var k := 1.0 - combat.choke_left / PlayerCombat.CHOKE_TIME
+		var c := combat.grabbed.global_position + Vector2(0, -4)
+		draw_arc(c, 9.0, -PI * 0.5, -PI * 0.5 + TAU * k, 24, Color(0.85, 0.95, 1.0, 0.85), 1.5)
 	# 裝填進度
 	if combat.reloading:
 		var p := _player.global_position + Vector2(-6, 9)
@@ -367,6 +375,22 @@ func _draw_patrol(enemy: Enemy) -> void:
 		draw_dashed_line(pts[i], pts[i + 1], Color(1, 1, 1, 0.15), 1.0, 3.0)
 	for p in pts:
 		draw_rect(Rect2(p - Vector2(1, 1), Vector2(2, 2)), Color(1, 1, 1, 0.3))
+
+
+## 昏迷（睡著）= 飄起來的 z；被撂倒 = 頭上繞圈的星星（和屍體分得出來）
+func _draw_out_cold(enemy: Enemy) -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	var base := enemy.global_position + Vector2(4, -6)
+	if enemy.is_asleep():
+		for i in 2:
+			var k := fmod(t * 0.5 + i * 0.5, 1.0)
+			var p := base + Vector2(k * 5.0, -k * 9.0)
+			draw_string(ThemeDB.fallback_font, p, "z", HORIZONTAL_ALIGNMENT_LEFT, -1, 8 + i * 2, Color(0.75, 0.9, 1.0, 1.0 - k))
+	else:
+		for i in 3:
+			var a := t * 4.0 + i * TAU / 3.0
+			var p := enemy.global_position + Vector2(cos(a) * 6.0, -8.0 + sin(a) * 2.0)
+			draw_rect(Rect2(p - Vector2(1, 1), Vector2(2, 2)), Color(1.0, 0.9, 0.4, 0.9))
 
 
 func _draw_state_icon(enemy: Enemy) -> void:

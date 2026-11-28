@@ -953,6 +953,10 @@ func _melee_anim(move: String) -> String:
 func _update_sprite() -> void:
 	if _sprite == null:
 		return
+	# 抓住／裸絞：兩手環住對方的脖子
+	if combat.grabbed != null and _sprite.has_anim("choke"):
+		_sprite.show_pose("choke", facing, true, 1.8 if combat.choking else 1.0)
+		return
 	# 近戰動作（刀、拳、踢）優先，再來是舉槍瞄準
 	var swing: Dictionary = combat.last_melee
 	if not swing.is_empty() and swing.move in MELEE_POSE_TIME and swing.t < MELEE_POSE_TIME[swing.move]:

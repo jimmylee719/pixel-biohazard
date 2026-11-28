@@ -36,6 +36,8 @@ const ANIMS := {
 	# 拳擊（v0.14）：jab（6 格）→ cross（7）→ hook（8），_l／_r 左右兩套
 	"jab_l": [28.0, false], "jab_r": [28.0, false], "cross_l": [25.0, false], "cross_r": [25.0, false],
 	"hook_l": [25.0, false], "hook_r": [25.0, false],
+	# 裸絞、擒拿：一緊一鬆的循環（4 格）
+	"choke": [6.0, true],
 	"attack": [12.0, false], "hurt": [14.0, false], "dodge": [21.0, false], "dodge_back": [21.0, false],
 }
 ## 每個近戰動作整段播完要幾秒（格數 ÷ 速度）。Player.MELEE_POSE_TIME 用這個表就不會對不上
