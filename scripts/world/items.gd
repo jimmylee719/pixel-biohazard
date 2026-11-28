@@ -13,6 +13,8 @@ const DATA := {
 		"desc": "Clacks off the ice. Quieter than glass - good for a nudge."},
 	"molotov": {"name": "Firebomb", "stack": 2, "kind": "throwable",
 		"desc": "Bottle, ethanol, a strip of your sleeve. Your lighter does the rest. Burns anything standing in it."},
+	"song_radio": {"name": "Tuned radio", "stack": 2, "kind": "throwable",
+		"desc": "A pocket receiver jammed on 126.05. Throw it and it plays the song for a few seconds. The infected walk over to listen. Anything asleep nearby wakes up."},
 	"heat_pack": {"name": "Heat pack", "stack": 3, "kind": "warm", "warm": 60,
 		"desc": "Crack it and stuff it in your jacket. Buys you time in the cold."},
 	"ethanol": {"name": "Lab ethanol", "stack": 3, "kind": "craft", "recipe": {"needs": "bottle", "makes": "molotov"},
@@ -112,9 +114,10 @@ const THROWABLES := {
 	"stone": {"noise_tiles": 4.0, "fire": false, "color": Color(0.55, 0.55, 0.6)},
 	"bottle": {"noise_tiles": 6.0, "fire": false, "color": Color(0.6, 0.9, 0.7)},
 	"molotov": {"noise_tiles": 5.0, "fire": true, "color": Color(1.0, 0.55, 0.2)},
+	"song_radio": {"noise_tiles": 2.0, "fire": false, "color": Color(0.45, 0.5, 0.5), "lure": true},
 }
 ## 物品欄裡投擲物的優先順序（準備的那種用完時，換下一種）
-const THROW_ORDER := ["stone", "bottle", "molotov"]
+const THROW_ORDER := ["stone", "bottle", "molotov", "song_radio"]
 
 
 static func get_item(item_id: String) -> Dictionary:

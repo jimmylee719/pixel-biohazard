@@ -2392,6 +2392,9 @@ func _update_field_radio(delta: float) -> void:
 		queue_radio("fcall:event:alert", FieldRadio.steps(FieldRadio.EVENT.alert))
 	if level.tracks and level.tracks.followed:
 		queue_radio("fcall:event:tracks", FieldRadio.steps(FieldRadio.EVENT.tracks))
+	for ev in ["resonance", "lure"]:
+		if WorldState.has_flag("seen:" + ev):
+			queue_radio("fcall:event:" + ev, FieldRadio.steps(FieldRadio.EVENT[ev]))
 	_check_bodies()
 
 

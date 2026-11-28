@@ -1300,6 +1300,11 @@ def gen_stash():
     _save("props", "darts", 12, 10, render([box(0, 3, 0, 4, 2.6, 1.6, "enamel")] +
                                            [Cap((-2.4 + i * 1.6, 3, 1.6), (-2.4 + i * 1.6, 3, 4.2), 0.35, "steel") for i in range(4)] +
                                            [box(-2.4 + i * 1.6, 3, 4.4, 0.5, 0.5, 0.6, "orange") for i in range(4)], 12, 10, anchor=(6, 8)))
+    # v0.15：頻率誘餌（調到 126.05 的收音機）
+    _save("props", "song_radio", 16, 14, render([box(0, 3, 0, 5.2, 2.6, 4.6, "gunmetal"), box(-2.2, 1.6, 0.8, 2.2, 0.3, 3.0, "black"),
+                                                 box(2.4, 1.6, 2.6, 1.4, 0.3, 1.2, "screen"), box(2.4, 1.6, 0.8, 0.8, 0.4, 0.8, "brass"),
+                                                 Cap((3.6, 3.4, 4.6), (5.6, 3.4, 10.5), 0.3, "steel"),
+                                                 box(0, 3, 4.6, 4.4, 1.0, 0.5, "steel_dk")], 16, 14, anchor=(8, 12)))
     print("stash: ok")
 
 

@@ -98,6 +98,7 @@ func _run() -> void:
 	await _test_stealth_v12()
 	await _test_stealth_by_input()
 	await _test_v14()
+	await _test_v15()
 	await _test_survival()
 
 	print("")
@@ -3418,6 +3419,81 @@ func _test_v14() -> void:
 	await _frames(3)
 	_check(faces != null and not faces.cut.is_empty(), "walls: the south wall of the room you're in is cut low (%d cells)" % (faces.cut.size() if faces else 0))
 	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
+
+
+## v0.15：頻率誘餌、結晶共鳴
+func _test_v15() -> void:
+	print("[v0.15 / song lure, crystal resonance]")
+	Areas.use_layout(LegacyAreas.DATA, LegacyAreas.ROOMS)
+	WorldState.cutscenes = false
+	await _enter("station_1f", "cargo", false)
+	var monsters: Array = _main.enemies.filter(func(e): return is_instance_valid(e) and not e.is_human() and not e.is_dead and not e.is_dormant)
+	var humans_far := true
+	_check(monsters.size() >= 2, "v15: two awake infected on 1F (%d)" % monsters.size())
+	if monsters.size() < 2:
+		return
+	var a: Enemy = monsters[0]
+	var b: Enemy = monsters[1]
+	for e in _main.enemies:
+		if e != a and e != b:
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	_place_player(_tile(2, 2), false)
+	# 頻率誘餌：丟在怪物附近，怪物過去聽，不會警戒
+	a.state = Enemy.State.UNAWARE
+	a.awareness = 0.0
+	var spot: Vector2 = a.global_position + Vector2(20, 0)
+	var lure := SongLure.new()
+	_main.level.add_child(lure)
+	lure.global_position = spot
+	await _frames(4)
+	_check(a.state == Enemy.State.SUSPICIOUS and a._investigate_target.distance_to(spot) < 2.0, "lure: an infected goes to listen to the song")
+	_check(a.state != Enemy.State.ALERT and a.awareness < 1.0, "lure: the song doesn't put it on alert")
+	lure.queue_free()
+	_check(Items.THROWABLES.has("song_radio") and Items.THROW_ORDER.has("song_radio") and Art.tex("props/song_radio") != null, "lure: item, throwable and icon")
+	_check(Codex.ENTRIES.has("song_radio") and Extras.DATA.values().any(func(d): return d.values().any(func(x): return x.get("item", "") == "song_radio")), "lure: codex entry and placed on maps")
+	# 丟出去：落地後變成誘餌
+	WorldState.inv_add("song_radio", 1)
+	_player.facing = Vector2.RIGHT
+	_check(_player.throw_item("song_radio"), "lure: throw the radio")
+	await _seconds(0.6)
+	_check(not get_tree().get_nodes_in_group("song_lures").is_empty(), "lure: the thrown radio starts playing")
+	for l in get_tree().get_nodes_in_group("song_lures"):
+		l.queue_free()
+	# 睡著的東西被歌吵醒
+	b.is_dormant = true
+	b.global_position = a.global_position + Vector2(0, 30)
+	var lure2 := SongLure.new()
+	_main.level.add_child(lure2)
+	lure2.global_position = b.global_position + Vector2(10, 0)
+	await _frames(4)
+	_check(not b.is_dormant, "lure: a dormant sleeper next to the song wakes up")
+	lure2.queue_free()
+	# 結晶共鳴：怪物死掉，附近的同類過來看（不警戒）；人類聽不到
+	await _seconds(0.2)
+	b.reset()
+	b.is_dormant = false
+	b.state = Enemy.State.UNAWARE
+	b.awareness = 0.0
+	b.global_position = a.global_position + Vector2(48, 0)
+	await _frames(2)
+	WorldState.data.flags.erase("seen:resonance")
+	var at := a.global_position
+	_player.reset_to(a.global_position + Vector2(-60, 0))
+	a.take_damage(a.max_health * 3.0, a.global_position, 0.0)
+	_check(a.is_dead, "resonance: the infected dies")
+	_check(b.state == Enemy.State.SUSPICIOUS and b._investigate_target.distance_to(at) < 2.0 and b.awareness < 1.0,
+		"resonance: its neighbour comes to the body (without going on alert)")
+	await _frames(3)
+	_check(not get_tree().get_nodes_in_group("enemies").is_empty() and WorldState.has_flag("seen:resonance"), "resonance: Kovac explains it on the radio")
+	var fx_found := false
+	for n in _main.level.get_children():
+		if n is ResonanceRing:
+			fx_found = true
+	_check(fx_found, "resonance: a crystal ring effect plays")
+	_check(humans_far, "resonance: humans ignore it (rule in Enemy._on_noise)")
+	for e in _main.enemies:
+		if is_instance_valid(e):
+			e.process_mode = Node.PROCESS_MODE_INHERIT
 
 
 ## v0.13：用真的按鍵操作一次：舉槍逼降 → 麻醉 → 拖走 → 塞進櫃子

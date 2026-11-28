@@ -25,6 +25,10 @@ func _run() -> void:
 
 	_overlay.debug_enabled = false
 	# 第二個參數 v14 = 裸絞、昏迷、撂倒、翻越、警戒中的雷達（說明手冊用）
+	if OS.get_cmdline_user_args().has("v15"):
+		await _v15_shots()
+		get_tree().quit()
+		return
 	if OS.get_cmdline_user_args().has("v14"):
 		await _v14_shots()
 		get_tree().quit()
@@ -612,6 +616,46 @@ func _title_shots(title: Control) -> void:
 
 ## 座標都是目前區域自己的座標（合併進大地圖的區域要加位移，見 Areas.area_offset）
 var _off := Vector2i.ZERO
+
+
+func _v15_shots() -> void:
+	WorldState.start_loadout = true
+	WorldState.new_game()
+	await _enter("south_shore", "start")
+	await _frames(20)
+	var mons: Array = _main.enemies.filter(func(e): return is_instance_valid(e) and not e.is_human() and not e.is_dormant and not e.is_dead)
+	if mons.is_empty():
+		return
+	var m: Enemy = mons[0]
+	var lv: Level = _main.level
+	var lure_at := m.global_position + Vector2(40, 0)
+	var best := Vector2.ZERO
+	var bd := INF
+	for c in lv._floor_cells:
+		var p := (Vector2(c) + Vector2(0.5, 0.5)) * Level.TILE
+		var d := absf(p.distance_to(m.global_position) - 64.0)
+		if lv.char_at(c) == "." and d < bd:
+			bd = d
+			best = p
+	_player.reset_to(best)
+	_player.facing = (m.global_position - best).normalized()
+	lure_at = m.global_position + (m.global_position - best).normalized() * 36.0
+	if lv.char_at(lv.cell_of(lure_at)) != ".":
+		lure_at = m.global_position
+	_main._camera.snap_to_target()
+	for e in _main.enemies:
+		if e != m:
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	var lure := SongLure.new()
+	lv.add_child(lure)
+	lure.global_position = lure_at
+	await _frames(70)
+	m.reveal_for_cutscene()
+	await _shot("v15_lure")
+	lure.queue_free()
+	m.take_damage(m.max_health * 3.0, m.global_position, 0.0)
+	await _frames(14)
+	await _shot("v15_resonance")
 
 
 func _v14_shots() -> void:

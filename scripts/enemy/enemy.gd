@@ -529,6 +529,9 @@ func _check_flashlight_hit() -> void:
 func _on_noise(pos: Vector2, radius: float, source: Node) -> void:
 	if _player == null or source == self or is_dead:
 		return
+	# 結晶共鳴（v0.15）：只有同樣被霜鳴菌感染的東西聽得到
+	if source is Enemy and source.is_dead and is_human():
+		return
 	var effective := radius * hearing_mult
 	if not Sight.is_clear(self, global_position, pos):
 		effective *= 0.5  # 隔著牆聽得比較不清楚
@@ -537,7 +540,8 @@ func _on_noise(pos: Vector2, radius: float, source: Node) -> void:
 	if is_dormant:
 		wake(pos)
 		return
-	var is_call := source is Enemy  # 同類的尖鳴：只會過去看看，不會直接警戒
+	# 同類的尖鳴、結晶共鳴、頻率誘餌的歌：只會過去看看，不會直接警戒（人類聽到收音機照一般聲音）
+	var is_call := source is Enemy or (source is SongLure and not is_human())
 	match state:
 		State.UNAWARE, State.SEARCH:
 			awareness = maxf(awareness, suspicious_threshold + 0.05)
@@ -974,6 +978,23 @@ func can_be_taken_down_by(player: Player) -> bool:
 	return absf(facing.angle_to(to_player)) >= deg_to_rad(takedown_back_angle_deg)
 
 
+## 結晶共鳴的範圍（格）。感染者死掉＝骨頭的結晶碎裂、發出共鳴，附近的同類會過來看，睡著的凍眠體會醒
+const RESONANCE_TILES := 7.0
+
+
+func _resonate() -> void:
+	if _level == null:
+		return
+	var fx := ResonanceRing.new()
+	fx.radius = RESONANCE_TILES * TILE
+	_level.add_child(fx)
+	fx.global_position = global_position
+	Sfx.play("well_crystal_crack", global_position, 0.15, -6.0)
+	NoiseBus.emit_noise(global_position, RESONANCE_TILES * TILE, self)
+	if _player and global_position.distance_to(_player.global_position) < 12.0 * TILE:
+		WorldState.set_flag("seen:resonance")
+
+
 func _die() -> void:
 	WorldState.codex_kill(get_species())
 	Sfx.play("enemy_death", global_position, 0.1)
@@ -982,6 +1003,8 @@ func _die() -> void:
 	_apply_dead_state()
 	if is_human() and _level:
 		_level.add_body_handle(self)
+	elif faction != "human" and not is_boss():
+		_resonate()
 	# 身上插著十字弓的箭：倒下後可以拔回來
 	if int(get_meta("bolts", 0)) > 0 and _player and is_instance_valid(_player):
 		_player.combat.drop_bolts(self)

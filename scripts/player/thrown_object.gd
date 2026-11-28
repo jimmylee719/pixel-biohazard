@@ -56,6 +56,11 @@ func _land() -> void:
 		"molotov":
 			Sfx.play("bottle_break", _to)
 			Sfx.play("molotov_ignite", _to)
+		"song_radio":
+			Sfx.play("stone_land", _to)
+			var lure := SongLure.new()
+			get_parent().add_child(lure)
+			lure.global_position = _to
 		_:
 			Sfx.play("bottle_break", _to)
 	if makes_fire:
@@ -71,7 +76,7 @@ func _draw() -> void:
 		var lift := sin(PI * minf(_t / FLIGHT_TIME, 1.0)) * ARC_HEIGHT
 		var size := 4.0 if kind == "extinguisher" else 3.0
 		draw_rect(Rect2(Vector2(-size * 0.5, -size * 0.5 - lift), Vector2(size, size)), color)
-	elif kind != "stone":
+	elif kind != "stone" and kind != "song_radio":
 		var spread := 2.0 + _t * 10.0
 		for i in 5:
 			var dir := Vector2.RIGHT.rotated(TAU * i / 5.0 + 0.4)

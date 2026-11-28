@@ -51,6 +51,9 @@ const EVENT := {
 	"blizzard": [[K, "Blizzard. Nobody out there can see or hear much - including you. Move now if you need to, but you'll freeze twice as fast."]],
 	"clear": [[K, "The sky's cleared. Aurora. Pretty - and every sentry can see three times as far. Stay off the open snow."]],
 	"tracks": [[K, "Someone's following your footprints. Lead them into a loop - or wait for the snow to cover them."]],
+	"resonance": [[K, "Did you hear that ring when it went down? The crystal in their bones shatters and sings. Every one of them nearby heard it too - and anything asleep is awake now."],
+		[K, "Kill them only when you have to. Knock them down and walk away, or go around."]],
+	"lure": [[K, "You threw the song at them. They'll stand there and listen like it's a sermon. Don't throw it near the sleepers unless you want them up."]],
 }
 
 

@@ -64,7 +64,7 @@ const STASH := {"med": "medbox", "antibiotic": "cooler", "ammo": "ammo_box", "sh
 	"flare_gun": "weapon_case", "nailgun": "toolbox", "fire_axe": "axe_case", "ethanol": "chem_crate", "heat_pack": "backpack",
 	"suppressor": "weapon_case", "bottle": "bottle_crate", "stone": "duffel",
 	"revolver": "weapon_case", "smg": "weapon_case", "crossbow": "weapon_case", "magnum_rounds": "ammo_box", "bolts": "duffel",
-	"crowbar": "toolbox", "carbine": "weapon_case", "harpoon": "weapon_case", "dart_pistol": "weapon_case", "darts": "medbox"}
+	"crowbar": "toolbox", "carbine": "weapon_case", "harpoon": "weapon_case", "dart_pistol": "weapon_case", "darts": "medbox", "song_radio": "toolbox"}
 ## 生活區（辦公室、宿舍、實驗室……）的子彈、雜物收在抽屜裡，不是軍用彈藥箱
 const CIVIL_SETS := ["office", "dorm", "lab", "lounge", "mess", "medical", "cabin", "saloon", "theater", "hut"]
 

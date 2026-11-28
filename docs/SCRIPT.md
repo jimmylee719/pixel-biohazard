@@ -773,6 +773,11 @@
 - From the station's kennel. One dart and a grown man sleeps for most of a minute.
   來自研究站的狗舍。一發，一個大男人就會睡上將近一分鐘。
 
+**Tuned radio／調頻收音機**
+
+- A pocket receiver someone soldered onto 126.05 MHz. It plays the song the colony has been singing under the ice since before there were people.
+  有人把一台口袋收音機焊死在 126.05 MHz。它放的是菌落在冰層下唱的那首歌——從世上還沒有人類的時候就開始唱了。
+
 **LANTERN carbine／燈籠站卡賓槍**
 
 - Sealed in the recording room since 1962. Factory suppressor, rifle rounds. Somebody expected to need it quietly.

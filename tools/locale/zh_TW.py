@@ -906,4 +906,12 @@ T = [
 ("Knock down", "撂倒"),
 ("Silent kill", "背後刺殺"),
 ("[%s] Vault over", "[%s] 翻過去"),
+# ── v0.15：頻率誘餌、結晶共鳴 ──
+("Tuned radio", "調頻收音機"),
+("A pocket receiver jammed on 126.05. Throw it and it plays the song for a few seconds. The infected walk over to listen. Anything asleep nearby wakes up.", "一台卡在 126.05 的口袋收音機。丟出去，它會放幾秒那首歌。感染者會走過去聽。附近睡著的東西會醒來。"),
+("A pocket receiver someone soldered onto 126.05 MHz. It plays the song the colony has been singing under the ice since before there were people.", "有人把一台口袋收音機焊死在 126.05 MHz。它放的是菌落在冰層下唱的那首歌——從世上還沒有人類的時候就開始唱了。"),
+("Throw it away from you: the infected go and listen. Never near sleepers - the song is what wakes them.", "往遠離你的方向丟：感染者會過去聽。絕對不要丟在凍眠體旁邊——叫醒它們的就是這首歌。"),
+("Did you hear that ring when it went down? The crystal in their bones shatters and sings. Every one of them nearby heard it too - and anything asleep is awake now.", "牠倒下的時候，妳有聽到那一聲鳴響嗎？牠們骨頭裡的結晶碎掉時會唱。附近每一隻都聽到了——睡著的也全醒了。"),
+("Kill them only when you have to. Knock them down and walk away, or go around.", "非殺不可才殺。把牠們撂倒就走，或者繞過去。"),
+("You threw the song at them. They'll stand there and listen like it's a sermon. Don't throw it near the sleepers unless you want them up.", "妳把那首歌丟給牠們了。牠們會站在那裡聽，像在聽佈道。除非妳想叫醒凍眠體，不然別丟在它們旁邊。"),
 ]

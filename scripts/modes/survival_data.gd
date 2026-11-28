@@ -55,7 +55,7 @@ const RANKS := [["S", 30000], ["A", 15000], ["B", 6000], ["C", 0]]
 ## 波間空投：[物品, 數量, 最早波數]
 const SUPPLIES := [
 	["ammo", 8, 1], ["med", 1, 1], ["stone", 2, 1], ["shells", 3, 2], ["heat_pack", 1, 2],
-	["molotov", 1, 3], ["nails", 12, 3], ["flares", 1, 4], ["rifle_rounds", 3, 5], ["antibiotic", 1, 4],
+	["molotov", 1, 3], ["song_radio", 1, 3], ["nails", 12, 3], ["flares", 1, 4], ["rifle_rounds", 3, 5], ["antibiotic", 1, 4],
 ]
 
 ## 起始武器（生存模式用）：需要的解鎖、附帶的彈藥

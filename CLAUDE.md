@@ -276,3 +276,12 @@
 - 動畫補完：主角 `choke`（裸絞／擒拿時循環 4 格，產生器 `player_model`）；被抓住的敵人掙扎（受傷格循環＋抖動，`Enemy._update_sprite`）；
   昏迷（麻醉、裸絞）和被撂倒的敵人躺在地上，頭上分別飄 z／繞星星（`DebugOverlay._draw_out_cold`），裸絞時被勒的人身上有進度圈。
   截圖：`capture.tscn -- <資料夾> v14`（裸絞、昏迷、警戒雷達、翻越）。
+
+## v0.15：頻率誘餌、結晶共鳴（原創玩法，綁世界觀）
+- **頻率誘餌** `song_radio`（投擲物，`Items.THROWABLES` 的 `lure`）：落地變成 `scripts/fx/song_lure.gd`（`SongLure`，group `song_lures`），
+  14 秒內每 1.6 秒放一段「歌」＝聲音事件（9 格）。怪物過去聽、不會警戒（`Enemy._on_noise` 的 `is_call`）；凍眠體被吵醒；人類當成一般收音機雜音去查看。
+  放在 Extras：B1、北港、氣象小屋、冰洞；生存模式空投。圖示 `props/song_radio`（gen_scene_art stash）。
+- **結晶共鳴**：感染者（非人類、非 Boss）死掉 = `Enemy._resonate()`：特效 `scripts/fx/resonance_ring.gd`＋聲音事件 7 格（`RESONANCE_TILES`）。
+  只有感染者聽得到（人類忽略），同類過來看（不警戒），睡著的凍眠體會醒。所以殺怪有代價：撂倒、繞路是真正的選項。
+- 柯瓦奇的提示來電 `FieldRadio.EVENT` 的 resonance／lure（旗標 `seen:resonance`、`seen:lure`）。截圖：`capture.tscn -- <資料夾> v15`。
+- 拳擊左右手：不會連續三套都同一邊（`_same_side`）。

@@ -53,6 +53,7 @@ const FIST_COMBO_R := [
 const FIST_MOVES := ["jab_l", "cross_r", "hook_l", "jab_r", "cross_l", "hook_r"]
 ## 這一套拳是不是右手開頭
 var _fist_right := false
+var _same_side := 0
 
 ## 背後偷襲（v0.14，按攻擊鍵）：人類 = 裸絞 CHOKE_TIME 秒 → 昏迷 KO_TIME 秒（之後在原地醒來）；
 ## 怪物 = 空手打倒在地 MONSTER_DOWN 秒（趁機躲起來或跑掉），拿著刀／重兵器 = 刺殺
@@ -516,7 +517,12 @@ func melee() -> bool:
 		return back_attack(sneak_target)
 	var chain := _since_melee <= combo_window and combo_step < melee_moves().size() - 1
 	if not chain:
-		_fist_right = randf() < 0.5
+		# 隨機左右手開始，但不會連續三套都同一邊
+		var pick := randf() < 0.5
+		if _same_side >= 2 and pick == _fist_right:
+			pick = not pick
+		_same_side = _same_side + 1 if pick == _fist_right else 1
+		_fist_right = pick
 	var moves := melee_moves()
 	combo_step = combo_step + 1 if chain else 0
 	combo_step = mini(combo_step, moves.size() - 1)

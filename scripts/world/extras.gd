@@ -22,6 +22,7 @@ const DATA := {
 			"text": "WHALER'S SKETCH: \"Old harbour, west shed, behind the lockers. Grandfather's harpoon gun still hangs there. Oiled it myself in the spring. - Ivo\""},
 	},
 	"north_harbor": {
+		"14,4": {"kind": "item", "item": "song_radio", "count": 1},
 		"10,12": {"kind": "item", "item": "harpoon", "count": 1, "hidden": "reveal:harpoon", "name": "cache_harpoon"},
 	},
 	"gate_one_base": {
@@ -30,7 +31,14 @@ const DATA := {
 		"44,1": {"kind": "mod", "id": "red_dot"},
 	},
 	"station_b1": {
+		"28,3": {"kind": "item", "item": "song_radio", "count": 2},
 		"25,13": {"kind": "item", "item": "carbine", "count": 1, "hidden": "reveal:carbine", "name": "cache_carbine"},
+	},
+	"weather_huts": {
+		"9,4": {"kind": "item", "item": "song_radio", "count": 1},
+	},
+	"ice_caves": {
+		"34,4": {"kind": "item", "item": "song_radio", "count": 1},
 	},
 	"cruise_hold": {
 		"42,10": {"kind": "mod", "id": "foregrip"},
